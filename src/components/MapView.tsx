@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ImageOverlay,
   MapContainer,
@@ -14,6 +14,39 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import { CHECKLIST_INITIAL, type ChecklistData } from "@/lib/checklist/types";
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class MapErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-4 bg-white p-6 text-center">
+          <div className="text-4xl">🗺️</div>
+          <p className="text-sm font-semibold text-zinc-700">O mapa encontrou um erro.</p>
+          <button
+            type="button"
+            className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white"
+            onClick={() => this.setState({ hasError: false })}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 type Mode = "edicao" | "inspecao";
 
@@ -116,7 +149,13 @@ function extinguisherIcon(color: "green" | "red" | "amber") {
   });
 }
 
-function FitBounds({ bounds }: { bounds: LatLngBoundsExpression }) {
+function FitBounds({
+  bounds,
+  maxZoomExtra = 4,
+}: {
+  bounds: LatLngBoundsExpression;
+  maxZoomExtra?: number;
+}) {
   const map = useMap();
   useEffect(() => {
     const leafletBounds = L.latLngBounds(bounds as LatLngBoundsLiteral);
@@ -128,9 +167,9 @@ function FitBounds({ bounds }: { bounds: LatLngBoundsExpression }) {
 
     const fittedZoom = map.getZoom();
     map.setMinZoom(fittedZoom - 1);
-    map.setMaxZoom(fittedZoom + 4);
+    map.setMaxZoom(fittedZoom + maxZoomExtra);
     map.setView(leafletBounds.getCenter(), fittedZoom, { animate: false });
-  }, [bounds, map]);
+  }, [bounds, map, maxZoomExtra]);
   return null;
 }
 
@@ -489,15 +528,17 @@ export default function MapView() {
 
   const mapContent = (
     <MapContainer
+      key={pavimento.key}
       crs={L.CRS.Simple}
-      preferCanvas
-      zoomSnap={0.25}
-      zoomDelta={0.5}
+      preferCanvas={!isMobile}
+      zoomSnap={isMobile ? 0.5 : 0.25}
+      zoomDelta={isMobile ? 0.5 : 0.5}
+      zoomAnimation={!isMobile}
       maxBoundsViscosity={1}
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
     >
-      <FitBounds bounds={mapBounds} />
+      <FitBounds bounds={mapBounds} maxZoomExtra={isMobile ? 2 : 4} />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler
         enabled={canEdit && mode === "edicao" && Boolean(selectedExtintorId)}
@@ -548,7 +589,7 @@ export default function MapView() {
 
   if (isMobile) {
     return (
-      <main className="flex h-full min-h-0 w-full flex-col bg-[#F5F5F5]">
+      <main className="flex w-full flex-col bg-[#F5F5F5]" style={{ height: "100%", minHeight: 0 }}>
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white p-2">
           <select
             aria-label="Selecionar pavimento"
@@ -607,7 +648,12 @@ export default function MapView() {
           </div>
         )}
 
-        <section className="relative flex-1 min-h-0 overflow-hidden bg-white">{mapContent}</section>
+        <section
+          className="relative overflow-hidden bg-white"
+          style={{ flex: "1 1 0", minHeight: 0 }}
+        >
+          <MapErrorBoundary>{mapContent}</MapErrorBoundary>
+        </section>
 
         {savingPosition && (
           <p className="border-t border-zinc-200 bg-white px-3 py-2 text-xs text-amber-700">

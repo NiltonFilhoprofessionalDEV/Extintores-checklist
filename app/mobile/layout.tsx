@@ -76,14 +76,19 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
   return (
     <AuthGuard allowedRoles={["user", "admin"]}>
-      <div className="flex min-h-screen flex-col bg-[#F5F5F5]">
+      {/* h-dvh handles iOS Safari's dynamic address bar correctly */}
+      <div
+        className="flex flex-col bg-[#F5F5F5]"
+        style={{ height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
+      >
         <MobileNav />
         <main
           className={
             isMapaRoute
-              ? "w-full flex-1 min-h-0 pb-24"
-              : "mx-auto w-full max-w-2xl flex-1 px-3 py-4 pb-24"
+              ? "w-full min-h-0 overflow-hidden"
+              : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-24"
           }
+          style={isMapaRoute ? { flex: "1 1 0", minHeight: 0 } : { flex: "1 1 auto" }}
         >
           {children}
         </main>
