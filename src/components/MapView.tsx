@@ -138,14 +138,20 @@ function getMaintenanceStatus(extintor: Extintor) {
   return "Em dia";
 }
 
-function extinguisherIcon(color: "green" | "red" | "amber") {
+function extinguisherIcon(color: "green" | "red" | "amber", codigo = "") {
   const background =
     color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#d97706";
+  // Label mostra apenas o número extraído do código (ex: "EXT-042" → "42", "E042" → "42")
+  const numMatch = codigo.match(/\d+/);
+  const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo;
   return L.divIcon({
     className: "",
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${background};color:#fff;font-size:14px;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.15);">🧯</div>`,
+    iconSize: [30, 44],
+    iconAnchor: [15, 13],
+    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${background};color:#fff;font-size:14px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.25);">🧯</div>
+      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${label}</span>
+    </div>`,
   });
 }
 
@@ -570,6 +576,7 @@ export default function MapView() {
               : !conferidosNoMesIds.has(item.id)
                 ? "amber"
                 : "green",
+            item.codigo,
           )}
           eventHandlers={{
             click: () => {
