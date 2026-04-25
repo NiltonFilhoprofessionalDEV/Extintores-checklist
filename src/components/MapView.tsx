@@ -250,6 +250,8 @@ export default function MapView() {
     return canvas.toDataURL("image/webp").startsWith("data:image/webp");
   });
   const [conferenteNome, setConferenteNome] = useState("");
+  // Painel de informação (long press no mobile)
+  const [infoMarker, setInfoMarker] = useState<Extintor | null>(null);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const currentMonthRange = useMemo(() => {
@@ -578,6 +580,10 @@ export default function MapView() {
             click: () => {
               if (mode === "inspecao") openChecklistModal(item);
             },
+            // contextmenu = long press no mobile (iOS/Android)
+            contextmenu: () => {
+              if (isMobile) setInfoMarker(item);
+            },
           }}
         >
           {/* No mobile em modo inspeção, o click já abre o modal diretamente.
@@ -700,6 +706,105 @@ export default function MapView() {
         )}
         {message && (
           <p className="border-t border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700">{message}</p>
+        )}
+
+        {/* Bottom sheet de informação — aparece ao segurar o dedo (long press) no marcador */}
+        {infoMarker && !selectedMarker && (
+          <div
+            className="fixed inset-0 z-[999] flex items-end"
+            style={{ background: "rgba(0,0,0,0.4)" }}
+            onClick={() => setInfoMarker(null)}
+          >
+            <div
+              className="w-full rounded-t-2xl bg-white shadow-2xl"
+              style={{ maxHeight: "60dvh", overflowY: "auto" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Alça visual */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="h-1 w-10 rounded-full bg-zinc-300" />
+              </div>
+
+              {/* Cabeçalho */}
+              <div className="flex items-start justify-between px-5 pt-2 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-3 w-3 rounded-full"
+                      style={{
+                        background: conferidosNoMesIds.has(infoMarker.id) ? "#16a34a" : "#d97706",
+                      }}
+                    />
+                    <h3 className="text-lg font-bold text-zinc-900">{infoMarker.codigo}</h3>
+                  </div>
+                  <p className="mt-0.5 text-sm text-zinc-500">{infoMarker.setor}</p>
+                  <p className="text-sm text-zinc-500">{infoMarker.local_detalhado}</p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400"
+                  onClick={() => setInfoMarker(null)}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Status */}
+              <div className="mx-5 mb-4 flex flex-col gap-2 rounded-xl bg-zinc-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Conferência</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      conferidosNoMesIds.has(infoMarker.id)
+                        ? "bg-green-100 text-green-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {conferidosNoMesIds.has(infoMarker.id) ? "✓ Conferido no mês" : "⚠ Não conferido"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Tipo / Tamanho</span>
+                  <span className="text-xs font-medium text-zinc-700">
+                    {[infoMarker.tipo, infoMarker.tamanho].filter(Boolean).join(" · ") || "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Manutenção</span>
+                  <span
+                    className={`text-xs font-semibold ${
+                      getMaintenanceStatus(infoMarker) === "Vencido"
+                        ? "text-red-600"
+                        : getMaintenanceStatus(infoMarker) === "Próximo de vencer (30 dias)"
+                          ? "text-amber-600"
+                          : "text-green-600"
+                    }`}
+                  >
+                    {getMaintenanceStatus(infoMarker)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ação */}
+              {mode === "inspecao" && (
+                <div className="px-5 pb-6">
+                  <button
+                    type="button"
+                    className="w-full rounded-xl py-3 text-sm font-bold text-white"
+                    style={{ background: "linear-gradient(90deg,#E02020,#B51313)" }}
+                    onClick={() => {
+                      setInfoMarker(null);
+                      openChecklistModal(infoMarker);
+                    }}
+                  >
+                    🧯 Realizar Conferência
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Modal de checklist — incluso no branch mobile também */}
