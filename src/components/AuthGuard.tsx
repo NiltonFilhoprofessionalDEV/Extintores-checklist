@@ -48,8 +48,17 @@ export default function AuthGuard({
     void checkAccess();
 
     const supabase = getSupabaseClient();
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace("/login");
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Redireciona APENAS em logout explícito — não durante refresh de token
+      // (TOKEN_REFRESHED e INITIAL_SESSION podem ter session=null brevemente)
+      if (event === "SIGNED_OUT") {
+        router.replace("/login");
+      }
+      // Quando o token é renovado e o usuário estava em uma rota protegida,
+      // não é necessário redirecionar — a sessão continua válida
+      if (event === "SIGNED_IN" && session) {
+        void checkAccess();
+      }
     });
 
     return () => {
