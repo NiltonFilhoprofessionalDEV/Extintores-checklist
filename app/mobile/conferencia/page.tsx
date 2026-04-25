@@ -24,6 +24,9 @@ const SETOR_ORDEM = [
   "Pavimento Técnico",
 ] as const;
 
+const EXTINTORES_CACHE_KEY = "extintores_cache_v1";
+const PENDING_CHECKLISTS_KEY = "pending_checklists_v1";
+
 function isVencido(dateStr: string | null): boolean {
   if (!dateStr) return false;
   return new Date(dateStr) < new Date();
@@ -93,7 +96,19 @@ export default function MobileConferenciaPage() {
           .lt("data_conferencia", currentMonthRange.end),
       ]);
 
-      if (!error) setExtintores((data ?? []) as ExtintorMobile[]);
+      if (!error) {
+        const loaded = (data ?? []) as ExtintorMobile[];
+        setExtintores(loaded);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(EXTINTORES_CACHE_KEY, JSON.stringify(loaded));
+        }
+      } else if (typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(EXTINTORES_CACHE_KEY);
+        if (cached) {
+          setExtintores(JSON.parse(cached) as ExtintorMobile[]);
+          setMessage("Sem internet: exibindo dados salvos localmente.");
+        }
+      }
 
       if (!monthly.error) {
         const set = new Set<string>();
@@ -105,6 +120,59 @@ export default function MobileConferenciaPage() {
     };
     void load();
   }, [supabase, currentMonthRange.start, currentMonthRange.end]);
+
+  async function flushPendingChecklists() {
+    if (typeof window === "undefined") return;
+    if (!navigator.onLine) return;
+
+    const raw = window.localStorage.getItem(PENDING_CHECKLISTS_KEY);
+    if (!raw) return;
+
+    const queue = JSON.parse(raw) as Array<Record<string, unknown>>;
+    if (queue.length === 0) return;
+
+    const stillPending: Array<Record<string, unknown>> = [];
+    const syncedExtintorIds = new Set<string>();
+    let syncedCount = 0;
+
+    for (const payload of queue) {
+      const { error } = await supabase
+        .from("checklists")
+        .insert(payload as unknown as Record<string, unknown>);
+      if (error) {
+        stillPending.push(payload);
+      } else {
+        syncedCount += 1;
+        const id = payload.extintor_id as string | undefined;
+        if (id) syncedExtintorIds.add(id);
+      }
+    }
+
+    window.localStorage.setItem(PENDING_CHECKLISTS_KEY, JSON.stringify(stillPending));
+
+    if (syncedExtintorIds.size > 0) {
+      setConferidosNoMesIds((prev) => new Set([...prev, ...Array.from(syncedExtintorIds)]));
+    }
+
+    if (syncedCount > 0) {
+      setMessage(
+        `${syncedCount} conferência${syncedCount > 1 ? "s" : ""} sincronizada${
+          syncedCount > 1 ? "s" : ""
+        } com sucesso.`,
+      );
+      setTimeout(() => setMessage(""), 3500);
+    }
+  }
+
+  useEffect(() => {
+    void flushPendingChecklists();
+    const handleOnline = () => {
+      void flushPendingChecklists();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -208,10 +276,18 @@ export default function MobileConferenciaPage() {
       observacoes: checklist.observacoes.trim() || null,
     } as unknown as Record<string, unknown>;
 
-    const { error } = await supabase.from("checklists").insert(payloadNovo);
-    let finalError = error;
+    let finalError: { message?: string } | null = null;
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      const { error } = await supabase.from("checklists").insert(payloadNovo);
+      finalError = error;
+    } else {
+      finalError = { message: "offline" };
+    }
 
-    if (error?.message?.includes("schema cache") || error?.message?.includes("column")) {
+    if (
+      finalError?.message?.includes("schema cache") ||
+      finalError?.message?.includes("column")
+    ) {
       const observacoesLegado = [
         checklist.observacoes.trim(),
         `Local correto conforme mapa: ${checklist.local_correto ?? ""}`,
@@ -241,6 +317,21 @@ export default function MobileConferenciaPage() {
 
     setSaving(false);
     if (finalError) {
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (offline && typeof window !== "undefined") {
+        const raw = window.localStorage.getItem(PENDING_CHECKLISTS_KEY);
+        const queue = raw ? (JSON.parse(raw) as Array<Record<string, unknown>>) : [];
+        queue.push(payloadNovo);
+        window.localStorage.setItem(PENDING_CHECKLISTS_KEY, JSON.stringify(queue));
+
+        setConferidosNoMesIds((prev) => new Set([...prev, selected.id]));
+        setMessage("Sem internet: conferência salva localmente e será sincronizada ao reconectar.");
+        setSelected(null);
+        setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome });
+        setTimeout(() => setMessage(""), 4500);
+        return;
+      }
+
       setMessage(`Erro ao salvar: ${finalError.message}`);
       return;
     }

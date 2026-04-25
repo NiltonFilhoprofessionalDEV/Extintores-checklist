@@ -326,6 +326,10 @@ export default function MapView() {
   }, [mapImagePath, pavimento.imageBase]);
 
   useEffect(() => {
+    // Em dispositivos móveis evitamos preloading agressivo para reduzir consumo de memória
+    // e evitar fechamento da aba/navegador ao abrir o mapa.
+    if (isMobile) return;
+
     const currentIndex = orderedMapImagePaths.findIndex((item) => item.key === pavimento.key);
     if (currentIndex === -1) return;
 
@@ -362,7 +366,7 @@ export default function MapView() {
 
     const timeoutId = globalThis.setTimeout(preloadAll, 300);
     return () => globalThis.clearTimeout(timeoutId);
-  }, [orderedMapImagePaths, pavimento.key]);
+  }, [isMobile, orderedMapImagePaths, pavimento.key]);
 
   const extintoresSemPosicao = useMemo(
     () =>
