@@ -571,11 +571,7 @@ export default function MapView() {
           key={item.id}
           position={[item.coord_y as number, item.coord_x as number]}
           icon={extinguisherIcon(
-            isMaintenanceAtRisk(item)
-              ? "red"
-              : !conferidosNoMesIds.has(item.id)
-                ? "amber"
-                : "green",
+            conferidosNoMesIds.has(item.id) ? "green" : "amber",
             item.codigo,
           )}
           eventHandlers={{
