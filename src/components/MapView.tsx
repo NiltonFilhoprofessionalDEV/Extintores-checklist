@@ -478,6 +478,27 @@ export default function MapView() {
     setChecklistForm({ ...INITIAL_CHECKLIST, conferente: conferenteNome });
   }
 
+  async function removeMarker(extintor: Extintor) {
+    setInfoMarker(null);
+    setSavingPosition(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("extintores")
+      .update({ coord_x: null, coord_y: null, pavimento: null })
+      .eq("id", extintor.id);
+
+    if (error) {
+      setMessage(`Erro ao remover posição: ${error.message}`);
+      setSavingPosition(false);
+      return;
+    }
+
+    setMessage(`Marcador de ${extintor.codigo} removido.`);
+    await loadExtintores();
+    setSavingPosition(false);
+  }
+
   async function saveChecklist(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedMarker) return;
@@ -580,7 +601,7 @@ export default function MapView() {
             click: () => {
               if (mode === "inspecao") openChecklistModal(item);
             },
-            // contextmenu = long press no mobile (iOS/Android)
+            // contextmenu = long press no mobile (iOS/Android) em qualquer modo
             contextmenu: () => {
               if (isMobile) setInfoMarker(item);
             },
@@ -787,9 +808,9 @@ export default function MapView() {
                 </div>
               </div>
 
-              {/* Ação */}
-              {mode === "inspecao" && (
-                <div className="px-5 pb-6">
+              {/* Ações */}
+              <div className="flex flex-col gap-2 px-5 pb-6">
+                {mode === "inspecao" && (
                   <button
                     type="button"
                     className="w-full rounded-xl py-3 text-sm font-bold text-white"
@@ -801,8 +822,22 @@ export default function MapView() {
                   >
                     🧯 Realizar Conferência
                   </button>
-                </div>
-              )}
+                )}
+
+                {canEdit && mode === "edicao" && (
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-red-200 bg-red-50 py-3 text-sm font-bold text-red-600"
+                    onClick={() => {
+                      if (window.confirm(`Remover marcador de ${infoMarker.codigo} do mapa?`)) {
+                        void removeMarker(infoMarker);
+                      }
+                    }}
+                  >
+                    🗑 Remover do Mapa
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
