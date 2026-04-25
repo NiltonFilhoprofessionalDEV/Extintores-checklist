@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --brand-red: #E02020;
+  --brand-red-dark: #B51313;
+  --brand-bg: #F5F5F5;
+  --background: #F5F5F5;
+  --foreground: #1a1a1a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-montserrat);
+}
+
+body {
+  background: var(--brand-bg);
+  color: var(--foreground);
+  font-family: var(--font-montserrat), Montserrat, sans-serif;
+}
+
+.map-plant-overlay {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  transform-origin: top left;
+  will-change: transform;
+}
