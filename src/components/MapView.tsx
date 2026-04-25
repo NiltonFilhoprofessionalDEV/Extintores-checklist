@@ -163,26 +163,37 @@ function FitBounds({
     const leafletBounds = L.latLngBounds(bounds as LatLngBoundsLiteral);
 
     const applyFit = () => {
-      // Recalcula tamanho real do container (necessário quando CSS ainda estava aplicando)
       map.invalidateSize({ animate: false });
-      map.setMaxBounds(leafletBounds.pad(0.05));
+      // Aguarda o container ter dimensões reais antes de calcular
+      const size = map.getSize();
+      if (size.x === 0 || size.y === 0) return;
+
+      map.setMaxBounds(leafletBounds.pad(0.1));
       map.fitBounds(leafletBounds, {
-        // padding extra na parte de baixo para a barra de navegação fixa não cobrir o mapa
         paddingTopLeft: [20, 20],
-        paddingBottomRight: [20, 20 + (bottomOffset ?? 0)],
+        paddingBottomRight: [20, 20 + bottomOffset],
         animate: false,
       });
 
       const fittedZoom = map.getZoom();
-      map.setMinZoom(fittedZoom - 0.5);
+      // Permite zoom-out para ver a planta inteira + zoom-in para detalhes
+      map.setMinZoom(fittedZoom - 2);
       map.setMaxZoom(fittedZoom + maxZoomExtra);
-      // fitBounds já posicionou corretamente, não precisamos de setView adicional
     };
 
-    // Primeira passagem imediata + re-fit após layout estabilizar (CSS + flexbox)
+    // ResizeObserver: re-fit sempre que o container muda de tamanho (CSS, rotação, etc.)
+    const container = map.getContainer();
+    const ro = new ResizeObserver(applyFit);
+    ro.observe(container);
+
+    // Passagem imediata + fallback com delay para garantir execução
     applyFit();
-    const id = globalThis.setTimeout(applyFit, 150);
-    return () => globalThis.clearTimeout(id);
+    const id = globalThis.setTimeout(applyFit, 300);
+
+    return () => {
+      ro.disconnect();
+      globalThis.clearTimeout(id);
+    };
   }, [bounds, map, maxZoomExtra, bottomOffset]);
   return null;
 }
@@ -566,42 +577,46 @@ export default function MapView() {
             },
           }}
         >
-          <Popup>
-            <div className="text-sm" style={{ minWidth: 160 }}>
-              <p className="font-semibold">{item.codigo}</p>
-              <p className="text-zinc-500">{item.local_detalhado}</p>
-              <p
-                className={`mt-1 text-xs font-semibold ${
-                  conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-amber-700"
-                }`}
-              >
-                {conferidosNoMesIds.has(item.id)
-                  ? "✓ Conferido no mês"
-                  : "⚠ Não conferido no mês"}
-              </p>
-              <p
-                className={`text-xs font-semibold ${
-                  getMaintenanceStatus(item) === "Vencido"
-                    ? "text-red-700"
-                    : getMaintenanceStatus(item) === "Próximo de vencer (30 dias)"
-                      ? "text-amber-700"
-                      : "text-zinc-500"
-                }`}
-              >
-                Manutenção: {getMaintenanceStatus(item)}
-              </p>
-              {mode === "inspecao" && (
-                <button
-                  type="button"
-                  className="mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-white"
-                  style={{ background: "#E02020" }}
-                  onClick={() => openChecklistModal(item)}
+          {/* No mobile em modo inspeção, o click já abre o modal diretamente.
+              No desktop ou modo edição, mostra popup com informações. */}
+          {!(isMobile && mode === "inspecao") && (
+            <Popup>
+              <div className="text-sm" style={{ minWidth: 160 }}>
+                <p className="font-semibold">{item.codigo}</p>
+                <p className="text-zinc-500">{item.local_detalhado}</p>
+                <p
+                  className={`mt-1 text-xs font-semibold ${
+                    conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-amber-700"
+                  }`}
                 >
-                  Realizar Conferência
-                </button>
-              )}
-            </div>
-          </Popup>
+                  {conferidosNoMesIds.has(item.id)
+                    ? "✓ Conferido no mês"
+                    : "⚠ Não conferido no mês"}
+                </p>
+                <p
+                  className={`text-xs font-semibold ${
+                    getMaintenanceStatus(item) === "Vencido"
+                      ? "text-red-700"
+                      : getMaintenanceStatus(item) === "Próximo de vencer (30 dias)"
+                        ? "text-amber-700"
+                        : "text-zinc-500"
+                  }`}
+                >
+                  Manutenção: {getMaintenanceStatus(item)}
+                </p>
+                {mode === "inspecao" && (
+                  <button
+                    type="button"
+                    className="mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-white"
+                    style={{ background: "#E02020" }}
+                    onClick={() => openChecklistModal(item)}
+                  >
+                    Realizar Conferência
+                  </button>
+                )}
+              </div>
+            </Popup>
+          )}
         </Marker>
       ))}
     </MapContainer>
@@ -682,6 +697,51 @@ export default function MapView() {
         )}
         {message && (
           <p className="border-t border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700">{message}</p>
+        )}
+
+        {/* Modal de checklist — incluso no branch mobile também */}
+        {selectedMarker && (
+          <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
+            <div className="w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl" style={{ maxHeight: "90dvh" }}>
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                    Inspeção do Extintor
+                  </p>
+                  <h3 className="text-xl font-bold text-zinc-900">{selectedMarker.codigo}</h3>
+                  <p className="text-sm text-zinc-600">
+                    {selectedMarker.setor} - {selectedMarker.local_detalhado}
+                  </p>
+                  <p
+                    className={`mt-1 text-xs font-semibold ${
+                      getMaintenanceStatus(selectedMarker) === "Vencido"
+                        ? "text-red-700"
+                        : getMaintenanceStatus(selectedMarker) === "Próximo de vencer (30 dias)"
+                          ? "text-amber-700"
+                          : "text-zinc-600"
+                    }`}
+                  >
+                    Manutenção: {getMaintenanceStatus(selectedMarker)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
+                  onClick={() => setSelectedMarker(null)}
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <ChecklistForm
+                data={checklistForm}
+                onChange={setChecklistForm}
+                onSubmit={saveChecklist}
+                onCancel={() => setSelectedMarker(null)}
+                isSaving={savingChecklist}
+              />
+            </div>
+          </div>
         )}
       </main>
     );
