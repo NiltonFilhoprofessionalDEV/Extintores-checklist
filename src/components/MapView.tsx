@@ -553,7 +553,13 @@ export default function MapView() {
         <Marker
           key={item.id}
           position={[item.coord_y as number, item.coord_x as number]}
-          icon={extinguisherIcon(!conferidosNoMesIds.has(item.id) ? "amber" : "green")}
+          icon={extinguisherIcon(
+            isMaintenanceAtRisk(item)
+              ? "red"
+              : !conferidosNoMesIds.has(item.id)
+                ? "amber"
+                : "green",
+          )}
           eventHandlers={{
             click: () => {
               if (mode === "inspecao") openChecklistModal(item);
@@ -561,29 +567,39 @@ export default function MapView() {
           }}
         >
           <Popup>
-            <div className="text-sm">
+            <div className="text-sm" style={{ minWidth: 160 }}>
               <p className="font-semibold">{item.codigo}</p>
-              <p>{item.local_detalhado}</p>
+              <p className="text-zinc-500">{item.local_detalhado}</p>
               <p
                 className={`mt-1 text-xs font-semibold ${
                   conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-amber-700"
                 }`}
               >
                 {conferidosNoMesIds.has(item.id)
-                  ? "Conferido no mês"
-                  : "Não conferido no mês"}
+                  ? "✓ Conferido no mês"
+                  : "⚠ Não conferido no mês"}
               </p>
               <p
-                className={`mt-1 text-xs font-semibold ${
+                className={`text-xs font-semibold ${
                   getMaintenanceStatus(item) === "Vencido"
                     ? "text-red-700"
                     : getMaintenanceStatus(item) === "Próximo de vencer (30 dias)"
                       ? "text-amber-700"
-                      : "text-zinc-600"
+                      : "text-zinc-500"
                 }`}
               >
                 Manutenção: {getMaintenanceStatus(item)}
               </p>
+              {mode === "inspecao" && (
+                <button
+                  type="button"
+                  className="mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-white"
+                  style={{ background: "#E02020" }}
+                  onClick={() => openChecklistModal(item)}
+                >
+                  Realizar Conferência
+                </button>
+              )}
             </div>
           </Popup>
         </Marker>
