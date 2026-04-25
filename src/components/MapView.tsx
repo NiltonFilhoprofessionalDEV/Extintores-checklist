@@ -190,12 +190,18 @@ function MapClickHandler({
   return null;
 }
 
+// Todas as plantas têm a mesma resolução original. Fixar os bounds garante que
+// as coordenadas salvas (baseadas nas imagens full-res) permaneçam válidas mesmo
+// quando exibimos a versão mobile (menor resolução) no ImageOverlay.
+const FULL_IMAGE_WIDTH = 14042;
+const FULL_IMAGE_HEIGHT = 9934;
+
 export default function MapView() {
   const [mode, setMode] = useState<Mode>("edicao");
   const [pavimento, setPavimento] = useState<PavimentoOption>(PAVIMENTOS[0]);
   const [extintores, setExtintores] = useState<Extintor[]>([]);
   const [selectedExtintorId, setSelectedExtintorId] = useState<string>("");
-  const [mapImageSize, setMapImageSize] = useState({ width: 1000, height: 700 });
+  const [mapImageSize] = useState({ width: FULL_IMAGE_WIDTH, height: FULL_IMAGE_HEIGHT });
   const [loading, setLoading] = useState(true);
   const [savingPosition, setSavingPosition] = useState(false);
   const [message, setMessage] = useState("");
@@ -231,20 +237,18 @@ export default function MapView() {
   );
 
   const mapImagePath = useMemo(() => {
-    const webpSuffix = isMobile ? ".mobile.webp" : ".webp";
-    const jpgSuffix = isMobile ? ".mobile.jpg" : ".jpg";
-    return `${pavimento.imageBase}${supportsWebp ? webpSuffix : jpgSuffix}`;
-  }, [isMobile, pavimento.imageBase, supportsWebp]);
+    // Sempre usa a versão full-res para exibição — os bounds são baseados nas
+    // dimensões originais (14042×9934) e a versão mobile causaria borrado no zoom.
+    return `${pavimento.imageBase}${supportsWebp ? ".webp" : ".jpg"}`;
+  }, [pavimento.imageBase, supportsWebp]);
 
   const orderedMapImagePaths = useMemo(() => {
-    const webpSuffix = isMobile ? ".mobile.webp" : ".webp";
-    const jpgSuffix = isMobile ? ".mobile.jpg" : ".jpg";
     return PAVIMENTOS.map((item) => ({
       key: item.key,
-      primaryPath: `${item.imageBase}${supportsWebp ? webpSuffix : jpgSuffix}`,
+      primaryPath: `${item.imageBase}${supportsWebp ? ".webp" : ".jpg"}`,
       fallbackPath: `${item.imageBase}.jpg`,
     }));
-  }, [isMobile, supportsWebp]);
+  }, [supportsWebp]);
 
   const loadExtintores = useCallback(async () => {
     setLoading(true);
@@ -349,20 +353,6 @@ export default function MapView() {
       mediaQuery.removeEventListener("change", handleMediaChange);
     };
   }, []);
-
-  useEffect(() => {
-    const image = new Image();
-    image.src = mapImagePath;
-    image.onload = () => {
-      setMapImageSize({
-        width: image.naturalWidth || 1000,
-        height: image.naturalHeight || 700,
-      });
-    };
-    image.onerror = () => {
-      image.src = `${pavimento.imageBase}.jpg`;
-    };
-  }, [mapImagePath, pavimento.imageBase]);
 
   useEffect(() => {
     // Em dispositivos móveis evitamos preloading agressivo para reduzir consumo de memória
