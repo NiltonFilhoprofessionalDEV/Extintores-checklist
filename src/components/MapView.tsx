@@ -644,6 +644,19 @@ export default function MapView() {
                     Realizar Conferência
                   </button>
                 )}
+                {canEdit && mode === "edicao" && (
+                  <button
+                    type="button"
+                    className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 py-1.5 text-xs font-semibold text-red-600"
+                    onClick={() => {
+                      if (window.confirm(`Remover marcador de ${item.codigo} do mapa?`)) {
+                        void removeMarker(item);
+                      }
+                    }}
+                  >
+                    🗑 Remover do Mapa
+                  </button>
+                )}
               </div>
             </Popup>
           )}
