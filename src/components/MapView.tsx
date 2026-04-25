@@ -152,24 +152,38 @@ function extinguisherIcon(color: "green" | "red" | "amber") {
 function FitBounds({
   bounds,
   maxZoomExtra = 4,
+  bottomOffset = 0,
 }: {
   bounds: LatLngBoundsExpression;
   maxZoomExtra?: number;
+  bottomOffset?: number;
 }) {
   const map = useMap();
   useEffect(() => {
     const leafletBounds = L.latLngBounds(bounds as LatLngBoundsLiteral);
-    map.setMaxBounds(leafletBounds.pad(0.05));
-    map.fitBounds(leafletBounds, {
-      padding: [24, 24],
-      animate: false,
-    });
 
-    const fittedZoom = map.getZoom();
-    map.setMinZoom(fittedZoom - 1);
-    map.setMaxZoom(fittedZoom + maxZoomExtra);
-    map.setView(leafletBounds.getCenter(), fittedZoom, { animate: false });
-  }, [bounds, map, maxZoomExtra]);
+    const applyFit = () => {
+      // Recalcula tamanho real do container (necessário quando CSS ainda estava aplicando)
+      map.invalidateSize({ animate: false });
+      map.setMaxBounds(leafletBounds.pad(0.05));
+      map.fitBounds(leafletBounds, {
+        // padding extra na parte de baixo para a barra de navegação fixa não cobrir o mapa
+        paddingTopLeft: [20, 20],
+        paddingBottomRight: [20, 20 + (bottomOffset ?? 0)],
+        animate: false,
+      });
+
+      const fittedZoom = map.getZoom();
+      map.setMinZoom(fittedZoom - 0.5);
+      map.setMaxZoom(fittedZoom + maxZoomExtra);
+      // fitBounds já posicionou corretamente, não precisamos de setView adicional
+    };
+
+    // Primeira passagem imediata + re-fit após layout estabilizar (CSS + flexbox)
+    applyFit();
+    const id = globalThis.setTimeout(applyFit, 150);
+    return () => globalThis.clearTimeout(id);
+  }, [bounds, map, maxZoomExtra, bottomOffset]);
   return null;
 }
 
@@ -528,7 +542,7 @@ export default function MapView() {
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
     >
-      <FitBounds bounds={mapBounds} maxZoomExtra={isMobile ? 2 : 4} />
+      <FitBounds bounds={mapBounds} maxZoomExtra={isMobile ? 3 : 4} bottomOffset={isMobile ? 64 : 0} />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler
         enabled={canEdit && mode === "edicao" && Boolean(selectedExtintorId)}
