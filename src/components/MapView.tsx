@@ -18,11 +18,6 @@ if (typeof window !== "undefined") {
   require("leaflet-rotate/dist/leaflet-rotate.js");
 }
 
-type MapWithRotate = L.Map & {
-  getBearing(): number;
-  setBearing(deg: number): void;
-  touchRotate?: { enable(): void; disable(): void; enabled(): boolean };
-};
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { fetchMarcadoresEmergenciaForMap } from "@/lib/supabase/marcadores-emergencia-fetch";
 import {
@@ -394,65 +389,6 @@ function MapClickHandler({
   });
 
   return null;
-}
-
-/** Botões de rotação + dica do gesto de 2 dedos (leaflet-rotate, só mobile com `rotate: true`). */
-function MobileMapRotateToolbar() {
-  const map = useMap() as MapWithRotate;
-  const [bearing, setBearing] = useState(0);
-
-  useEffect(() => {
-    const sync = () => setBearing(Math.round(map.getBearing?.() ?? 0));
-    sync();
-    map.on("rotate", sync);
-    map.on("zoomend", sync);
-    return () => {
-      map.off("rotate", sync);
-      map.off("zoomend", sync);
-    };
-  }, [map]);
-
-  const step = 15;
-  const btnClass =
-    "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-sm font-bold text-white shadow-sm active:bg-white/20";
-
-  return (
-    <div className="pointer-events-auto absolute right-2 top-1/2 z-[1400] flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-2xl border border-white/20 bg-slate-900/92 p-1.5 shadow-xl backdrop-blur-sm">
-      <span className="w-full select-none px-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-slate-300">
-        Girar
-      </span>
-      <span className="mb-0.5 text-[10px] font-semibold tabular-nums text-white">{bearing}°</span>
-      <button
-        type="button"
-        className={btnClass}
-        title="Girar anti-horário"
-        aria-label="Girar mapa anti-horário"
-        onClick={() => map.setBearing?.((map.getBearing?.() ?? 0) - step)}
-      >
-        ↶
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        title="Girar horário"
-        aria-label="Girar mapa horário"
-        onClick={() => map.setBearing?.((map.getBearing?.() ?? 0) + step)}
-      >
-        ↷
-      </button>
-      <button
-        type="button"
-        className="flex h-8 w-full items-center justify-center rounded-lg bg-red-600/90 px-1 text-[10px] font-bold text-white"
-        title="Rotação zero"
-        onClick={() => map.setBearing?.(0)}
-      >
-        0°
-      </button>
-      <p className="max-w-[4.5rem] px-0.5 pt-0.5 text-center text-[8px] leading-tight text-slate-400">
-        2 dedos: girar e afastar
-      </p>
-    </div>
-  );
 }
 
 // Todas as plantas têm a mesma resolução original. Fixar os bounds garante que
@@ -1212,7 +1148,6 @@ export default function MapView() {
       />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
-      {isMobile ? <MobileMapRotateToolbar /> : null}
 
       {showLayers.extintor &&
         markersDoPavimento.map((item) => (
