@@ -10,6 +10,19 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import L, { type LatLngBoundsExpression, type LatLngBoundsLiteral } from "leaflet";
+
+/** Plugin de rotação (bearing + pinch com 2 dedos). Precisa de `L` global no bundle. */
+if (typeof window !== "undefined") {
+  (window as unknown as { L: typeof L }).L = L;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- bundle UMD espera global L
+  require("leaflet-rotate/dist/leaflet-rotate.js");
+}
+
+type MapWithRotate = L.Map & {
+  getBearing(): number;
+  setBearing(deg: number): void;
+  touchRotate?: { enable(): void; disable(): void; enabled(): boolean };
+};
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { fetchMarcadoresEmergenciaForMap } from "@/lib/supabase/marcadores-emergencia-fetch";
 import {
@@ -288,23 +301,21 @@ function emergencyIcon(kind: "luz_emergencia" | "placa_saida_emergencia", qty: n
 
 function FitBounds({
   bounds,
-  maxZoomExtra = 4,
+  maxZoomExtra = 32,
   bottomOffset = 0,
   initialZoomOut = 0,
-  minZoomBelowFit = 3,
+  minZoomAbsolute = -18,
   boundsPad = 0.15,
 }: {
   bounds: LatLngBoundsExpression;
+  /** Níveis de zoom acima do "fit" para aproximar (pinch in). */
   maxZoomExtra?: number;
   bottomOffset?: number;
-  /** Níveis de zoom para recuar após o fitBounds inicial.
-   *  0 = comportamento padrão (cabe no container).
-   *  Valores maiores = começa mais afastado. */
+  /** Níveis para recuar após o fitBounds inicial (só efeito visual inicial). */
   initialZoomOut?: number;
-  /** Quantos níveis de zoom abaixo do "fit" o usuário pode ir (pinch out / scroll out).
-   *  Permite ver o mapa completo pequeno no meio da tela. */
-  minZoomBelowFit?: number;
-  /** Padding nas maxBounds (Leaflet pad) — maior = mais pan ao dar zoom out. */
+  /** Zoom mínimo absoluto (Leaflet); valores negativos = afastar muito o plano. */
+  minZoomAbsolute?: number;
+  /** Padding nas maxBounds — maior = mais pan com zoom bem afastado. */
   boundsPad?: number;
 }) {
   const map = useMap();
@@ -330,12 +341,11 @@ function FitBounds({
       const fittedZoom = map.getZoom();
 
       const targetZoom = fittedZoom - initialZoomOut;
-      const minZ = fittedZoom - minZoomBelowFit;
-      map.setMinZoom(minZ);
+      map.setMinZoom(minZoomAbsolute);
       map.setMaxZoom(fittedZoom + maxZoomExtra);
 
       if (initialZoomOut > 0) {
-        const z = Math.max(minZ, targetZoom);
+        const z = Math.max(minZoomAbsolute, targetZoom);
         map.setZoom(z, { animate: false });
       }
       return true;
@@ -365,7 +375,7 @@ function FitBounds({
       ro.disconnect();
       globalThis.clearTimeout(id);
     };
-  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomBelowFit, boundsPad]);
+  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomAbsolute, boundsPad]);
   return null;
 }
 
@@ -384,6 +394,65 @@ function MapClickHandler({
   });
 
   return null;
+}
+
+/** Botões de rotação + dica do gesto de 2 dedos (leaflet-rotate, só mobile com `rotate: true`). */
+function MobileMapRotateToolbar() {
+  const map = useMap() as MapWithRotate;
+  const [bearing, setBearing] = useState(0);
+
+  useEffect(() => {
+    const sync = () => setBearing(Math.round(map.getBearing?.() ?? 0));
+    sync();
+    map.on("rotate", sync);
+    map.on("zoomend", sync);
+    return () => {
+      map.off("rotate", sync);
+      map.off("zoomend", sync);
+    };
+  }, [map]);
+
+  const step = 15;
+  const btnClass =
+    "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-sm font-bold text-white shadow-sm active:bg-white/20";
+
+  return (
+    <div className="pointer-events-auto absolute right-2 top-1/2 z-[1400] flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-2xl border border-white/20 bg-slate-900/92 p-1.5 shadow-xl backdrop-blur-sm">
+      <span className="w-full select-none px-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-slate-300">
+        Girar
+      </span>
+      <span className="mb-0.5 text-[10px] font-semibold tabular-nums text-white">{bearing}°</span>
+      <button
+        type="button"
+        className={btnClass}
+        title="Girar anti-horário"
+        aria-label="Girar mapa anti-horário"
+        onClick={() => map.setBearing?.((map.getBearing?.() ?? 0) - step)}
+      >
+        ↶
+      </button>
+      <button
+        type="button"
+        className={btnClass}
+        title="Girar horário"
+        aria-label="Girar mapa horário"
+        onClick={() => map.setBearing?.((map.getBearing?.() ?? 0) + step)}
+      >
+        ↷
+      </button>
+      <button
+        type="button"
+        className="flex h-8 w-full items-center justify-center rounded-lg bg-red-600/90 px-1 text-[10px] font-bold text-white"
+        title="Rotação zero"
+        onClick={() => map.setBearing?.(0)}
+      >
+        0°
+      </button>
+      <p className="max-w-[4.5rem] px-0.5 pt-0.5 text-center text-[8px] leading-tight text-slate-400">
+        2 dedos: girar e afastar
+      </p>
+    </div>
+  );
 }
 
 // Todas as plantas têm a mesma resolução original. Fixar os bounds garante que
@@ -1116,6 +1185,10 @@ export default function MapView() {
     }
   }
 
+  const leafletRotateOpts = isMobile
+    ? { rotate: true, touchRotate: true, bearing: 0, rotateControl: false }
+    : { rotate: false, rotateControl: false };
+
   const mapContent = (
     <MapContainer
       key={pavimento.key}
@@ -1127,17 +1200,19 @@ export default function MapView() {
       maxBoundsViscosity={1}
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
+      {...(leafletRotateOpts as Record<string, unknown>)}
     >
       <FitBounds
         bounds={mapBounds}
-        maxZoomExtra={isMobile ? 4 : 4}
+        maxZoomExtra={isMobile ? 36 : 32}
         bottomOffset={0}
         initialZoomOut={isMobile ? 3 : 0}
-        minZoomBelowFit={isMobile ? 7 : 4}
-        boundsPad={isMobile ? 0.45 : 0.15}
+        minZoomAbsolute={isMobile ? -22 : -16}
+        boundsPad={isMobile ? 2.8 : 0.15}
       />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
+      {isMobile ? <MobileMapRotateToolbar /> : null}
 
       {showLayers.extintor &&
         markersDoPavimento.map((item) => (
