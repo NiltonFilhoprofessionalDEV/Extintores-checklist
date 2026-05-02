@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 
 const REQUIRED_HEADERS = [
   "Código",
-  "Setor",
+  "Pavimento",
   "Local Detalhado",
   "Número Inmetro",
   "Tipo",
@@ -33,7 +33,8 @@ export type ExtintorImportRecord = {
 
 const HEADER_ALIASES: Record<RequiredHeader, string[]> = {
   "Código": ["Código", "CODIGO"],
-  Setor: ["Setor"],
+  /** Cabeçalho oficial Pavimento; planilhas antigas com Setor continuam válidas (grava em `setor` no banco). */
+  Pavimento: ["Pavimento", "PAVIMENTO", "Setor", "SETOR"],
   "Local Detalhado": ["Local Detalhado"],
   "Número Inmetro": ["Número Inmetro", "Número do Inmetro", "NUMERO INMETRO", "NUMERO DO INMETRO"],
   Tipo: ["Tipo"],
@@ -85,7 +86,7 @@ function formatDate(value: unknown): string {
 function normalizeRecord(row: Record<RequiredHeader, unknown>): ExtintorImportRecord {
   return {
     codigo: String(row["Código"] ?? "").trim(),
-    setor: String(row["Setor"] ?? "").trim(),
+    setor: String(row["Pavimento"] ?? "").trim(),
     local_detalhado: String(row["Local Detalhado"] ?? "").trim(),
     num_inmetro: String(row["Número Inmetro"] ?? "").trim(),
     tipo: String(row["Tipo"] ?? "").trim(),

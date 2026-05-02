@@ -64,7 +64,10 @@ export default function AdminConferenciasPage() {
   }, [supabase]);
 
   useEffect(() => {
-    void loadConferencias();
+    const timer = window.setTimeout(() => {
+      void loadConferencias();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadConferencias]);
 
   const conferentes = useMemo(() => {
@@ -96,30 +99,30 @@ export default function AdminConferenciasPage() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900">Conferências realizadas</h2>
-          <p className="text-sm text-zinc-600">
+          <h2 className="text-2xl font-bold text-slate-900">Conferências realizadas</h2>
+          <p className="text-sm text-slate-600">
             Acompanhe quem realizou cada conferência e em qual extintor.
           </p>
         </div>
         <button
           type="button"
           onClick={() => void loadConferencias()}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Atualizar
         </button>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:grid-cols-2">
+      <div className="surface-card grid gap-3 p-4 sm:grid-cols-2">
         <input
           type="text"
           placeholder="Buscar por conferente, código ou setor..."
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400"
           value={busca}
           onChange={(event) => setBusca(event.target.value)}
         />
         <select
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
           value={filtroConferente}
           onChange={(event) => setFiltroConferente(event.target.value)}
         >
@@ -132,30 +135,30 @@ export default function AdminConferenciasPage() {
         </select>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="surface-card p-4">
         {loading ? (
-          <p className="text-sm text-zinc-500">Carregando conferências...</p>
+          <p className="text-sm text-slate-500">Carregando conferências...</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhuma conferência encontrada.</p>
+          <p className="text-sm text-slate-500">Nenhuma conferência encontrada.</p>
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (
               <article
                 key={item.id}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-zinc-900">
+                  <p className="text-sm font-semibold text-slate-900">
                     {item.extintor?.codigo || "Sem código"} - {item.extintor?.setor || "Sem setor"}
                   </p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-slate-500">
                     {item.data_conferencia
                       ? new Date(item.data_conferencia).toLocaleString("pt-BR")
                       : "-"}
                   </p>
                 </div>
 
-                <p className="mt-1 text-sm text-zinc-600">
+                <p className="mt-1 text-sm text-slate-600">
                   {item.extintor?.local_detalhado || "Local não informado"}
                 </p>
 
@@ -164,14 +167,14 @@ export default function AdminConferenciasPage() {
                     Conferente: {item.conferente || "Não informado"}
                   </span>
                   {(item.extintor?.tipo || item.extintor?.tamanho) && (
-                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
                       {[item.extintor?.tipo, item.extintor?.tamanho].filter(Boolean).join(" ")}
                     </span>
                   )}
                 </div>
 
                 {item.observacoes && (
-                  <p className="mt-2 text-xs text-zinc-600">
+                  <p className="mt-2 text-xs text-slate-600">
                     <span className="font-semibold">Observações:</span> {item.observacoes}
                   </p>
                 )}

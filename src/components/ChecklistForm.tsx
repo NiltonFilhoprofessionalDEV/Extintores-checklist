@@ -1,5 +1,5 @@
-import type { ChecklistData, ChecklistValue } from "@/lib/checklist/types";
-import { isChecklistValid } from "@/lib/checklist/types";
+import type { ChecklistData, ChecklistItemKey, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
+import { isChecklistValid, isDataVencida } from "@/lib/checklist/types";
 
 type OptionDef = { value: ChecklistValue; label: string; color: string; bg: string; ring: string };
 
@@ -13,7 +13,7 @@ const OPTIONS: OptionDef[] = [
   },
   {
     value: "nao_conforme",
-    label: "Não Conforme",
+    label: "Não conforme",
     color: "#b91c1c",
     bg: "#fee2e2",
     ring: "#dc2626",
@@ -27,32 +27,124 @@ const OPTIONS: OptionDef[] = [
   },
 ];
 
-type FieldKey = keyof Omit<ChecklistData, "conferente" | "observacoes">;
-
-const FIELDS: { key: FieldKey; label: string }[] = [
-  { key: "local_correto", label: "O local do extintor está correto conforme o mapa?" },
-  { key: "dados_corretos", label: "Os dados do extintor estão corretos?" },
-  { key: "sinalizacao_correta", label: "Sinalização está correta?" },
-  { key: "mangueira_status", label: "Mangueira está em boas condições?" },
-  { key: "bico_difusor_status", label: "O bico ou difusor estão em boas condições?" },
+const FIELDS: { key: ChecklistItemKey; label: string }[] = [
+  {
+    key: "local_correto",
+    label:
+      "A localização do extintor está conforme o layout/mapa de distribuição e atende aos requisitos normativos aplicáveis?",
+  },
+  {
+    key: "dados_corretos",
+    label:
+      "As informações de identificação, rótulo e instruções de uso do extintor estão corretas, legíveis e atualizadas?",
+  },
+  {
+    key: "sinalizacao_correta",
+    label:
+      "A sinalização de identificação do extintor está visível, adequada e em conformidade com as normas vigentes?",
+  },
+  {
+    key: "mangueira_status",
+    label:
+      "A mangueira apresenta integridade física, sem rachaduras, ressecamento ou obstruções, e está em condições adequadas de uso?",
+  },
+  {
+    key: "bico_difusor_status",
+    label:
+      "O bico ou difusor encontra-se em perfeito estado de conservação, sem obstruções ou danos que comprometam o funcionamento?",
+  },
   {
     key: "alca_gatilho_status",
-    label: "A alça de transporte, gatilho, lacre e pino estão em boas condições?",
+    label:
+      "A alça de transporte, gatilho, lacre e pino de segurança estão íntegros, inviolados e em condições adequadas de operação?",
   },
-  { key: "medidor_pressao_status", label: "O medidor de pressão está correto?" },
-  { key: "cilindro_status", label: "O cilindro está em boas condições?" },
+  {
+    key: "medidor_pressao_status",
+    label:
+      "O manômetro apresenta leitura dentro da faixa operacional recomendada, sem sinais de falha ou avaria?",
+  },
+  {
+    key: "cilindro_status",
+    label:
+      "O cilindro apresenta boas condições estruturais, sem corrosão, amassados, vazamentos ou outros danos aparentes?",
+  },
 ];
+
+function formatarDataPt(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
+  const v2 = isDataVencida(info.manutencao_2_nivel);
+  const v3 = isDataVencida(info.manutencao_3_nivel);
+
+  return (
+    <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <div className="border-b border-slate-200 bg-white px-4 py-3">
+        <p className="text-lg font-bold text-slate-900">{info.codigo}</p>
+        <p className="text-xs font-medium text-slate-500">Extintor</p>
+      </div>
+      <dl className="grid gap-2 px-4 py-3 text-xs">
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Pavimento</dt>
+          <dd className="text-right font-medium text-slate-800">{info.pavimento?.trim() || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Local detalhado</dt>
+          <dd className="text-right font-medium text-slate-800">{info.local_detalhado || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Nº INMETRO</dt>
+          <dd className="text-right font-medium text-slate-800">{info.num_inmetro || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Tipo</dt>
+          <dd className="text-right font-medium text-slate-800">{info.tipo || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Tamanho</dt>
+          <dd className="text-right font-medium text-slate-800">{info.tamanho || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Capacidade extintora</dt>
+          <dd className="text-right font-medium text-slate-800">{info.capacidade_extintora || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Próximo teste nível 2</dt>
+          <dd className={`text-right font-semibold ${v2 ? "text-red-600" : "text-slate-800"}`}>
+            {formatarDataPt(info.manutencao_2_nivel)}
+            {v2 ? " (vencido)" : ""}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Próximo teste nível 3</dt>
+          <dd className={`text-right font-semibold ${v3 ? "text-red-600" : "text-slate-800"}`}>
+            {formatarDataPt(info.manutencao_3_nivel)}
+            {v3 ? " (vencido)" : ""}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 function ToggleField({
   label,
   value,
   onChange,
   index,
+  detalheNc,
+  onDetalheNcChange,
 }: {
   label: string;
   value: ChecklistValue | null;
   onChange: (v: ChecklistValue) => void;
   index: number;
+  detalheNc: string;
+  onDetalheNcChange: (text: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3.5">
@@ -83,6 +175,21 @@ function ToggleField({
           );
         })}
       </div>
+      {value === "nao_conforme" && (
+        <div className="mt-3">
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-red-700">
+            Descreva a não conformidade *
+          </label>
+          <textarea
+            required
+            rows={3}
+            placeholder="Obrigatório: descreva o problema encontrado..."
+            className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+            value={detalheNc}
+            onChange={(e) => onDetalheNcChange(e.target.value)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -93,7 +200,8 @@ type Props = {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   isSaving: boolean;
-  /** Optional extintor info shown at top */
+  cabecalho?: InspecaoExtintorCabecalho;
+  /** @deprecated use cabecalho */
   extintor?: {
     codigo: string;
     local_detalhado: string;
@@ -109,34 +217,49 @@ export default function ChecklistForm({
   onSubmit,
   onCancel,
   isSaving,
+  cabecalho,
   extintor,
 }: Props) {
   const valid = isChecklistValid(data);
 
-  function setField(key: FieldKey, value: ChecklistValue) {
-    onChange({ ...data, [key]: value });
+  function setField(key: ChecklistItemKey, value: ChecklistValue) {
+    const next = { ...data, [key]: value };
+    if (value !== "nao_conforme") {
+      const nextNc = { ...next.detalhesNaoConformidade };
+      delete nextNc[key];
+      next.detalhesNaoConformidade = nextNc;
+    }
+    onChange(next);
   }
+
+  function setDetalheNc(key: ChecklistItemKey, text: string) {
+    onChange({
+      ...data,
+      detalhesNaoConformidade: { ...data.detalhesNaoConformidade, [key]: text },
+    });
+  }
+
+  const headerResolved: InspecaoExtintorCabecalho | null = cabecalho
+    ? cabecalho
+    : extintor
+      ? {
+          codigo: extintor.codigo,
+          pavimento: extintor.setor ?? null,
+          local_detalhado: extintor.local_detalhado,
+          num_inmetro: "—",
+          tipo: extintor.tipo ?? "—",
+          tamanho: extintor.tamanho ?? "—",
+          capacidade_extintora: "—",
+          manutencao_2_nivel: null,
+          manutencao_3_nivel: null,
+        }
+      : null;
 
   return (
     <form onSubmit={onSubmit}>
-      {/* Extintor info header */}
-      {extintor && (
-        <div
-          className="mb-4 rounded-xl px-4 py-3"
-          style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
-        >
-          <p className="text-base font-bold text-white">{extintor.codigo}</p>
-          <p className="text-xs text-white/80">{extintor.local_detalhado}</p>
-          {(extintor.tipo || extintor.setor) && (
-            <p className="mt-0.5 text-[11px] text-white/60">
-              {[extintor.tipo, extintor.tamanho, extintor.setor].filter(Boolean).join(" · ")}
-            </p>
-          )}
-        </div>
-      )}
+      {headerResolved && <CabecalhoInspecao info={headerResolved} />}
 
       <div className="space-y-3">
-        {/* Conferente */}
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">
             Conferente *
@@ -151,7 +274,6 @@ export default function ChecklistForm({
           />
         </div>
 
-        {/* Checklist items */}
         {FIELDS.map((field, i) => (
           <ToggleField
             key={field.key}
@@ -159,10 +281,11 @@ export default function ChecklistForm({
             label={field.label}
             value={data[field.key]}
             onChange={(v) => setField(field.key, v)}
+            detalheNc={data.detalhesNaoConformidade[field.key] ?? ""}
+            onDetalheNcChange={(text) => setDetalheNc(field.key, text)}
           />
         ))}
 
-        {/* Observações */}
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">
             Observações
@@ -177,7 +300,6 @@ export default function ChecklistForm({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="mt-5 flex gap-3">
         <button
           type="submit"
@@ -198,7 +320,7 @@ export default function ChecklistForm({
 
       {!valid && data.conferente.trim() && (
         <p className="mt-2 text-center text-xs text-amber-600">
-          Responda todos os itens para confirmar a inspeção.
+          Responda todos os itens e preencha a descrição em todo item marcado como não conforme.
         </p>
       )}
     </form>

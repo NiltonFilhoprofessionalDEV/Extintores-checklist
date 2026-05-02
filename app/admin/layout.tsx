@@ -11,7 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <AuthGuard allowedRoles={["admin"]}>
       <div
-        className="bg-[#F5F5F5]"
+        className="bg-[#f6f7fb]"
         style={isMapeamento ? { height: "100dvh", display: "flex", flexDirection: "column" } : { minHeight: "100vh" }}
       >
         <AdminSidebar />
@@ -21,11 +21,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           {isMapeamento ? (
             /* Mapeamento precisa de altura total para o mapa Leaflet funcionar */
-            <div className="flex-1 min-h-0" style={{ flex: "1 1 0" }}>
+            <div className="flex min-h-0 flex-1 flex-col" style={{ flex: "1 1 0" }}>
               {children}
             </div>
           ) : (
-            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+            <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children}</main>
           )}
         </div>
       </div>

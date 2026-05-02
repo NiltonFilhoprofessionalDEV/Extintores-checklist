@@ -127,20 +127,20 @@ export default function AdminUsuariosPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-zinc-900">Usuários e Permissões</h2>
-        <p className="text-zinc-600">
+        <h2 className="text-2xl font-bold text-slate-900">Usuários e Permissões</h2>
+        <p className="text-slate-600">
           Crie logins com senha inicial e defina os perfis de Administrador ou Usuário comum.
         </p>
       </div>
 
-      <form onSubmit={handleCreateUser} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 font-semibold text-zinc-900">Novo usuário</h3>
+      <form onSubmit={handleCreateUser} className="surface-card p-4">
+        <h3 className="mb-3 font-semibold text-slate-900">Novo usuário</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             type="text"
             required
             placeholder="Nome"
-            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
             value={form.nome}
             onChange={(event) => setForm((prev) => ({ ...prev, nome: event.target.value }))}
           />
@@ -148,7 +148,7 @@ export default function AdminUsuariosPage() {
             type="email"
             required
             placeholder="E-mail"
-            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
             value={form.email}
             onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
           />
@@ -157,12 +157,12 @@ export default function AdminUsuariosPage() {
             required
             minLength={6}
             placeholder="Senha inicial"
-            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
             value={form.password}
             onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
           />
           <select
-            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
             value={form.role}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, role: event.target.value as "admin" | "user" }))
@@ -175,28 +175,28 @@ export default function AdminUsuariosPage() {
 
         <button
           type="submit"
-          className="mt-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+          className="brand-gradient mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white"
         >
           Criar usuário
         </button>
       </form>
 
-      {message && <p className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700">{message}</p>}
+      {message && <p className="surface-muted rounded-lg p-3 text-sm">{message}</p>}
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 font-semibold text-zinc-900">Usuários cadastrados</h3>
+      <div className="surface-card p-4">
+        <h3 className="mb-3 font-semibold text-slate-900">Usuários cadastrados</h3>
         {loading ? (
-          <p className="text-sm text-zinc-500">Carregando...</p>
+          <p className="text-sm text-slate-500">Carregando...</p>
         ) : (
           <div className="space-y-2">
             {users.map((user) => (
               <div
                 key={user.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
               >
                 <div>
-                  <p className="font-medium text-zinc-900">{user.nome}</p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="font-medium text-slate-900">{user.nome}</p>
+                  <p className="text-xs text-slate-500">
                     {user.role === "admin" ? "Administrador" : "Usuário comum"}
                   </p>
                 </div>
@@ -204,7 +204,7 @@ export default function AdminUsuariosPage() {
                   type="button"
                   onClick={() => toggleActive(user)}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                    user.active ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-600"
+                    user.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {user.active ? "Ativo" : "Inativo"}

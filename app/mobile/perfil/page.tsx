@@ -13,8 +13,8 @@ type Stats = {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-3">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-semibold text-gray-900">{value}</span>
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-slate-900">{value}</span>
     </div>
   );
 }
@@ -131,11 +131,11 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Account info */}
-      <div className="rounded-2xl bg-white px-5 shadow-sm">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      <div className="surface-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Dados da conta
         </p>
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-slate-100">
           <InfoRow label="Nome" value={profile?.nome ?? "—"} />
           <InfoRow label="E-mail" value={email || "—"} />
           <InfoRow label="Função" value={roleLabel} />
@@ -148,11 +148,11 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Activity */}
-      <div className="rounded-2xl bg-white px-5 shadow-sm">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      <div className="surface-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Atividade
         </p>
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-slate-100">
           <InfoRow label="Total de inspeções registradas" value={String(stats.totalInspecoes)} />
           <InfoRow label="Última conferência" value={formattedLastInspection} />
         </div>
@@ -160,8 +160,8 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Actions */}
-      <div className="rounded-2xl bg-white px-5 shadow-sm">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      <div className="surface-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Ações
         </p>
 
@@ -185,8 +185,8 @@ export default function MobilePerfilPage() {
 
       {/* App info */}
       <div className="pb-4 text-center">
-        <p className="text-xs text-gray-400">Extintor Conferência · Versão 1.0.0</p>
-        <p className="mt-0.5 text-[10px] text-gray-300">Segurança que se confere</p>
+        <p className="text-xs text-slate-400">Extintor Conferência · Versão 1.0.0</p>
+        <p className="mt-0.5 text-[10px] text-slate-300">Segurança que se confere</p>
       </div>
 
       {/* Confirm sign out modal */}
@@ -211,8 +211,7 @@ export default function MobilePerfilPage() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="w-full rounded-xl py-3.5 text-sm font-bold text-white"
-                style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+                className="brand-gradient w-full rounded-xl py-3.5 text-sm font-bold text-white"
               >
                 Sim, sair agora
               </button>

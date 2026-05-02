@@ -69,8 +69,9 @@ export default function AuthGuard({
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-zinc-600">
-        Verificando acesso...
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#f6f7fb]">
+        <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-slate-200 border-t-[#e02020]" />
+        <p className="text-sm font-medium text-slate-400">Verificando acesso…</p>
       </main>
     );
   }

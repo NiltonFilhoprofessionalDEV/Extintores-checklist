@@ -47,7 +47,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}
       </label>
@@ -57,7 +57,7 @@ function Field({
 }
 
 const inputCls =
-  "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-[#E02020] focus:outline-none focus:ring-2 focus:ring-[#E02020]/20";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[#b42318] focus:outline-none focus:ring-2 focus:ring-[#b42318]/20";
 
 const TAMANHOS_POR_TIPO: Record<string, string[]> = {
   "Água": ["10 L"],
@@ -96,7 +96,12 @@ export default function AdminExtintoresPage() {
     setLoading(false);
   }, [supabase]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
@@ -210,14 +215,13 @@ export default function AdminExtintoresPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Extintores</h1>
-          <p className="text-sm text-gray-500">{extintores.length} extintor{extintores.length !== 1 ? "es" : ""} cadastrado{extintores.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-2xl font-extrabold text-slate-900">Extintores</h1>
+          <p className="text-sm text-slate-500">{extintores.length} extintor{extintores.length !== 1 ? "es" : ""} cadastrado{extintores.length !== 1 ? "s" : ""}</p>
         </div>
         <button
           type="button"
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm"
-          style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+          className="brand-gradient flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm"
         >
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -227,60 +231,60 @@ export default function AdminExtintoresPage() {
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+      <div className="surface-card flex items-center gap-2 px-4 py-3">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
           <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
         </svg>
         <input
           type="search"
           placeholder="Buscar por código, setor, local, tipo ou INMETRO..."
-          className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+          className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         {filter && (
-          <button type="button" onClick={() => setFilter("")} className="text-xs text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={() => setFilter("")} className="text-xs text-slate-400 hover:text-slate-600">
             Limpar
           </button>
         )}
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+      <div className="surface-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">
+          <div className="px-6 py-16 text-center text-sm text-slate-400">
             {filter ? "Nenhum extintor encontrado para o filtro." : "Nenhum extintor cadastrado ainda."}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Código</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Setor / Local</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 md:table-cell">Tipo / Tamanho</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 lg:table-cell">Nº INMETRO</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 lg:table-cell">Vencto. N2</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 xl:table-cell">Mapa</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Ações</th>
+                <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Código</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Setor / Local</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">Tipo / Tamanho</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Nº INMETRO</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Vencto. N2</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">Mapa</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-bold text-gray-900">{e.codigo}</td>
+                  <tr key={e.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-bold text-slate-900">{e.codigo}</td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-800">{e.setor}</p>
-                      <p className="text-xs text-gray-400">{e.local_detalhado}</p>
+                      <p className="font-medium text-slate-800">{e.setor}</p>
+                      <p className="text-xs text-slate-400">{e.local_detalhado}</p>
                     </td>
-                    <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
+                    <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
                       {e.tipo} {e.tamanho}
                     </td>
-                    <td className="hidden px-4 py-3 text-gray-600 lg:table-cell">{e.num_inmetro}</td>
+                    <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{e.num_inmetro}</td>
                     <td className="hidden px-4 py-3 lg:table-cell">
                       <span
                         className="text-xs font-medium"
@@ -295,7 +299,7 @@ export default function AdminExtintoresPage() {
                         style={
                           e.coord_x != null
                             ? { background: "#dcfce7", color: "#15803d" }
-                            : { background: "#f3f4f6", color: "#6b7280" }
+                            : { background: "#f2f4f7", color: "#667085" }
                         }
                       >
                         {e.coord_x != null ? "Posicionado" : "Sem posição"}
@@ -306,7 +310,7 @@ export default function AdminExtintoresPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(e)}
-                          className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                         >
                           Editar
                         </button>
@@ -428,8 +432,8 @@ export default function AdminExtintoresPage() {
                 </Field>
 
                 <div className="sm:col-span-2">
-                  <div className="mb-2 border-t border-gray-100 pt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  <div className="mb-2 border-t border-slate-100 pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       Datas de Manutenção
                     </p>
                   </div>
@@ -467,7 +471,7 @@ export default function AdminExtintoresPage() {
                 </div>
               )}
 
-              <div className="mt-5 flex gap-3 border-t border-gray-100 pt-4">
+              <div className="mt-5 flex gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="submit"
                   disabled={saving}
@@ -483,7 +487,7 @@ export default function AdminExtintoresPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600"
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600"
                 >
                   Cancelar
                 </button>
@@ -502,8 +506,8 @@ export default function AdminExtintoresPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="text-base font-bold text-gray-900">Excluir extintor?</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <h3 className="text-base font-bold text-slate-900">Excluir extintor?</h3>
+            <p className="mt-1 text-sm text-slate-500">
               <strong>{deleteTarget.codigo}</strong> — {deleteTarget.local_detalhado}
             </p>
             <p className="mt-1 text-xs text-red-600">
@@ -522,7 +526,7 @@ export default function AdminExtintoresPage() {
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600"
+                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
               >
                 Cancelar
               </button>
