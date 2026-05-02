@@ -291,14 +291,21 @@ function FitBounds({
   maxZoomExtra = 4,
   bottomOffset = 0,
   initialZoomOut = 0,
+  minZoomBelowFit = 3,
+  boundsPad = 0.15,
 }: {
   bounds: LatLngBoundsExpression;
   maxZoomExtra?: number;
   bottomOffset?: number;
   /** Níveis de zoom para recuar após o fitBounds inicial.
    *  0 = comportamento padrão (cabe no container).
-   *  1.5 = começa 1.5 níveis mais afastado — usuário dá zoom na área desejada. */
+   *  Valores maiores = começa mais afastado. */
   initialZoomOut?: number;
+  /** Quantos níveis de zoom abaixo do "fit" o usuário pode ir (pinch out / scroll out).
+   *  Permite ver o mapa completo pequeno no meio da tela. */
+  minZoomBelowFit?: number;
+  /** Padding nas maxBounds (Leaflet pad) — maior = mais pan ao dar zoom out. */
+  boundsPad?: number;
 }) {
   const map = useMap();
   /** Evita fitBounds a cada resize (ex.: após salvar posição o painel muda de altura e resetava o zoom). */
@@ -313,7 +320,7 @@ function FitBounds({
       const size = map.getSize();
       if (size.x === 0 || size.y === 0) return false;
 
-      map.setMaxBounds(leafletBounds.pad(0.15));
+      map.setMaxBounds(leafletBounds.pad(boundsPad));
       map.fitBounds(leafletBounds, {
         paddingTopLeft: [20, 20],
         paddingBottomRight: [20, 20 + bottomOffset],
@@ -322,13 +329,14 @@ function FitBounds({
 
       const fittedZoom = map.getZoom();
 
-      // Recua o zoom inicial para dar visão geral; o usuário aproxima onde quiser
       const targetZoom = fittedZoom - initialZoomOut;
-      map.setMinZoom(Math.min(targetZoom - 1, fittedZoom - 2));
+      const minZ = fittedZoom - minZoomBelowFit;
+      map.setMinZoom(minZ);
       map.setMaxZoom(fittedZoom + maxZoomExtra);
 
       if (initialZoomOut > 0) {
-        map.setZoom(targetZoom, { animate: false });
+        const z = Math.max(minZ, targetZoom);
+        map.setZoom(z, { animate: false });
       }
       return true;
     };
@@ -357,7 +365,7 @@ function FitBounds({
       ro.disconnect();
       globalThis.clearTimeout(id);
     };
-  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut]);
+  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomBelowFit, boundsPad]);
   return null;
 }
 
@@ -1124,7 +1132,9 @@ export default function MapView() {
         bounds={mapBounds}
         maxZoomExtra={isMobile ? 4 : 4}
         bottomOffset={0}
-        initialZoomOut={isMobile ? 1.5 : 0}
+        initialZoomOut={isMobile ? 3 : 0}
+        minZoomBelowFit={isMobile ? 7 : 4}
+        boundsPad={isMobile ? 0.45 : 0.15}
       />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
