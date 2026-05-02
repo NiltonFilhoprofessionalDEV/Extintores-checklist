@@ -1,5 +1,5 @@
 import type { ChecklistValue } from "@/lib/checklist/types";
-import { isDataVencida } from "@/lib/checklist/types";
+import { diasParaVencimentoTeste, dataVencimentoTeste } from "@/lib/checklist/types";
 import type { HidranteChecklistData, HidranteItemKey } from "@/lib/checklist/hidrante-types";
 import { isHidranteChecklistValid } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
@@ -110,11 +110,60 @@ function ToggleField({
   );
 }
 
-function formatarDataPt(iso: string | null | undefined): string {
+function formatarDataPt(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+type TesteStatus = "vencido" | "alerta" | "ok" | "sem_data";
+
+function testeStatusInfo(ultimaRealizacao: string | null | undefined): {
+  status: TesteStatus;
+  vencimentoFmt: string;
+  label: string;
+  color: string;
+  bg: string;
+} {
+  if (!ultimaRealizacao) {
+    return { status: "sem_data", vencimentoFmt: "—", label: "Sem registro", color: "#64748b", bg: "#f1f5f9" };
+  }
+  const dias = diasParaVencimentoTeste(ultimaRealizacao);
+  const vencDate = dataVencimentoTeste(ultimaRealizacao);
+  const vencimentoFmt = formatarDataPt(vencDate);
+
+  if (dias === null) {
+    return { status: "sem_data", vencimentoFmt: "—", label: "Data inválida", color: "#64748b", bg: "#f1f5f9" };
+  }
+  if (dias < 0) {
+    return {
+      status: "vencido",
+      vencimentoFmt,
+      label: `Vencido há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""}`,
+      color: "#b91c1c",
+      bg: "#fee2e2",
+    };
+  }
+  if (dias === 0) {
+    return { status: "alerta", vencimentoFmt, label: "Vence hoje", color: "#92400e", bg: "#fef3c7" };
+  }
+  if (dias <= 30) {
+    return {
+      status: "alerta",
+      vencimentoFmt,
+      label: `Vence em ${dias} dia${dias !== 1 ? "s" : ""}`,
+      color: "#92400e",
+      bg: "#fef3c7",
+    };
+  }
+  return {
+    status: "ok",
+    vencimentoFmt,
+    label: `Válido — vence em ${dias} dias`,
+    color: "#15803d",
+    bg: "#dcfce7",
+  };
 }
 
 type Props = {
@@ -185,14 +234,25 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
               [4, hidrante.teste_hidrostatico_m4],
             ] as const
           ).map(([n, val]) => {
-            const venc = isDataVencida(val ?? null);
+            const info = testeStatusInfo(val ?? null);
+            if (info.status === "sem_data") return null;
             return (
-              <div key={n} className="flex justify-between gap-3">
-                <dt className="text-slate-500">Teste hidrostático M-{n}</dt>
-                <dd className={`text-right font-semibold ${venc ? "text-red-600" : "text-slate-800"}`}>
-                  {formatarDataPt(val ?? null)}
-                  {venc ? " (vencido)" : ""}
-                </dd>
+              <div key={n} className="col-span-full flex flex-col gap-1 rounded-lg p-2" style={{ background: info.bg }}>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="font-semibold" style={{ color: info.color }}>
+                    Teste hidrostático M-{n}
+                  </dt>
+                  <dd
+                    className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                    style={{ color: info.color, background: `${info.color}18` }}
+                  >
+                    {info.label}
+                  </dd>
+                </div>
+                <div className="flex justify-between text-[11px]" style={{ color: info.color }}>
+                  <span>Última realização: <strong>{formatarDataPt(val ?? null)}</strong></span>
+                  <span>Vencimento: <strong>{info.vencimentoFmt}</strong></span>
+                </div>
               </div>
             );
           })}

@@ -66,6 +66,45 @@ export function isDataVencida(dateStr: string | null): boolean {
   return d < today;
 }
 
+/**
+ * Retorna quantos dias faltam (ou há) para o vencimento do teste hidrostático.
+ * A data informada é a ÚLTIMA REALIZAÇÃO do teste — a validade é de 1 ano.
+ *  > 0 → ainda válido (faltam N dias)
+ *  = 0 → vence hoje
+ *  < 0 → vencido há N dias
+ * Retorna null se a data for inválida/nula.
+ */
+export function diasParaVencimentoTeste(ultimaRealizacao: string | null): number | null {
+  if (!ultimaRealizacao) return null;
+  const ultima = new Date(ultimaRealizacao);
+  if (Number.isNaN(ultima.getTime())) return null;
+
+  const vencimento = new Date(ultima);
+  vencimento.setFullYear(vencimento.getFullYear() + 1);
+  vencimento.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Math.ceil((vencimento.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/** Data de vencimento do teste (última realização + 1 ano). */
+export function dataVencimentoTeste(ultimaRealizacao: string | null): Date | null {
+  if (!ultimaRealizacao) return null;
+  const ultima = new Date(ultimaRealizacao);
+  if (Number.isNaN(ultima.getTime())) return null;
+  const venc = new Date(ultima);
+  venc.setFullYear(venc.getFullYear() + 1);
+  return venc;
+}
+
+/** true somente quando última realização + 1 ano < hoje */
+export function isTesteHidrostaticoVencido(ultimaRealizacao: string | null): boolean {
+  const dias = diasParaVencimentoTeste(ultimaRealizacao);
+  return dias !== null && dias < 0;
+}
+
 /** Junta observações gerais com descrições obrigatórias de não conformidade */
 export function mergeObservacoesComNaoConformidades(data: ChecklistData): string {
   const blocos: string[] = [];
