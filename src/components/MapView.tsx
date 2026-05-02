@@ -290,10 +290,15 @@ function FitBounds({
   bounds,
   maxZoomExtra = 4,
   bottomOffset = 0,
+  initialZoomOut = 0,
 }: {
   bounds: LatLngBoundsExpression;
   maxZoomExtra?: number;
   bottomOffset?: number;
+  /** Níveis de zoom para recuar após o fitBounds inicial.
+   *  0 = comportamento padrão (cabe no container).
+   *  1.5 = começa 1.5 níveis mais afastado — usuário dá zoom na área desejada. */
+  initialZoomOut?: number;
 }) {
   const map = useMap();
   /** Evita fitBounds a cada resize (ex.: após salvar posição o painel muda de altura e resetava o zoom). */
@@ -308,7 +313,7 @@ function FitBounds({
       const size = map.getSize();
       if (size.x === 0 || size.y === 0) return false;
 
-      map.setMaxBounds(leafletBounds.pad(0.1));
+      map.setMaxBounds(leafletBounds.pad(0.15));
       map.fitBounds(leafletBounds, {
         paddingTopLeft: [20, 20],
         paddingBottomRight: [20, 20 + bottomOffset],
@@ -316,8 +321,15 @@ function FitBounds({
       });
 
       const fittedZoom = map.getZoom();
-      map.setMinZoom(fittedZoom - 2);
+
+      // Recua o zoom inicial para dar visão geral; o usuário aproxima onde quiser
+      const targetZoom = fittedZoom - initialZoomOut;
+      map.setMinZoom(Math.min(targetZoom - 1, fittedZoom - 2));
       map.setMaxZoom(fittedZoom + maxZoomExtra);
+
+      if (initialZoomOut > 0) {
+        map.setZoom(targetZoom, { animate: false });
+      }
       return true;
     };
 
@@ -345,7 +357,7 @@ function FitBounds({
       ro.disconnect();
       globalThis.clearTimeout(id);
     };
-  }, [bounds, map, maxZoomExtra, bottomOffset]);
+  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut]);
   return null;
 }
 
@@ -1108,7 +1120,12 @@ export default function MapView() {
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
     >
-      <FitBounds bounds={mapBounds} maxZoomExtra={isMobile ? 3 : 4} bottomOffset={isMobile ? 64 : 0} />
+      <FitBounds
+        bounds={mapBounds}
+        maxZoomExtra={isMobile ? 4 : 4}
+        bottomOffset={0}
+        initialZoomOut={isMobile ? 1.5 : 0}
+      />
       <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
