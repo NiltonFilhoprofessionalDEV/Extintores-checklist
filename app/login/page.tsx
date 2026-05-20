@@ -21,23 +21,29 @@ export default function LoginPage() {
     setMessage("");
 
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error || !data.session) {
-      setMessage(error?.message ?? "E-mail ou senha incorretos.");
-      setLoading(false);
-      return;
-    }
+      if (error || !data.session) {
+        setMessage(error?.message ?? "E-mail ou senha incorretos.");
+        setLoading(false);
+        return;
+      }
 
-    const profile = await getProfileBySession(data.session);
-    if (!profile?.active) {
+      const profile = await getProfileBySession(data.session);
+      if (!profile?.active) {
+        await supabase.auth.signOut();
+        setMessage("Usuário desativado. Contate o administrador.");
+        setLoading(false);
+        return;
+      }
+
+      router.replace(getHomePathForRole(profile.role));
+    } catch (err) {
       await supabase.auth.signOut();
-      setMessage("Usuário desativado. Contate o administrador.");
+      setMessage(err instanceof Error ? err.message : "Não foi possível concluir o login.");
       setLoading(false);
-      return;
     }
-
-    router.replace(getHomePathForRole(profile.role));
   }
 
   return (

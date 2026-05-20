@@ -5,6 +5,7 @@ import {
   assertCanManageTarget,
   getTargetProfile,
   getUserManagerFromRequest,
+  resolveTeamForWrite,
 } from "@/lib/auth/user-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
@@ -14,13 +15,22 @@ export async function GET(request: Request) {
     if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
     const supabaseAdmin = getSupabaseAdminClient();
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("profiles")
-      .select("id,nome,role,active,created_at")
+      .select("id,nome,role,team,active,created_at")
       .order("created_at", { ascending: false });
 
+    if (manager.role === "leadership") {
+      if (!manager.team) {
+        return NextResponse.json({ error: "Líder sem equipe definida." }, { status: 403 });
+      }
+      query = query.eq("role", "user").eq("team", manager.team);
+    }
+
+    const { data, error } = await query;
+
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ users: data ?? [], managerRole: manager.role });
+    return NextResponse.json({ users: data ?? [], managerRole: manager.role, managerTeam: manager.team });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro interno no carregamento de usuários." },
@@ -39,11 +49,15 @@ export async function POST(request: Request) {
       password: string;
       nome: string;
       role: UserRole;
+      team?: string | null;
     };
 
     const role = body.role ?? "user";
     const assignError = assertCanAssignRole(manager, role);
     if (assignError) return NextResponse.json({ error: assignError }, { status: 403 });
+
+    const { team, error: teamError } = resolveTeamForWrite(manager, role, body.team);
+    if (teamError) return NextResponse.json({ error: teamError }, { status: 400 });
 
     const supabaseAdmin = getSupabaseAdminClient();
     const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -60,6 +74,7 @@ export async function POST(request: Request) {
       id: createdUser.user.id,
       nome: body.nome,
       role,
+      team,
       active: true,
     });
 
@@ -86,6 +101,7 @@ export async function PATCH(request: Request) {
       id: string;
       nome: string;
       role: UserRole;
+      team?: string | null;
       active: boolean;
       password?: string;
     };
@@ -93,16 +109,19 @@ export async function PATCH(request: Request) {
     const target = await getTargetProfile(body.id);
     if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
-    const manageError = assertCanManageTarget(manager, target.role);
+    const manageError = assertCanManageTarget(manager, target);
     if (manageError) return NextResponse.json({ error: manageError }, { status: 403 });
 
     const assignError = assertCanAssignRole(manager, body.role);
     if (assignError) return NextResponse.json({ error: assignError }, { status: 403 });
 
+    const { team, error: teamError } = resolveTeamForWrite(manager, body.role, body.team);
+    if (teamError) return NextResponse.json({ error: teamError }, { status: 400 });
+
     const supabaseAdmin = getSupabaseAdminClient();
     const { error } = await supabaseAdmin
       .from("profiles")
-      .update({ nome: body.nome, role: body.role, active: body.active })
+      .update({ nome: body.nome, role: body.role, team, active: body.active })
       .eq("id", body.id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -139,7 +158,7 @@ export async function DELETE(request: Request) {
     const target = await getTargetProfile(body.id);
     if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
-    const manageError = assertCanManageTarget(manager, target.role);
+    const manageError = assertCanManageTarget(manager, target);
     if (manageError) return NextResponse.json({ error: manageError }, { status: 403 });
 
     const supabaseAdmin = getSupabaseAdminClient();

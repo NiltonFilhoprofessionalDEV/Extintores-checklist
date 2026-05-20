@@ -98,16 +98,51 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nome text not null,
   role public.user_role not null default 'user',
+  team text,
   active boolean not null default true,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint profiles_team_allowed
+    check (team is null or team in ('ALFA', 'BRAVO', 'CHARLIE', 'DELTA')),
+  constraint profiles_team_required_for_non_admin
+    check (role = 'admin' or team is not null)
 );
+
+create index if not exists idx_profiles_team on public.profiles (team);
 
 drop trigger if exists trg_profiles_set_updated_at on public.profiles;
 create trigger trg_profiles_set_updated_at
 before update on public.profiles
 for each row
 execute function public.set_updated_at();
+
+create or replace function public.prevent_profile_privilege_self_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() = old.id
+    and not public.is_admin()
+    and (
+      new.role is distinct from old.role
+      or new.active is distinct from old.active
+      or new.team is distinct from old.team
+    )
+  then
+    raise exception 'Perfil, status e equipe não podem ser alterados pelo próprio usuário.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_profiles_prevent_privilege_self_update on public.profiles;
+create trigger trg_profiles_prevent_privilege_self_update
+before update on public.profiles
+for each row
+execute function public.prevent_profile_privilege_self_update();
 
 create or replace function public.current_role()
 returns public.user_role

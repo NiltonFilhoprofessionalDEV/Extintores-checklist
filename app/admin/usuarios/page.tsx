@@ -5,7 +5,10 @@ import {
   assignableRoles,
   canManageTarget,
   ROLE_LABELS,
+  TEAM_LABELS,
+  USER_TEAMS,
   type UserRole,
+  type UserTeam,
 } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -13,6 +16,7 @@ type UserItem = {
   id: string;
   nome: string;
   role: UserRole;
+  team: UserTeam | null;
   active: boolean;
   created_at: string;
 };
@@ -22,12 +26,14 @@ type FormState = {
   password: string;
   nome: string;
   role: UserRole;
+  team: UserTeam | "";
 };
 
 type EditState = {
   id: string;
   nome: string;
   role: UserRole;
+  team: UserTeam | null;
   active: boolean;
   password: string;
 };
@@ -37,11 +43,17 @@ const INITIAL_FORM: FormState = {
   password: "",
   nome: "",
   role: "user",
+  team: "",
 };
+
+function isTeamRequired(role: UserRole): boolean {
+  return role === "leadership" || role === "user";
+}
 
 export default function AdminUsuariosPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [managerRole, setManagerRole] = useState<UserRole>("admin");
+  const [managerTeam, setManagerTeam] = useState<UserTeam | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [editUser, setEditUser] = useState<EditState | null>(null);
@@ -54,6 +66,12 @@ export default function AdminUsuariosPage() {
   const selectedFormRole = creatableRoles.includes(form.role)
     ? form.role
     : (creatableRoles[0] ?? "user");
+  const selectedFormTeam =
+    managerRole === "leadership"
+      ? managerTeam
+      : isTeamRequired(selectedFormRole)
+        ? form.team || USER_TEAMS[0]
+        : form.team || null;
 
   const callAdminApi = useCallback(async <T,>(url: string, init?: RequestInit) => {
     const {
@@ -102,11 +120,12 @@ export default function AdminUsuariosPage() {
       } = await supabase.auth.getSession();
       if (session) setCurrentUserId(session.user.id);
 
-      const payload = await callAdminApi<{ users: UserItem[]; managerRole: UserRole }>(
+      const payload = await callAdminApi<{ users: UserItem[]; managerRole: UserRole; managerTeam: UserTeam | null }>(
         "/api/admin/usuarios",
       );
       setUsers(payload.users);
       setManagerRole(payload.managerRole);
+      setManagerTeam(payload.managerTeam);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao carregar usuários.");
     } finally {
@@ -120,7 +139,7 @@ export default function AdminUsuariosPage() {
   }, [loadUsers]);
 
   function canActOn(user: UserItem): boolean {
-    return canManageTarget(managerRole, user.role) && user.id !== currentUserId;
+    return canManageTarget(managerRole, user.role, managerTeam, user.team) && user.id !== currentUserId;
   }
 
   async function handleCreateUser(event: React.FormEvent) {
@@ -130,7 +149,7 @@ export default function AdminUsuariosPage() {
     try {
       await callAdminApi("/api/admin/usuarios", {
         method: "POST",
-        body: JSON.stringify({ ...form, role: selectedFormRole }),
+        body: JSON.stringify({ ...form, role: selectedFormRole, team: selectedFormTeam }),
       });
       setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user" });
       setMessage("Usuário criado com sucesso.");
@@ -145,6 +164,7 @@ export default function AdminUsuariosPage() {
       id: user.id,
       nome: user.nome,
       role: user.role,
+      team: user.team,
       active: user.active,
       password: "",
     });
@@ -162,6 +182,12 @@ export default function AdminUsuariosPage() {
           id: editUser.id,
           nome: editUser.nome,
           role: editUser.role,
+          team:
+            managerRole === "leadership"
+              ? managerTeam
+              : isTeamRequired(editUser.role)
+                ? editUser.team ?? USER_TEAMS[0]
+                : editUser.team,
           active: editUser.active,
           ...(editUser.password ? { password: editUser.password } : {}),
         }),
@@ -201,15 +227,15 @@ export default function AdminUsuariosPage() {
           <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Usuários e Permissões</h2>
           <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
             {isLeadership
-              ? "Cadastre, edite ou exclua usuários comuns. Administradores e liderança só podem ser gerenciados pelo administrador."
-              : "Gerencie todos os perfis: Administrador, Liderança e Usuário comum."}
+              ? `Cadastre, edite ou exclua usuários comuns da equipe ${managerTeam ?? "não definida"}.`
+              : "Gerencie todos os perfis: Administrador, Liderança e Usuário comum, organizados por equipe."}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleCreateUser} className="section-card p-5">
         <h3 className="mb-3 text-lg font-black text-slate-950">Novo usuário</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <input
             type="text"
             required
@@ -240,7 +266,14 @@ export default function AdminUsuariosPage() {
               className="field-control"
               value={selectedFormRole}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
+                setForm((prev) => {
+                  const nextRole = event.target.value as UserRole;
+                  return {
+                    ...prev,
+                    role: nextRole,
+                    team: isTeamRequired(nextRole) ? prev.team || USER_TEAMS[0] : "",
+                  };
+                })
               }
             >
               {creatableRoles.map((role) => (
@@ -253,6 +286,30 @@ export default function AdminUsuariosPage() {
             <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
               Perfil: {ROLE_LABELS.user}
             </div>
+          )}
+          {managerRole === "leadership" ? (
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+              Equipe: {managerTeam ?? "—"}
+            </div>
+          ) : (
+            <select
+              className="field-control"
+              value={selectedFormTeam ?? ""}
+              required={isTeamRequired(selectedFormRole)}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  team: event.target.value ? (event.target.value as UserTeam) : "",
+                }))
+              }
+            >
+              {!isTeamRequired(selectedFormRole) && <option value="">Sem equipe</option>}
+              {USER_TEAMS.map((team) => (
+                <option key={team} value={team}>
+                  Equipe {TEAM_LABELS[team]}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
@@ -287,6 +344,7 @@ export default function AdminUsuariosPage() {
                     <p className="font-bold text-slate-950">{user.nome}</p>
                     <p className="text-xs text-slate-500">
                       {ROLE_LABELS[user.role]}
+                      {user.team ? ` · Equipe ${TEAM_LABELS[user.team]}` : " · Sem equipe"}
                       {!user.active && " · Inativo"}
                       {user.id === currentUserId && " · Você"}
                     </p>
@@ -298,6 +356,9 @@ export default function AdminUsuariosPage() {
                       }`}
                     >
                       {user.active ? "Ativo" : "Inativo"}
+                    </span>
+                    <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                      {user.team ? `Equipe ${TEAM_LABELS[user.team]}` : "Sem equipe"}
                     </span>
                     {manageable ? (
                       <>
@@ -349,9 +410,15 @@ export default function AdminUsuariosPage() {
                 className="field-control"
                 value={editUser.role}
                 onChange={(event) =>
-                  setEditUser((prev) =>
-                    prev ? { ...prev, role: event.target.value as UserRole } : prev,
-                  )
+                  setEditUser((prev) => {
+                    if (!prev) return prev;
+                    const nextRole = event.target.value as UserRole;
+                    return {
+                      ...prev,
+                      role: nextRole,
+                      team: isTeamRequired(nextRole) ? prev.team ?? USER_TEAMS[0] : null,
+                    };
+                  })
                 }
               >
                 {assignableRoles(managerRole).map((role) => (
@@ -362,6 +429,32 @@ export default function AdminUsuariosPage() {
               </select>
             ) : (
               <p className="text-sm text-slate-600">Perfil: {ROLE_LABELS.user}</p>
+            )}
+            {managerRole === "leadership" ? (
+              <p className="text-sm text-slate-600">Equipe: {managerTeam ?? "—"}</p>
+            ) : (
+              <select
+                className="field-control"
+                value={editUser.team ?? ""}
+                required={isTeamRequired(editUser.role)}
+                onChange={(event) =>
+                  setEditUser((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          team: event.target.value ? (event.target.value as UserTeam) : null,
+                        }
+                      : prev,
+                  )
+                }
+              >
+                {!isTeamRequired(editUser.role) && <option value="">Sem equipe</option>}
+                {USER_TEAMS.map((team) => (
+                  <option key={team} value={team}>
+                    Equipe {TEAM_LABELS[team]}
+                  </option>
+                ))}
+              </select>
             )}
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input

@@ -22,7 +22,7 @@ export async function getAuthenticatedAccountFromRequest(
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("id,nome,role,active")
+    .select("id,nome,role,team,active")
     .eq("id", authData.user.id)
     .maybeSingle<Profile>();
 
