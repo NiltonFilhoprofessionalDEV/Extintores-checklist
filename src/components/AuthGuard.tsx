@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession, type Profile, type UserRole } from "@/lib/auth/profile";
+import { getHomePathForRole } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type AuthGuardProps = {
@@ -33,7 +34,7 @@ export default function AuthGuard({
 
         const fetchedProfile = await getProfileBySession(session);
         if (!fetchedProfile || !fetchedProfile.active || !allowedRoles.includes(fetchedProfile.role)) {
-          router.replace(fetchedProfile?.role === "admin" ? "/admin/dashboard" : "/mobile/conferencia");
+          router.replace(getHomePathForRole(fetchedProfile?.role ?? "user"));
           return;
         }
 

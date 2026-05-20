@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
 
 type ExtintorRow = {
   id: string;
@@ -57,13 +58,29 @@ function Field({
 }
 
 const inputCls =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[#b42318] focus:outline-none focus:ring-2 focus:ring-[#b42318]/20";
+  "field-control";
+
+const LOCALE_PT_BR = "pt-BR";
+
+function toUppercaseLabel(value: string): string {
+  return value.trim().toLocaleUpperCase(LOCALE_PT_BR);
+}
+
+const SETORES = [
+  "SUBSOLO",
+  "TÉRREO",
+  "PAVIMENTO 1",
+  "GALERIA TÉCNICA",
+  "PAVIMENTO TÉCNICO",
+] as const;
+
+const TIPOS_EXTINTOR = ["ÁGUA", "PQS ABC", "PQS BC", "ESPUMA MECÂNICA", "CO2"] as const;
 
 const TAMANHOS_POR_TIPO: Record<string, string[]> = {
-  "Água": ["10 L"],
+  ÁGUA: ["10 L"],
   "PQS ABC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
   "PQS BC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
-  "Espuma Mecânica": ["9 L", "50 L"],
+  "ESPUMA MECÂNICA": ["9 L", "50 L"],
   CO2: ["4 kg", "6 kg", "10 kg", "20 kg", "25 kg", "30 kg", "50 kg"],
 };
 
@@ -80,6 +97,37 @@ export default function AdminExtintoresPage() {
   const [deleting, setDeleting] = useState(false);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
+
+  const callInventoryApi = useCallback(
+    async (url: string, init?: RequestInit) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão não encontrada.");
+
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          ...(init?.headers ?? {}),
+        },
+      });
+
+      const responseText = await response.text();
+      let payload: { error?: string } | null = null;
+      try {
+        payload = responseText ? (JSON.parse(responseText) as { error?: string }) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? responseText ?? "Falha na requisição.");
+      }
+    },
+    [supabase],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,10 +174,10 @@ export default function AdminExtintoresPage() {
   function openEdit(e: ExtintorRow) {
     setForm({
       codigo: e.codigo,
-      setor: e.setor,
+      setor: toUppercaseLabel(e.setor),
       local_detalhado: e.local_detalhado,
       num_inmetro: e.num_inmetro,
-      tipo: e.tipo,
+      tipo: toUppercaseLabel(e.tipo),
       tamanho: e.tamanho,
       capacidade_extintora: e.capacidade_extintora,
       manutencao_2_nivel: e.manutencao_2_nivel ?? "",
@@ -157,10 +205,10 @@ export default function AdminExtintoresPage() {
 
     const payload = {
       codigo: form.codigo.trim(),
-      setor: form.setor.trim(),
+      setor: toUppercaseLabel(form.setor),
       local_detalhado: form.local_detalhado.trim(),
       num_inmetro: form.num_inmetro.trim(),
-      tipo: form.tipo.trim(),
+      tipo: toUppercaseLabel(form.tipo),
       tamanho: form.tamanho.trim(),
       capacidade_extintora: form.capacidade_extintora.trim(),
       manutencao_2_nivel: form.manutencao_2_nivel?.trim() || null,
@@ -168,18 +216,28 @@ export default function AdminExtintoresPage() {
       pavimento: form.pavimento?.trim() || null,
     };
 
-    let error;
-    if (modalMode === "create") {
-      ({ error } = await supabase.from("extintores").insert(payload as unknown as Record<string, unknown>));
-    } else {
-      ({ error } = await supabase.from("extintores").update(payload as unknown as Record<string, unknown>).eq("id", editId!));
+    try {
+      if (modalMode === "create") {
+        await callInventoryApi("/api/admin/extintores", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await callInventoryApi("/api/admin/extintores", {
+          method: "PATCH",
+          body: JSON.stringify({ id: editId, ...payload }),
+        });
+      }
+    } catch (err) {
+      setSaving(false);
+      setFeedback({
+        type: "err",
+        msg: `Erro: ${err instanceof Error ? err.message : "Falha ao salvar."}`,
+      });
+      return;
     }
 
     setSaving(false);
-    if (error) {
-      setFeedback({ type: "err", msg: `Erro: ${error.message}` });
-      return;
-    }
 
     setFeedback({
       type: "ok",
@@ -193,45 +251,62 @@ export default function AdminExtintoresPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    const { error } = await supabase.from("extintores").delete().eq("id", deleteTarget.id);
+    try {
+      await callInventoryApi("/api/admin/extintores", {
+        method: "DELETE",
+        body: JSON.stringify({ id: deleteTarget.id }),
+      });
+    } catch (err) {
+      setDeleting(false);
+      alert(`Erro ao excluir: ${err instanceof Error ? err.message : "Falha na requisição."}`);
+      return;
+    }
     setDeleting(false);
-    if (error) { alert(`Erro ao excluir: ${error.message}`); return; }
     setDeleteTarget(null);
     await load();
   }
 
   function formatDate(d: string | null) {
-    if (!d) return "—";
-    return new Date(d).toLocaleDateString("pt-BR");
+    return formatDateOnlyPt(d);
   }
 
   function isExpired(d: string | null) {
     if (!d) return false;
-    return new Date(d) < new Date();
+    const date = parseCalendarDateAsLocal(d);
+    if (!date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    return date < today;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Extintores</h1>
-          <p className="text-sm text-slate-500">{extintores.length} extintor{extintores.length !== 1 ? "es" : ""} cadastrado{extintores.length !== 1 ? "s" : ""}</p>
+      <div className="page-hero p-6">
+        <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Inventário</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Extintores</h1>
+            <p className="mt-2 text-sm font-medium text-slate-300">
+              {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} cadastrado{extintores.length !== 1 ? "s" : ""}.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Novo Extintor
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="brand-gradient flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm"
-        >
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Novo Extintor
-        </button>
       </div>
 
       {/* Search */}
-      <div className="surface-card flex items-center gap-2 px-4 py-3">
+      <div className="section-card flex items-center gap-2 px-4 py-3">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
           <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
         </svg>
@@ -250,7 +325,7 @@ export default function AdminExtintoresPage() {
       </div>
 
       {/* Table */}
-      <div className="surface-card overflow-hidden">
+      <div className="section-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
@@ -261,9 +336,9 @@ export default function AdminExtintoresPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="modern-table">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
+                <tr className="text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Código</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Setor / Local</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">Tipo / Tamanho</th>
@@ -275,7 +350,7 @@ export default function AdminExtintoresPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50">
+                  <tr key={e.id} className="border-b border-slate-100 transition hover:bg-slate-50">
                     <td className="px-4 py-3 font-bold text-slate-900">{e.codigo}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{e.setor}</p>
@@ -310,14 +385,14 @@ export default function AdminExtintoresPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(e)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                         >
                           Editar
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(e)}
-                          className="rounded-lg border border-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
+                          className="rounded-xl bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
                         >
                           Excluir
                         </button>
@@ -333,18 +408,17 @@ export default function AdminExtintoresPage() {
 
       {/* Create / Edit Modal */}
       {modalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30">
             {/* Modal header */}
             <div
-              className="flex items-center justify-between px-6 py-4"
-              style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+              className="flex items-center justify-between bg-slate-950 px-6 py-4 text-white"
             >
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
                   {modalMode === "create" ? "Cadastro Manual" : "Editar Extintor"}
                 </p>
-                <h2 className="text-lg font-extrabold text-white">
+                <h2 className="text-lg font-black text-white">
                   {modalMode === "create" ? "Novo Extintor" : form.codigo}
                 </h2>
               </div>
@@ -372,13 +446,18 @@ export default function AdminExtintoresPage() {
                 </Field>
 
                 <Field label="Setor" required>
-                  <select required className={inputCls} value={form.setor} onChange={(e) => set("setor", e.target.value)}>
+                  <select
+                    required
+                    className={`${inputCls} uppercase`}
+                    value={form.setor}
+                    onChange={(e) => set("setor", e.target.value)}
+                  >
                     <option value="">Selecione o setor...</option>
-                    <option value="Subsolo">Subsolo</option>
-                    <option value="Térreo">Térreo</option>
-                    <option value="Pavimento 1">Pavimento 1</option>
-                    <option value="Galeria Técnica">Galeria Técnica</option>
-                    <option value="Pavimento Técnico">Pavimento Técnico</option>
+                    {SETORES.map((setor) => (
+                      <option key={setor} value={setor}>
+                        {setor}
+                      </option>
+                    ))}
                   </select>
                 </Field>
 
@@ -389,7 +468,7 @@ export default function AdminExtintoresPage() {
                 <Field label="Tipo" required>
                   <select
                     required
-                    className={inputCls}
+                    className={`${inputCls} uppercase`}
                     value={form.tipo}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -400,11 +479,11 @@ export default function AdminExtintoresPage() {
                     }
                   >
                     <option value="">Selecione o tipo...</option>
-                    <option value="Água">Água</option>
-                    <option value="PQS ABC">PQS ABC</option>
-                    <option value="PQS BC">PQS BC</option>
-                    <option value="Espuma Mecânica">Espuma Mecânica</option>
-                    <option value="CO2">CO2</option>
+                    {TIPOS_EXTINTOR.map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
                   </select>
                 </Field>
 
@@ -475,8 +554,7 @@ export default function AdminExtintoresPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-60"
-                  style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+                  className="btn-primary flex-1"
                 >
                   {saving
                     ? "Salvando..."
@@ -487,7 +565,7 @@ export default function AdminExtintoresPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600"
+                  className="btn-secondary"
                 >
                   Cancelar
                 </button>
@@ -499,8 +577,8 @@ export default function AdminExtintoresPage() {
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-slate-950/30">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#E02020" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -518,15 +596,14 @@ export default function AdminExtintoresPage() {
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-60"
-                style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+                className="btn-primary flex-1"
               >
                 {deleting ? "Excluindo..." : "Sim, excluir"}
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
+                className="btn-secondary"
               >
                 Cancelar
               </button>

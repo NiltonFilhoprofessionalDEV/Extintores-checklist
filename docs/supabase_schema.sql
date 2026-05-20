@@ -90,7 +90,7 @@ begin
     where t.typname = 'user_role'
       and n.nspname = 'public'
   ) then
-    create type public.user_role as enum ('admin', 'user');
+    create type public.user_role as enum ('admin', 'leadership', 'user');
   end if;
 end $$;
 
@@ -113,6 +113,8 @@ create or replace function public.current_role()
 returns public.user_role
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select role
   from public.profiles
@@ -123,8 +125,20 @@ create or replace function public.is_admin()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select coalesce(public.current_role() = 'admin', false);
+$$;
+
+create or replace function public.is_admin_or_leadership()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_role() in ('admin', 'leadership'), false);
 $$;
 
 -- Segurança com RBAC
@@ -140,19 +154,28 @@ to authenticated
 using (true);
 
 drop policy if exists extintores_insert_admin on public.extintores;
-create policy extintores_insert_admin
+drop policy if exists extintores_insert_staff on public.extintores;
+create policy extintores_insert_staff
 on public.extintores
 for insert
 to authenticated
-with check (public.is_admin());
+with check (public.is_admin_or_leadership());
 
 drop policy if exists extintores_update_admin on public.extintores;
-create policy extintores_update_admin
+drop policy if exists extintores_update_staff on public.extintores;
+create policy extintores_update_staff
 on public.extintores
 for update
 to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+using (public.is_admin_or_leadership())
+with check (public.is_admin_or_leadership());
+
+drop policy if exists extintores_delete_staff on public.extintores;
+create policy extintores_delete_staff
+on public.extintores
+for delete
+to authenticated
+using (public.is_admin_or_leadership());
 
 drop policy if exists extintores_update_user_coords on public.extintores;
 create policy extintores_update_user_coords

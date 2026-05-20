@@ -9,7 +9,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Extintor Conferência",
+  title: "FireCheck",
   description: "Segurança que se confere",
   manifest: "/manifest.webmanifest",
   icons: {

@@ -1,7 +1,12 @@
 import type { ChecklistValue } from "@/lib/checklist/types";
 import { diasParaVencimentoTeste, dataVencimentoTeste } from "@/lib/checklist/types";
+import { formatDateOnlyPt } from "@/lib/date/date-only";
 import type { HidranteChecklistData, HidranteItemKey } from "@/lib/checklist/hidrante-types";
-import { isHidranteChecklistValid } from "@/lib/checklist/hidrante-types";
+import {
+  HIDRANTE_ACTIVE_ITEM_KEYS,
+  HIDRANTE_ITEM_LABELS,
+  isHidranteChecklistValid,
+} from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 
 type OptionDef = { value: ChecklistValue; label: string; color: string; bg: string; ring: string };
@@ -12,40 +17,10 @@ const OPTIONS: OptionDef[] = [
   { value: "nao_aplica", label: "N/A", color: "#4b5563", bg: "#f3f4f6", ring: "#9ca3af" },
 ];
 
-const FIELDS: { key: HidranteItemKey; label: string }[] = [
-  {
-    key: "acesso_desobstruido",
-    label: "O acesso ao hidrante está desobstruído e permite manobra e utilização imediata?",
-  },
-  {
-    key: "identificacao_sinalizacao",
-    label: "A identificação do ponto e a sinalização estão visíveis, legíveis e adequadas?",
-  },
-  {
-    key: "mangueira_esguicho",
-    label: "A mangueira e o esguicho apresentam integridade, sem vazamentos aparentes ou avarias graves?",
-  },
-  {
-    key: "valvulas_registros",
-    label: "Válvulas, registros e conexões encontram-se em condições operacionais e sem obstruções?",
-  },
-  {
-    key: "pressao_abastecimento",
-    label: "O sistema de abastecimento / pressão aparenta estar íntegro para uso em emergência?",
-  },
-  {
-    key: "gabinete_caixa",
-    label: "Gabinete, caixa ou proteção física está íntegra e adequada à proteção do equipamento?",
-  },
-  {
-    key: "hidrante_integridade",
-    label: "O conjunto do hidrante apresenta boas condições gerais de conservação e segurança?",
-  },
-  {
-    key: "documentacao_acesso",
-    label: "As condições permitem inspeção e manutenção periódicas conforme boas práticas?",
-  },
-];
+const FIELDS: { key: HidranteItemKey; label: string }[] = HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => ({
+  key,
+  label: HIDRANTE_ITEM_LABELS[key],
+}));
 
 function ToggleField({
   label,
@@ -110,13 +85,6 @@ function ToggleField({
   );
 }
 
-function formatarDataPt(iso: string | Date | null | undefined): string {
-  if (!iso) return "—";
-  const d = iso instanceof Date ? iso : new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 type TesteStatus = "vencido" | "alerta" | "ok" | "sem_data";
 
 function testeStatusInfo(ultimaRealizacao: string | null | undefined): {
@@ -131,7 +99,7 @@ function testeStatusInfo(ultimaRealizacao: string | null | undefined): {
   }
   const dias = diasParaVencimentoTeste(ultimaRealizacao);
   const vencDate = dataVencimentoTeste(ultimaRealizacao);
-  const vencimentoFmt = formatarDataPt(vencDate);
+  const vencimentoFmt = formatDateOnlyPt(vencDate);
 
   if (dias === null) {
     return { status: "sem_data", vencimentoFmt: "—", label: "Data inválida", color: "#64748b", bg: "#f1f5f9" };
@@ -250,7 +218,7 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
                   </dd>
                 </div>
                 <div className="flex justify-between text-[11px]" style={{ color: info.color }}>
-                  <span>Última realização: <strong>{formatarDataPt(val ?? null)}</strong></span>
+                  <span>Última realização: <strong>{formatDateOnlyPt(val ?? null)}</strong></span>
                   <span>Vencimento: <strong>{info.vencimentoFmt}</strong></span>
                 </div>
               </div>
@@ -267,7 +235,7 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
           <input
             required
             type="text"
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="field-control py-3"
             value={data.conferente}
             onChange={(e) => onChange({ ...data, conferente: e.target.value })}
           />
@@ -291,7 +259,7 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
           </label>
           <textarea
             rows={2}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="field-control py-3"
             value={data.observacoes}
             onChange={(e) => onChange({ ...data, observacoes: e.target.value })}
           />
@@ -302,11 +270,11 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
         <button
           type="submit"
           disabled={isSaving || !valid}
-          className="flex-1 rounded-xl bg-blue-700 py-3.5 text-sm font-bold text-white disabled:opacity-50"
+          className="btn-primary flex-1 py-3.5 disabled:opacity-50"
         >
           {isSaving ? "Salvando..." : "Confirmar inspeção"}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-xl border border-gray-200 px-4 py-3.5 text-sm font-semibold text-gray-600">
+        <button type="button" onClick={onCancel} className="btn-secondary py-3.5">
           Cancelar
         </button>
       </div>

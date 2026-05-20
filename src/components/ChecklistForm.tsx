@@ -1,5 +1,6 @@
 import type { ChecklistData, ChecklistItemKey, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
 import { isChecklistValid, isDataVencida } from "@/lib/checklist/types";
+import { formatDateOnlyPt } from "@/lib/date/date-only";
 
 type OptionDef = { value: ChecklistValue; label: string; color: string; bg: string; ring: string };
 
@@ -70,13 +71,6 @@ const FIELDS: { key: ChecklistItemKey; label: string }[] = [
   },
 ];
 
-function formatarDataPt(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
   const v2 = isDataVencida(info.manutencao_2_nivel);
   const v3 = isDataVencida(info.manutencao_3_nivel);
@@ -115,14 +109,14 @@ function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
         <div className="flex justify-between gap-3">
           <dt className="shrink-0 text-slate-500">Próximo teste nível 2</dt>
           <dd className={`text-right font-semibold ${v2 ? "text-red-600" : "text-slate-800"}`}>
-            {formatarDataPt(info.manutencao_2_nivel)}
+            {formatDateOnlyPt(info.manutencao_2_nivel)}
             {v2 ? " (vencido)" : ""}
           </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="shrink-0 text-slate-500">Próximo teste nível 3</dt>
           <dd className={`text-right font-semibold ${v3 ? "text-red-600" : "text-slate-800"}`}>
-            {formatarDataPt(info.manutencao_3_nivel)}
+            {formatDateOnlyPt(info.manutencao_3_nivel)}
             {v3 ? " (vencido)" : ""}
           </dd>
         </div>
@@ -268,7 +262,7 @@ export default function ChecklistForm({
             required
             type="text"
             placeholder="Nome do responsável pela conferência"
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-[#E02020] focus:outline-none focus:ring-2 focus:ring-[#E02020]/20"
+            className="field-control py-3"
             value={data.conferente}
             onChange={(e) => onChange({ ...data, conferente: e.target.value })}
           />
@@ -293,7 +287,7 @@ export default function ChecklistForm({
           <textarea
             rows={3}
             placeholder="Observações adicionais (opcional)..."
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-[#E02020] focus:outline-none focus:ring-2 focus:ring-[#E02020]/20"
+            className="field-control py-3"
             value={data.observacoes}
             onChange={(e) => onChange({ ...data, observacoes: e.target.value })}
           />
@@ -304,15 +298,14 @@ export default function ChecklistForm({
         <button
           type="submit"
           disabled={isSaving || !valid}
-          className="flex-1 rounded-xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
-          style={{ background: "linear-gradient(90deg, #E02020, #B51313)" }}
+          className="btn-primary flex-1 py-3.5 disabled:opacity-50"
         >
           {isSaving ? "Salvando..." : "Confirmar Inspeção"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-gray-200 px-4 py-3.5 text-sm font-semibold text-gray-600"
+          className="btn-secondary py-3.5"
         >
           Cancelar
         </button>

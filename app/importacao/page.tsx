@@ -150,23 +150,25 @@ export default function ImportacaoPage() {
 
   return (
     <AuthGuard allowedRoles={["admin"]}>
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-10">
-        <header className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-wider text-amber-700">RF01 - Importação de Dados</p>
-          <h1 className="text-3xl font-bold text-slate-900">Importar planilha</h1>
-          <p className="max-w-3xl text-slate-600">
+      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-8">
+        <header className="page-hero p-6">
+          <div className="page-hero-content">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">RF01 - Importação de Dados</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Importar planilha</h1>
+          <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
             <strong>Extintores:</strong> modelo RF01 com colunas de extintores.{" "}
             <strong>Hidrantes:</strong> planilha própria com os cabeçalhos padronizados listados abaixo (.xlsx ou .csv).
           </p>
+          </div>
         </header>
 
-        <section className="surface-card p-6">
-          <p className="mb-2 text-sm font-semibold text-slate-800">Destino da importação</p>
+        <section className="section-card p-6">
+          <p className="mb-2 text-sm font-black text-slate-950">Destino da importação</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
-                destino === "extintores" ? "brand-gradient text-white" : "border border-slate-200 bg-slate-50 text-slate-700"
+              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
+                destino === "extintores" ? "brand-gradient text-white shadow-lg shadow-red-100" : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => {
                 setDestino("extintores");
@@ -180,8 +182,8 @@ export default function ImportacaoPage() {
             </button>
             <button
               type="button"
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
-                destino === "hidrantes" ? "brand-gradient text-white" : "border border-slate-200 bg-slate-50 text-slate-700"
+              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
+                destino === "hidrantes" ? "brand-gradient text-white shadow-lg shadow-red-100" : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => {
                 setDestino("hidrantes");
@@ -196,7 +198,7 @@ export default function ImportacaoPage() {
           </div>
         </section>
 
-        <section className="surface-card p-6">
+        <section className="section-card p-6">
           <label htmlFor="spreadsheet" className="mb-3 block text-sm font-medium text-slate-700">
             Selecione a planilha
           </label>
@@ -205,12 +207,12 @@ export default function ImportacaoPage() {
             name="spreadsheet"
             type="file"
             accept={ACCEPTED_FILES}
-            className="block w-full rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-700"
+            className="field-control block file:mr-4 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
             onChange={handleFileChange}
             disabled={disabled}
           />
 
-          <div className="mt-4 rounded-lg bg-slate-50 p-4">
+          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
             <p className="text-sm font-semibold text-slate-800">Campos obrigatórios (cabeçalhos)</p>
             <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-600 md:grid-cols-2">
               {(destino === "extintores"
@@ -246,7 +248,7 @@ export default function ImportacaoPage() {
 
           <button
             type="button"
-            className="brand-gradient mt-4 inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={status !== "ready"}
             onClick={() => void handleImport()}
           >
@@ -254,13 +256,13 @@ export default function ImportacaoPage() {
           </button>
         </section>
 
-        <section className="surface-card p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Pré-visualização ({readyCount})</h2>
+        <section className="section-card p-6">
+          <h2 className="text-lg font-black text-slate-950">Pré-visualização ({readyCount})</h2>
           <div className="mt-4 overflow-x-auto">
             {destino === "extintores" ? (
-              <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+              <table className="modern-table min-w-[900px]">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-600">
+                  <tr>
                     <th className="px-2 py-2">Código</th>
                     <th className="px-2 py-2">Pavimento</th>
                     <th className="px-2 py-2">Local Detalhado</th>
@@ -292,9 +294,9 @@ export default function ImportacaoPage() {
                 </tbody>
               </table>
             ) : (
-              <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+              <table className="modern-table min-w-[1100px]">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-600">
+                  <tr>
                     <th className="px-2 py-2">Cód. local</th>
                     <th className="px-2 py-2">Pavimento</th>
                     <th className="px-2 py-2">Localização</th>

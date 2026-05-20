@@ -1,6 +1,6 @@
 {
-  "name": "Extintor Conferência",
-  "short_name": "Extintor",
+  "name": "FireCheck",
+  "short_name": "FireCheck",
   "description": "Segurança que se confere",
   "start_url": "/",
   "display": "standalone",

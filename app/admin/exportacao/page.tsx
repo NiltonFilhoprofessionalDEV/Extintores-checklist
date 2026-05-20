@@ -2,22 +2,45 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { fetchAllFromTable, fetchAllPages } from "@/lib/supabase/fetch-all";
+import { fetchChecklistsExtintoresForExport } from "@/lib/supabase/checklists-export";
 import {
   exportExtintoresBasico,
   exportExtintoresComConferencias,
   exportHidrantesBasico,
   exportHidrantesComInspecoes,
-  exportInspecoesMarcadoresEmergencia,
   type ExtintorRow,
-  type ExtintorComConferencias,
-  type ChecklistRow,
   type HidranteExportRow,
-  type HidranteComInspecoes,
   type ChecklistHidranteRow,
-  type InspecaoMarcadorEmergenciaRow,
+  type HidranteChecklistExportItem,
 } from "@/lib/export/excel";
+import { CHECKLIST_EXPORT_COLUMN_LABELS } from "@/lib/checklist/export-labels";
+import { HIDRANTE_ACTIVE_ITEM_KEYS, HIDRANTE_ITEM_LABELS } from "@/lib/checklist/hidrante-types";
+import { CHECKLIST_ITEM_KEYS } from "@/lib/checklist/types";
 
 type ExportStatus = "idle" | "loading" | "done" | "error";
+
+function pickRelation<T extends Record<string, unknown>>(rel: unknown): T | null {
+  if (!rel || typeof rel !== "object") return null;
+  if (Array.isArray(rel)) return (rel[0] as T | undefined) ?? null;
+  return rel as T;
+}
+
+function buildExtintorLookup(extintores: ExtintorRow[]) {
+  return new Map(
+    extintores.map((e) => [
+      e.id,
+      { codigo: e.codigo, setor: e.setor, local_detalhado: e.local_detalhado },
+    ]),
+  );
+}
+
+function resetStatusAfterDelay(setStatus: (s: ExportStatus) => void, status: ExportStatus) {
+  setStatus(status);
+  if (status === "done" || status === "error") {
+    window.setTimeout(() => setStatus("idle"), 4000);
+  }
+}
 
 function ExportCard({
   title,
@@ -27,6 +50,7 @@ function ExportCard({
   icon,
   onExport,
   status,
+  disabled,
 }: {
   title: string;
   description: string;
@@ -35,26 +59,27 @@ function ExportCard({
   icon: React.ReactNode;
   onExport: () => void;
   status: ExportStatus;
+  disabled?: boolean;
 }) {
   return (
-    <div className="surface-card flex h-full flex-col gap-5 p-6">
+    <div className="section-card flex h-full flex-col gap-5 p-6 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-300/40">
       <div className="flex items-start gap-4">
-        <div className="brand-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white">
+        <div className="brand-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg shadow-red-200">
           {icon}
         </div>
         <div>
-          <h3 className="text-base font-bold text-slate-900">{title}</h3>
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
+          <h3 className="text-base font-black text-slate-950">{title}</h3>
+          <p className="mt-1 text-sm font-medium text-slate-500">{description}</p>
         </div>
       </div>
 
-      <div className="flex-1 rounded-xl border border-slate-100 bg-slate-50 p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Colunas incluídas</p>
+      <div className="flex-1 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+        <p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400">Colunas incluídas</p>
         <div className="flex flex-wrap gap-1.5">
           {details.map((d) => (
             <span
               key={d}
-              className="rounded-md bg-white px-2 py-0.5 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200"
+              className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200"
             >
               {d}
             </span>
@@ -65,8 +90,8 @@ function ExportCard({
       <button
         type="button"
         onClick={onExport}
-        disabled={status === "loading"}
-        className="brand-gradient mt-auto flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold text-white disabled:opacity-60"
+        disabled={disabled || status === "loading"}
+        className="btn-primary mt-auto w-full py-3.5 disabled:opacity-60"
       >
         {status === "loading" ? (
           <>
@@ -97,34 +122,52 @@ function ExportCard({
   );
 }
 
+const EXTINTOR_SELECT =
+  "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at";
+
+const HIDRANTE_SELECT = "id,codigo,pavimento,local_detalhado,coord_x,coord_y,created_at";
+
+const CHECKLIST_HIDRANTE_SELECT =
+  "id,hidrante_id,data_conferencia,conferente,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,observacoes,created_at,hidrantes(codigo,pavimento,local_detalhado)";
+
 export default function AdminExportacaoPage() {
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteExportRow[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusBasico, setStatusBasico] = useState<ExportStatus>("idle");
   const [statusCompleto, setStatusCompleto] = useState<ExportStatus>("idle");
   const [statusHidBasico, setStatusHidBasico] = useState<ExportStatus>("idle");
   const [statusHidInspecoes, setStatusHidInspecoes] = useState<ExportStatus>("idle");
-  const [statusEmergencia, setStatusEmergencia] = useState<ExportStatus>("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const extintorById = useMemo(() => buildExtintorLookup(extintores), [extintores]);
 
   const loadData = useCallback(async () => {
     setLoadingData(true);
+    setLoadError(null);
+
     const [extRes, hidRes] = await Promise.all([
-      supabase
-        .from("extintores")
-        .select(
-          "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at",
-        )
-        .order("codigo", { ascending: true }),
-      supabase
-        .from("hidrantes")
-        .select("id,codigo,pavimento,local_detalhado,coord_x,coord_y,created_at")
-        .order("codigo", { ascending: true }),
+      fetchAllFromTable<ExtintorRow>(supabase, "extintores", EXTINTOR_SELECT, {
+        column: "codigo",
+        ascending: true,
+      }),
+      fetchAllFromTable<HidranteExportRow>(supabase, "hidrantes", HIDRANTE_SELECT, {
+        column: "codigo",
+        ascending: true,
+      }),
     ]);
-    setExtintores((extRes.data ?? []) as ExtintorRow[]);
-    setHidrantes((hidRes.data ?? []) as HidranteExportRow[]);
+
+    if (extRes.error || hidRes.error) {
+      setLoadError(extRes.error ?? hidRes.error);
+      setExtintores([]);
+      setHidrantes([]);
+    } else {
+      setExtintores(extRes.data);
+      setHidrantes(hidRes.data);
+    }
+
     setLoadingData(false);
   }, [supabase]);
 
@@ -139,41 +182,24 @@ export default function AdminExportacaoPage() {
     setStatusBasico("loading");
     try {
       exportExtintoresBasico(extintores);
-      setStatusBasico("done");
-      setTimeout(() => setStatusBasico("idle"), 4000);
+      resetStatusAfterDelay(setStatusBasico, "done");
     } catch {
-      setStatusBasico("error");
+      resetStatusAfterDelay(setStatusBasico, "error");
     }
   }
 
   async function handleExportCompleto() {
     setStatusCompleto("loading");
+    setExportError(null);
     try {
-      const { data: checklists, error } = await supabase
-        .from("checklists")
-        .select(
-          "id,extintor_id,data_conferencia,conferente,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,status_lacre,status_manometro,observacoes,created_at",
-        )
-        .order("data_conferencia", { ascending: false });
+      const { items, error } = await fetchChecklistsExtintoresForExport(supabase, extintorById);
+      if (error) throw new Error(error);
 
-      if (error) throw error;
-
-      const checklistMap: Record<string, ChecklistRow[]> = {};
-      for (const c of (checklists ?? []) as ChecklistRow[]) {
-        if (!checklistMap[c.extintor_id]) checklistMap[c.extintor_id] = [];
-        checklistMap[c.extintor_id].push(c);
-      }
-
-      const combined: ExtintorComConferencias[] = extintores.map((e) => ({
-        ...e,
-        checklists: checklistMap[e.id] ?? [],
-      }));
-
-      exportExtintoresComConferencias(combined);
-      setStatusCompleto("done");
-      setTimeout(() => setStatusCompleto("idle"), 4000);
-    } catch {
-      setStatusCompleto("error");
+      exportExtintoresComConferencias(items);
+      resetStatusAfterDelay(setStatusCompleto, "done");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Erro ao exportar conferências.");
+      resetStatusAfterDelay(setStatusCompleto, "error");
     }
   }
 
@@ -181,82 +207,94 @@ export default function AdminExportacaoPage() {
     setStatusHidBasico("loading");
     try {
       exportHidrantesBasico(hidrantes);
-      setStatusHidBasico("done");
-      setTimeout(() => setStatusHidBasico("idle"), 4000);
+      resetStatusAfterDelay(setStatusHidBasico, "done");
     } catch {
-      setStatusHidBasico("error");
+      resetStatusAfterDelay(setStatusHidBasico, "error");
     }
   }
 
   async function handleExportHidrantesInspecoes() {
     setStatusHidInspecoes("loading");
     try {
-      const { data: checklists, error } = await supabase
-        .from("checklists_hidrantes")
-        .select(
-          "id,hidrante_id,data_conferencia,conferente,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,observacoes,created_at",
-        )
-        .order("data_conferencia", { ascending: false });
+      const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase
+          .from("checklists_hidrantes")
+          .select(CHECKLIST_HIDRANTE_SELECT)
+          .order("data_conferencia", { ascending: false })
+          .range(from, to) as unknown as Promise<{
+          data: Record<string, unknown>[] | null;
+          error: { message: string } | null;
+        }>,
+      );
 
-      if (error) throw error;
+      if (error) throw new Error(error);
 
-      const checklistMap: Record<string, ChecklistHidranteRow[]> = {};
-      for (const c of (checklists ?? []) as ChecklistHidranteRow[]) {
-        if (!checklistMap[c.hidrante_id]) checklistMap[c.hidrante_id] = [];
-        checklistMap[c.hidrante_id].push(c);
+      const items: HidranteChecklistExportItem[] = [];
+      for (const row of data) {
+        const hid = pickRelation<{ codigo?: string; pavimento?: string | null; local_detalhado?: string }>(
+          row.hidrantes,
+        );
+        const checklist = row as unknown as ChecklistHidranteRow;
+        items.push({
+          codigo: hid?.codigo ?? "",
+          pavimento: hid?.pavimento ?? "",
+          local_detalhado: hid?.local_detalhado ?? "",
+          checklist,
+        });
       }
 
-      const combined: HidranteComInspecoes[] = hidrantes.map((h) => ({
-        ...h,
-        checklists: checklistMap[h.id] ?? [],
-      }));
-
-      exportHidrantesComInspecoes(combined);
-      setStatusHidInspecoes("done");
-      setTimeout(() => setStatusHidInspecoes("idle"), 4000);
+      exportHidrantesComInspecoes(items);
+      resetStatusAfterDelay(setStatusHidInspecoes, "done");
     } catch {
-      setStatusHidInspecoes("error");
+      resetStatusAfterDelay(setStatusHidInspecoes, "error");
     }
   }
 
-  async function handleExportEmergencia() {
-    setStatusEmergencia("loading");
-    try {
-      const { data, error } = await supabase
-        .from("inspecoes_marcadores_emergencia")
-        .select(
-          "id,marcador_emergencia_id,marcador_kind,pavimento,data_inspecao,conferente,inspecao_resultado,nao_conformidade_descricao,created_at",
-        )
-        .order("data_inspecao", { ascending: false });
-
-      if (error) throw error;
-
-      exportInspecoesMarcadoresEmergencia((data ?? []) as InspecaoMarcadorEmergenciaRow[]);
-      setStatusEmergencia("done");
-      setTimeout(() => setStatusEmergencia("idle"), 4000);
-    } catch {
-      setStatusEmergencia("error");
-    }
-  }
+  const exportsDisabled = loadingData || !!loadError;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Exportação</h1>
-        <p className="text-sm text-slate-500">
-          Baixe dados cadastrais e histórico de inspeções (extintores, hidrantes e luz/placa de emergência) em Excel
-          (.xlsx).
-        </p>
+      <div className="page-hero p-6">
+        <div className="page-hero-content">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Relatórios</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Exportação</h1>
+          <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
+            Baixe dados cadastrais e histórico de inspeções em Excel (.xlsx).
+          </p>
+        </div>
       </div>
 
-      {!loadingData && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      {exportError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700">
+            Erro na exportação de conferências: <strong>{exportError}</strong>
+          </p>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700">
+            Erro ao carregar dados: <strong>{loadError}</strong>
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {!loadingData && !loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm shadow-blue-100/60">
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#2563eb" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-sm text-blue-700">
-            <strong>{extintores.length}</strong> extintores e <strong>{hidrantes.length}</strong> hidrantes cadastrados
-            para exportação cadastral; inspeções vêm das tabelas de checklist e de auditoria de emergência.
+            <strong>{extintores.length}</strong> extintores e <strong>{hidrantes.length}</strong> hidrantes
+            cadastrados para exportação cadastral; históricos vêm das tabelas de checklist.
           </p>
         </div>
       )}
@@ -286,6 +324,7 @@ export default function AdminExportacaoPage() {
             ]}
             buttonLabel="Exportar dados cadastrais"
             status={statusBasico}
+            disabled={exportsDisabled}
             onExport={handleExportBasico}
             icon={
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -303,20 +342,16 @@ export default function AdminExportacaoPage() {
             description="Uma linha por conferência na tabela checklists, com todos os itens do checklist."
             details={[
               "Código do extintor",
+              "Setor",
+              "Local detalhado",
               "Data da conferência",
               "Conferente",
-              "Local correto conforme mapa",
-              "Dados do extintor corretos",
-              "Sinalização correta",
-              "Mangueira",
-              "Bico ou difusor",
-              "Alça/Gatilho/Lacre/Pino",
-              "Medidor de pressão",
-              "Cilindro",
+              ...CHECKLIST_ITEM_KEYS.map((k) => CHECKLIST_EXPORT_COLUMN_LABELS[k]),
               "Observações",
             ]}
             buttonLabel="Exportar histórico de extintores"
             status={statusCompleto}
+            disabled={exportsDisabled}
             onExport={handleExportCompleto}
             icon={
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -332,6 +367,7 @@ export default function AdminExportacaoPage() {
             details={["Código", "Pavimento", "Local detalhado", "Posicionado no mapa", "Cadastrado em"]}
             buttonLabel="Exportar hidrantes (cadastro)"
             status={statusHidBasico}
+            disabled={exportsDisabled}
             onExport={handleExportHidrantesBasico}
             icon={
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -349,18 +385,12 @@ export default function AdminExportacaoPage() {
               "Local detalhado",
               "Data da inspeção",
               "Conferente",
-              "Acesso e desobstrução",
-              "Identificação e sinalização",
-              "Mangueira e esguicho",
-              "Válvulas e registros",
-              "Pressão / abastecimento",
-              "Gabinete ou caixa",
-              "Integridade do hidrante",
-              "Documentação / acesso",
+              ...HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => HIDRANTE_ITEM_LABELS[key]),
               "Observações",
             ]}
             buttonLabel="Exportar histórico de hidrantes"
             status={statusHidInspecoes}
+            disabled={exportsDisabled}
             onExport={handleExportHidrantesInspecoes}
             icon={
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -368,32 +398,6 @@ export default function AdminExportacaoPage() {
               </svg>
             }
           />
-
-          <div className="lg:col-span-2">
-            <ExportCard
-              title="Luz e placa de emergência — Histórico de inspeções"
-              description="Todas as linhas da tabela inspecoes_marcadores_emergencia (auditoria). Exige migração SQL em docs/migration_mapa_recursos.sql."
-              details={[
-                "Tipo de ponto",
-                "Pavimento",
-                "Data da inspeção",
-                "Conferente",
-                "Resultado",
-                "Descrição não conformidade",
-                "ID marcador",
-                "ID registro",
-                "Criado em",
-              ]}
-              buttonLabel="Exportar inspeções luz/placa"
-              status={statusEmergencia}
-              onExport={handleExportEmergencia}
-              icon={
-                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              }
-            />
-          </div>
         </div>
       )}
     </div>

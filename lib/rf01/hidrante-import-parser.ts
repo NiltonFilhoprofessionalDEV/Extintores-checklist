@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { formatDateOnlyIso } from "@/lib/date/date-only";
 
 /** Cabeçalhos exatos esperados na planilha de hidrantes (RF01 hidrantes). */
 export const HIDRANTE_REQUIRED_HEADERS = [
@@ -123,7 +124,7 @@ function formatDate(value: unknown): string {
   }
 
   if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
+    return formatDateOnlyIso(value);
   }
 
   const parsedDate = new Date(String(value));

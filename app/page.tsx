@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
+import { getHomePathForRole } from "@/lib/auth/roles";
 
 export default function Home() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function Home() {
         return;
       }
 
-      router.replace(profile.role === "admin" ? "/admin/dashboard" : "/mobile/conferencia");
+      router.replace(getHomePathForRole(profile.role));
     };
 
     void bootstrap();

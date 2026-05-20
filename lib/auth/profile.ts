@@ -1,7 +1,8 @@
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import type { UserRole } from "@/lib/auth/roles";
 
-export type UserRole = "admin" | "user";
+export type { UserRole } from "@/lib/auth/roles";
 
 export type Profile = {
   id: string;
@@ -12,12 +13,8 @@ export type Profile = {
 
 export async function getCurrentSession() {
   const supabase = getSupabaseClient();
-  // getUser() faz uma chamada de rede que força a renovação do access token
-  // quando ele está expirado mas o refresh token ainda é válido.
-  // Isso evita que o app deslogue o usuário após inatividade.
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
-  // Retorna a sessão já atualizada (com novo access token se foi renovado)
   const { data } = await supabase.auth.getSession();
   return data.session;
 }

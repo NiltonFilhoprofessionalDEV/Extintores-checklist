@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
@@ -72,9 +73,16 @@ export default function MobilePerfilPage() {
     );
   }
 
-  const roleLabel = profile?.role === "admin" ? "Administrador" : "Conferente";
-  const roleBg = profile?.role === "admin" ? "#fef3c7" : "#dbeafe";
-  const roleColor = profile?.role === "admin" ? "#92400e" : "#1e40af";
+  const roleLabel =
+    profile?.role === "admin"
+      ? "Administrador"
+      : profile?.role === "leadership"
+        ? "Liderança"
+        : "Conferente";
+  const roleBg =
+    profile?.role === "admin" ? "#fef3c7" : profile?.role === "leadership" ? "#ede9fe" : "#dbeafe";
+  const roleColor =
+    profile?.role === "admin" ? "#92400e" : profile?.role === "leadership" ? "#5b21b6" : "#1e40af";
 
   const formattedLastInspection = stats.ultimaInspecao
     ? new Date(stats.ultimaInspecao).toLocaleDateString("pt-BR", {
@@ -87,13 +95,10 @@ export default function MobilePerfilPage() {
   return (
     <div className="space-y-4">
       {/* Avatar + name card */}
-      <div
-        className="overflow-hidden rounded-2xl text-white"
-        style={{ background: "linear-gradient(135deg, #E02020 0%, #B51313 60%, #7f0d0d 100%)" }}
-      >
+      <div className="overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl shadow-slate-300/60">
         <div className="px-5 py-6 flex flex-col items-center gap-3">
           {/* Avatar circle with initials */}
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/30">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 ring-4 ring-white/20">
             <span className="text-3xl font-extrabold text-white">
               {(profile?.nome ?? email).charAt(0).toUpperCase()}
             </span>
@@ -131,8 +136,8 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Account info */}
-      <div className="surface-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      <div className="section-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
           Dados da conta
         </p>
         <div className="divide-y divide-slate-100">
@@ -148,8 +153,8 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Activity */}
-      <div className="surface-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      <div className="section-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
           Atividade
         </p>
         <div className="divide-y divide-slate-100">
@@ -160,10 +165,30 @@ export default function MobilePerfilPage() {
       </div>
 
       {/* Actions */}
-      <div className="surface-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      <div className="section-card px-5">
+        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
           Ações
         </p>
+
+        <Link
+          href="/mobile/configuracoes"
+          className="flex w-full items-center justify-between border-b border-slate-100 py-3.5 text-sm font-semibold text-slate-800"
+        >
+          <span className="flex items-center gap-3">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Configurações da conta
+          </span>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
 
         <button
           type="button"
@@ -185,14 +210,14 @@ export default function MobilePerfilPage() {
 
       {/* App info */}
       <div className="pb-4 text-center">
-        <p className="text-xs text-slate-400">Extintor Conferência · Versão 1.0.0</p>
+        <p className="text-xs text-slate-400">FireCheck · Versão 1.0.0</p>
         <p className="mt-0.5 text-[10px] text-slate-300">Segurança que se confere</p>
       </div>
 
       {/* Confirm sign out modal */}
       {showConfirmSignOut && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-black/50">
-          <div className="w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl">
+        <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/60 backdrop-blur-sm">
+          <div className="w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-slate-950/30">
             <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200" />
 
             <div className="mb-5 flex items-center gap-3">
@@ -211,7 +236,7 @@ export default function MobilePerfilPage() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="brand-gradient w-full rounded-xl py-3.5 text-sm font-bold text-white"
+                className="btn-primary w-full py-3.5"
               >
                 Sim, sair agora
               </button>

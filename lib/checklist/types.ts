@@ -1,3 +1,5 @@
+import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
+
 export type ChecklistValue = "conforme" | "nao_conforme" | "nao_aplica";
 
 /** Chaves dos itens da inspeção de extintor (espelham colunas em `checklists`) */
@@ -58,8 +60,8 @@ export type InspecaoExtintorCabecalho = {
 
 export function isDataVencida(dateStr: string | null): boolean {
   if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
+  const d = parseCalendarDateAsLocal(dateStr);
+  if (!d) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -76,8 +78,8 @@ export function isDataVencida(dateStr: string | null): boolean {
  */
 export function diasParaVencimentoTeste(ultimaRealizacao: string | null): number | null {
   if (!ultimaRealizacao) return null;
-  const ultima = new Date(ultimaRealizacao);
-  if (Number.isNaN(ultima.getTime())) return null;
+  const ultima = parseCalendarDateAsLocal(ultimaRealizacao);
+  if (!ultima) return null;
 
   const vencimento = new Date(ultima);
   vencimento.setFullYear(vencimento.getFullYear() + 1);
@@ -92,8 +94,8 @@ export function diasParaVencimentoTeste(ultimaRealizacao: string | null): number
 /** Data de vencimento do teste (última realização + 1 ano). */
 export function dataVencimentoTeste(ultimaRealizacao: string | null): Date | null {
   if (!ultimaRealizacao) return null;
-  const ultima = new Date(ultimaRealizacao);
-  if (Number.isNaN(ultima.getTime())) return null;
+  const ultima = parseCalendarDateAsLocal(ultimaRealizacao);
+  if (!ultima) return null;
   const venc = new Date(ultima);
   venc.setFullYear(venc.getFullYear() + 1);
   return venc;

@@ -7,10 +7,13 @@ import ChecklistForm from "@/src/components/ChecklistForm";
 import {
   CHECKLIST_INITIAL,
   checklistTemNaoConformidade,
+  isDataVencida,
   mergeObservacoesComNaoConformidades,
   type ChecklistData,
 } from "@/lib/checklist/types";
+import { isCargoLabel, resolveConferenteNome } from "@/lib/auth/conferente";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
+import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import { getLocalCalendarMonthUtcIsoRange } from "@/lib/date/local-month-range";
 import {
   fetchChecklistsExtintoresDoMes,
@@ -37,7 +40,12 @@ function compareCodigo(a: string, b: string) {
 
 function isVencido(dateStr: string | null): boolean {
   if (!dateStr) return false;
-  return new Date(dateStr) < new Date();
+  const date = parseCalendarDateAsLocal(dateStr);
+  if (!date) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return date < today;
 }
 
 function ExtintorIcon({ variant }: { variant: "ok" | "pendente" | "alerta" }) {
@@ -233,10 +241,13 @@ export default function MobileConferenciaPage() {
         const session = await getCurrentSession();
         if (!session) return;
         const profile = await getProfileBySession(session);
-        const nome = profile?.nome?.trim() ?? "";
+        const nome = resolveConferenteNome(session, profile);
         if (!nome) return;
         setConferenteNome(nome);
-        setChecklist((prev) => ({ ...prev, conferente: prev.conferente || nome }));
+        setChecklist((prev) => ({
+          ...prev,
+          conferente: !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
+        }));
       } catch {
         // sem bloqueio de fluxo caso falhe
       }
@@ -265,10 +276,19 @@ export default function MobileConferenciaPage() {
 
     const observacoesFinal = mergeObservacoesComNaoConformidades(checklist);
 
+    const session = await getCurrentSession();
+    const profile = session ? await getProfileBySession(session) : null;
+    const conferente =
+      resolveConferenteNome(session, profile, checklist.conferente) || conferenteNome.trim();
+    if (!conferente) {
+      setSaving(false);
+      return;
+    }
+
     const payloadNovo = {
       extintor_id: selected.id,
       data_conferencia: new Date().toISOString(),
-      conferente: checklist.conferente.trim(),
+      conferente,
       status_lacre: checklist.alca_gatilho_status === "conforme",
       status_manometro: checklist.medidor_pressao_status === "conforme",
       local_correto: checklist.local_correto,
@@ -311,7 +331,7 @@ export default function MobileConferenciaPage() {
       const payloadLegado = {
         extintor_id: selected.id,
         data_conferencia: new Date().toISOString(),
-        conferente: checklist.conferente.trim(),
+        conferente,
         status_lacre: checklist.alca_gatilho_status === "conforme",
         status_manometro: checklist.medidor_pressao_status === "conforme",
         observacoes: observacoesLegado || null,
@@ -383,13 +403,14 @@ export default function MobileConferenciaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="surface-card overflow-hidden">
-        <div className="brand-gradient px-4 py-4">
-          <h2 className="text-lg font-bold text-white">Inspeções</h2>
-          <p className="text-xs text-white/70">{extintores.length} extintores cadastrados</p>
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm shadow-slate-200/70">
+        <div className="bg-slate-950 px-4 py-4 text-white">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-200">Operação</p>
+          <h2 className="mt-1 text-xl font-black">Inspeções</h2>
+          <p className="text-xs font-medium text-white/70">{extintores.length} extintores cadastrados</p>
         </div>
         <div className="px-4 py-3">
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
               <circle cx="11" cy="11" r="8" />
               <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
@@ -441,7 +462,9 @@ export default function MobileConferenciaPage() {
           const temNc = ultimo ? checklistTemNaoConformidade(ultimo) : false;
           const manutVencida = isVencido(item.manutencao_2_nivel) || isVencido(item.manutencao_3_nivel);
 
-          const variant: "ok" | "pendente" | "alerta" = temNc ? "alerta" : conferidoNoMes ? "ok" : "pendente";
+          const testeN2Vencido = isDataVencida(item.manutencao_2_nivel);
+          const variant: "ok" | "pendente" | "alerta" =
+            temNc || testeN2Vencido ? "alerta" : conferidoNoMes ? "ok" : "pendente";
 
           return (
             <button
@@ -452,7 +475,7 @@ export default function MobileConferenciaPage() {
                 setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
                 setMessage("");
               }}
-              className="surface-card flex w-full items-center gap-3 px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
+              className="flex w-full items-center gap-3 rounded-3xl border border-white/70 bg-white px-4 py-3.5 text-left shadow-sm shadow-slate-200/70 transition-transform active:scale-[0.98]"
             >
               <div className="flex w-9 shrink-0 flex-col items-center justify-center">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Nº</span>
@@ -490,9 +513,9 @@ export default function MobileConferenciaPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-black/50">
+        <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/60 backdrop-blur-sm">
           <div
-            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl"
+            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-slate-950/30"
             style={{ maxHeight: "95vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />

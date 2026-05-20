@@ -23,12 +23,9 @@ export default function AppHeader({ title, links }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <BrandLogo size={34} />
-          <div>
-            <p className="text-xs font-bold leading-none text-slate-900">Extintor Conferência</p>
-            <p className="text-[10px] font-medium text-slate-500">{title}</p>
-          </div>
+        <div className="flex items-center gap-3">
+          <BrandLogo height={36} />
+          <p className="text-[10px] font-medium text-slate-500">{title}</p>
         </div>
 
         <nav className="flex flex-wrap items-center gap-1.5">

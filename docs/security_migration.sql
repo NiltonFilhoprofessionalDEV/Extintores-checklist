@@ -24,6 +24,7 @@ CREATE OR REPLACE FUNCTION public.current_role()
 RETURNS public.user_role
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT role
@@ -35,9 +36,20 @@ CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE(public.current_role() = 'admin', false);
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin_or_leadership()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(public.current_role() IN ('admin', 'leadership'), false);
 $$;
 
 
@@ -57,12 +69,13 @@ DROP POLICY IF EXISTS extintores_update_user_coords ON public.extintores;
 
 -- Garantir que a política de update correta (admin only) existe
 DROP POLICY IF EXISTS extintores_update_admin ON public.extintores;
-CREATE POLICY extintores_update_admin
+DROP POLICY IF EXISTS extintores_update_staff ON public.extintores;
+CREATE POLICY extintores_update_staff
 ON public.extintores
 FOR UPDATE
 TO authenticated
-USING (public.is_admin())
-WITH CHECK (public.is_admin());
+USING (public.is_admin_or_leadership())
+WITH CHECK (public.is_admin_or_leadership());
 
 -- 2c. Remover política anon em checklists
 DROP POLICY IF EXISTS checklists_insert_anon ON public.checklists;
@@ -77,11 +90,19 @@ WITH CHECK (auth.uid() IS NOT NULL);
 
 -- 2e. Garantir que extintores_insert também exige admin
 DROP POLICY IF EXISTS extintores_insert_admin ON public.extintores;
-CREATE POLICY extintores_insert_admin
+DROP POLICY IF EXISTS extintores_insert_staff ON public.extintores;
+CREATE POLICY extintores_insert_staff
 ON public.extintores
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_admin());
+WITH CHECK (public.is_admin_or_leadership());
+
+DROP POLICY IF EXISTS extintores_delete_staff ON public.extintores;
+CREATE POLICY extintores_delete_staff
+ON public.extintores
+FOR DELETE
+TO authenticated
+USING (public.is_admin_or_leadership());
 
 
 -- ────────────────────────────────────────────────────────────

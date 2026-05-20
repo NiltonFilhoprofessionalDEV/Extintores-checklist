@@ -1,4 +1,8 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
+import { HIDRANTE_ACTIVE_ITEM_KEYS, HIDRANTE_ITEM_LABELS } from "@/lib/checklist/hidrante-types";
+import { CHECKLIST_EXPORT_COLUMN_LABELS } from "@/lib/checklist/export-labels";
+import { CHECKLIST_ITEM_KEYS, dataVencimentoTeste } from "@/lib/checklist/types";
+import { formatDateOnlyPt } from "@/lib/date/date-only";
 
 export type ExtintorRow = {
   id: string;
@@ -30,14 +34,28 @@ export type ChecklistRow = {
   alca_gatilho_status: string | null;
   medidor_pressao_status: string | null;
   cilindro_status: string | null;
-  status_lacre: boolean;
-  status_manometro: boolean;
+  status_lacre?: boolean;
+  status_manometro?: boolean;
   observacoes: string | null;
   created_at: string;
 };
 
 export type ExtintorComConferencias = ExtintorRow & {
   checklists: ChecklistRow[];
+};
+
+export type ExtintorChecklistExportItem = {
+  codigo: string;
+  setor: string;
+  local_detalhado: string;
+  checklist: ChecklistRow;
+};
+
+export type HidranteChecklistExportItem = {
+  codigo: string;
+  pavimento: string;
+  local_detalhado: string;
+  checklist: ChecklistHidranteRow;
 };
 
 export type HidranteExportRow = {
@@ -85,9 +103,14 @@ export type InspecaoMarcadorEmergenciaRow = {
 
 function formatDate(value: string | null): string {
   if (!value) return "";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("pt-BR");
+  const formatted = formatDateOnlyPt(value);
+  return formatted === "—" ? "" : formatted;
+}
+
+function formatDateValue(value: string | Date | null): string {
+  if (!value) return "";
+  const formatted = formatDateOnlyPt(value);
+  return formatted === "—" ? "" : formatted;
 }
 
 function formatDateTime(value: string | null): string {
@@ -97,9 +120,107 @@ function formatDateTime(value: string | null): string {
   return d.toLocaleString("pt-BR");
 }
 
+/** Ordem crescente por código (ex.: EXT-2 antes de EXT-10). */
+function compareCodigo(a: string, b: string): number {
+  return a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
+}
+
+function sortExtintoresByCodigo(extintores: ExtintorRow[]): ExtintorRow[] {
+  return [...extintores].sort((a, b) => compareCodigo(a.codigo, b.codigo));
+}
+
+function sortHidrantesByCodigo(hidrantes: HidranteExportRow[]): HidranteExportRow[] {
+  return [...hidrantes].sort((a, b) => compareCodigo(a.codigo, b.codigo));
+}
+
+function sortExtintorChecklistItems(items: ExtintorChecklistExportItem[]): ExtintorChecklistExportItem[] {
+  return [...items].sort((a, b) => {
+    const byCodigo = compareCodigo(a.codigo, b.codigo);
+    if (byCodigo !== 0) return byCodigo;
+    return (
+      new Date(a.checklist.data_conferencia).getTime() -
+      new Date(b.checklist.data_conferencia).getTime()
+    );
+  });
+}
+
+function sortHidranteChecklistItems(items: HidranteChecklistExportItem[]): HidranteChecklistExportItem[] {
+  return [...items].sort((a, b) => {
+    const byCodigo = compareCodigo(a.codigo, b.codigo);
+    if (byCodigo !== 0) return byCodigo;
+    return (
+      new Date(a.checklist.data_conferencia).getTime() -
+      new Date(b.checklist.data_conferencia).getTime()
+    );
+  });
+}
+
+type StyledCell = XLSX.CellObject & {
+  s?: Record<string, unknown>;
+};
+
+const EXCEL_HEADER_STYLE = {
+  font: { bold: true, color: { rgb: "FFFFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "FF70AD47" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: {
+    top: { style: "thin", color: { rgb: "FF548235" } },
+    bottom: { style: "thin", color: { rgb: "FF548235" } },
+    left: { style: "thin", color: { rgb: "FF548235" } },
+    right: { style: "thin", color: { rgb: "FF548235" } },
+  },
+};
+
+const EXCEL_BODY_BORDER = {
+  top: { style: "thin", color: { rgb: "FFD9EAD3" } },
+  bottom: { style: "thin", color: { rgb: "FFD9EAD3" } },
+  left: { style: "thin", color: { rgb: "FFD9EAD3" } },
+  right: { style: "thin", color: { rgb: "FFD9EAD3" } },
+};
+
+function applyGreenTableStyle(ws: XLSX.WorkSheet): void {
+  if (!ws["!ref"]) return;
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  ws["!autofilter"] = { ref: ws["!ref"] };
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!rows"] = [{ hpt: 24 }];
+
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const address = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = (ws[address] ?? { t: "s", v: "" }) as StyledCell;
+      ws[address] = cell;
+
+      if (row === range.s.r) {
+        cell.s = EXCEL_HEADER_STYLE;
+        continue;
+      }
+
+      cell.s = {
+        fill: {
+          patternType: "solid",
+          fgColor: { rgb: row % 2 === 0 ? "FFE2F0D9" : "FFFFFFFF" },
+        },
+        alignment: { vertical: "center", wrapText: true },
+        border: EXCEL_BODY_BORDER,
+      };
+    }
+  }
+}
+
+function jsonToSheet(rows: Record<string, string | number>[]): ReturnType<typeof XLSX.utils.json_to_sheet> {
+  if (rows.length === 0) {
+    return XLSX.utils.json_to_sheet([
+      { Mensagem: "Nenhum registro encontrado para exportação." },
+    ]);
+  }
+  return XLSX.utils.json_to_sheet(rows);
+}
+
 /** Export 1: All extintores with basic data */
 export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
-  const rows = extintores.map((e) => ({
+  const rows = sortExtintoresByCodigo(extintores).map((e) => ({
     "Código": e.codigo,
     "Pavimento": e.setor,
     "Local Detalhado": e.local_detalhado,
@@ -114,7 +235,7 @@ export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
     "Cadastrado em": formatDate(e.created_at),
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = jsonToSheet(rows);
 
   // Column widths
   ws["!cols"] = [
@@ -122,45 +243,48 @@ export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
     { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 18 },
     { wch: 28 }, { wch: 28 }, { wch: 20 }, { wch: 18 },
   ];
+  applyGreenTableStyle(ws);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Extintores");
   XLSX.writeFile(wb, `extintores_${today()}.xlsx`);
 }
 
-/** Export 2: Each extintor + all its conference history (one row per checklist) */
-export function exportExtintoresComConferencias(
-  extintores: ExtintorComConferencias[],
-): void {
-  const rows: Record<string, string>[] = [];
-
-  for (const e of extintores) {
-    for (const c of e.checklists) {
-      rows.push({
-        "Código do Extintor": e.codigo,
+/** Uma linha por checklist de extintor (histórico completo). */
+export function exportExtintoresComConferencias(items: ExtintorChecklistExportItem[]): void {
+  const rows: Record<string, string>[] = sortExtintorChecklistItems(items).map(
+    ({ codigo, setor, local_detalhado, checklist: c }) => {
+      const row: Record<string, string> = {
+        "Código do Extintor": codigo,
+        Setor: setor,
+        "Local Detalhado": local_detalhado,
         "Data da Conferência": formatDateTime(c.data_conferencia),
-        "Conferente": c.conferente,
-        "Local correto conforme mapa": normalizeChecklistValue(c.local_correto),
-        "Dados do extintor corretos": normalizeChecklistValue(c.dados_corretos),
-        "Sinalização correta": normalizeChecklistValue(c.sinalizacao_correta),
-        "Mangueira em boas condições": normalizeChecklistValue(c.mangueira_status),
-        "Bico ou difusor em boas condições": normalizeChecklistValue(c.bico_difusor_status),
-        "Alça/Gatilho/Lacre/Pino em boas condições": normalizeChecklistValue(
-          c.alca_gatilho_status,
-        ),
-        "Medidor de pressão correto": normalizeChecklistValue(c.medidor_pressao_status),
-        "Cilindro em boas condições": normalizeChecklistValue(c.cilindro_status),
-        "Observações": c.observacoes ?? "",
-      });
-    }
-  }
+        Conferente: c.conferente,
+      };
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+      for (const key of CHECKLIST_ITEM_KEYS) {
+        row[CHECKLIST_EXPORT_COLUMN_LABELS[key]] = normalizeChecklistValue(c[key]);
+      }
+
+      if (c.status_lacre !== undefined) {
+        row["Lacre (campo legado)"] = c.status_lacre ? "Sim" : "Não";
+      }
+      if (c.status_manometro !== undefined) {
+        row["Manômetro (campo legado)"] = c.status_manometro ? "Sim" : "Não";
+      }
+
+      row.Observações = c.observacoes ?? "";
+      return row;
+    },
+  );
+
+  const ws = jsonToSheet(rows);
   ws["!cols"] = [
     { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 28 },
     { wch: 28 }, { wch: 24 }, { wch: 32 }, { wch: 34 },
     { wch: 42 }, { wch: 28 }, { wch: 30 }, { wch: 30 },
   ];
+  applyGreenTableStyle(ws);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Extintores + Conferências");
@@ -169,7 +293,7 @@ export function exportExtintoresComConferencias(
 
 /** Uma linha por hidrante — dados cadastrais e mapa */
 export function exportHidrantesBasico(hidrantes: HidranteExportRow[]): void {
-  const rows = hidrantes.map((h) => ({
+  const rows = sortHidrantesByCodigo(hidrantes).map((h) => ({
     Código: h.codigo,
     Pavimento: h.pavimento ?? "",
     "Local detalhado": h.local_detalhado,
@@ -177,43 +301,37 @@ export function exportHidrantesBasico(hidrantes: HidranteExportRow[]): void {
     "Cadastrado em": formatDate(h.created_at),
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = jsonToSheet(rows);
   ws["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 36 }, { wch: 20 }, { wch: 18 }];
+  applyGreenTableStyle(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Hidrantes");
   XLSX.writeFile(wb, `hidrantes_${today()}.xlsx`);
 }
 
-/** Uma linha por inspeção de hidrante (checklists_hidrantes) */
-export function exportHidrantesComInspecoes(hidrantes: HidranteComInspecoes[]): void {
-  const rows: Record<string, string>[] = [];
+/** Uma linha por inspeção de hidrante (checklists_hidrantes). */
+export function exportHidrantesComInspecoes(items: HidranteChecklistExportItem[]): void {
+  const rows: Record<string, string>[] = sortHidranteChecklistItems(items).map(({ codigo, pavimento, local_detalhado, checklist: c }) => ({
+    "Código do hidrante": codigo,
+    Pavimento: pavimento,
+    "Local detalhado": local_detalhado,
+    "Data da inspeção": formatDateTime(c.data_conferencia),
+    Conferente: c.conferente,
+    ...Object.fromEntries(
+      HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => [
+        HIDRANTE_ITEM_LABELS[key],
+        normalizeChecklistValue(c[key]),
+      ]),
+    ),
+    Observações: c.observacoes ?? "",
+  }));
 
-  for (const h of hidrantes) {
-    for (const c of h.checklists) {
-      rows.push({
-        "Código do hidrante": h.codigo,
-        Pavimento: h.pavimento ?? "",
-        "Local detalhado": h.local_detalhado,
-        "Data da inspeção": formatDateTime(c.data_conferencia),
-        Conferente: c.conferente,
-        "Acesso e desobstrução": normalizeChecklistValue(c.acesso_desobstruido),
-        "Identificação e sinalização": normalizeChecklistValue(c.identificacao_sinalizacao),
-        "Mangueira e esguicho": normalizeChecklistValue(c.mangueira_esguicho),
-        "Válvulas e registros": normalizeChecklistValue(c.valvulas_registros),
-        "Pressão / abastecimento": normalizeChecklistValue(c.pressao_abastecimento),
-        "Gabinete ou caixa": normalizeChecklistValue(c.gabinete_caixa),
-        "Integridade geral do hidrante": normalizeChecklistValue(c.hidrante_integridade),
-        "Acesso à documentação / inspeção": normalizeChecklistValue(c.documentacao_acesso),
-        Observações: c.observacoes ?? "",
-      });
-    }
-  }
-
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = jsonToSheet(rows);
   ws["!cols"] = [
     { wch: 16 }, { wch: 18 }, { wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 30 }, { wch: 26 },
     { wch: 26 }, { wch: 28 }, { wch: 24 }, { wch: 32 }, { wch: 36 }, { wch: 40 },
   ];
+  applyGreenTableStyle(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Hidrantes + Inspeções");
   XLSX.writeFile(wb, `hidrantes_inspecoes_${today()}.xlsx`);
@@ -245,13 +363,65 @@ export function exportInspecoesMarcadoresEmergencia(rows: InspecaoMarcadorEmerge
     "Registro criado em": formatDateTime(r.created_at),
   }));
 
-  const ws = XLSX.utils.json_to_sheet(out);
+  const ws = jsonToSheet(out);
   ws["!cols"] = [
     { wch: 22 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 40 }, { wch: 38 }, { wch: 38 }, { wch: 22 },
   ];
+  applyGreenTableStyle(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Luz e placa");
   XLSX.writeFile(wb, `inspecoes_luz_placa_${today()}.xlsx`);
+}
+
+export type HidranteVencimentoExportRow = {
+  id: string;
+  codigo: string;
+  pavimento: string | null;
+  local_detalhado: string;
+  quantidade_mangueiras: number | null;
+  teste_hidrostatico_m1: string | null;
+  teste_hidrostatico_m2: string | null;
+  teste_hidrostatico_m3: string | null;
+  teste_hidrostatico_m4: string | null;
+};
+
+/** Export: alertas de vencimento de mangueiras (hidrantes) */
+export function exportAlertasVencimentoHidrantes(
+  hidrantes: HidranteVencimentoExportRow[],
+  label: string,
+): void {
+  const rows = [...hidrantes]
+    .sort((a, b) => compareCodigo(a.codigo, b.codigo))
+    .map((h) => ({
+      Código: h.codigo,
+      Pavimento: h.pavimento ?? "",
+      "Local detalhado": h.local_detalhado,
+      "Qtd. mangueiras": h.quantidade_mangueiras ?? "",
+      "Últ. teste M-1": formatDate(h.teste_hidrostatico_m1),
+      "Venc. M-1": formatDateValue(dataVencimentoTeste(h.teste_hidrostatico_m1)),
+      "Últ. teste M-2": formatDate(h.teste_hidrostatico_m2),
+      "Últ. teste M-3": formatDate(h.teste_hidrostatico_m3),
+      "Últ. teste M-4": formatDate(h.teste_hidrostatico_m4),
+    }));
+
+  const ws = jsonToSheet(rows);
+  ws["!cols"] = [
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+  ];
+  applyGreenTableStyle(ws);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+  XLSX.writeFile(wb, `alertas_hidrantes_${label.replace(/\s+/g, "_")}_${today()}.xlsx`);
 }
 
 /** Export 3: Filtered alert list (vencimentos) */
@@ -259,7 +429,7 @@ export function exportAlertasVencimento(
   extintores: ExtintorRow[],
   label: string,
 ): void {
-  const rows = extintores.map((e) => ({
+  const rows = sortExtintoresByCodigo(extintores).map((e) => ({
     "Código": e.codigo,
     "Pavimento": e.setor,
     "Local Detalhado": e.local_detalhado,
@@ -271,11 +441,12 @@ export function exportAlertasVencimento(
     "Vencto. Manutenção Nível 3": formatDate(e.manutencao_3_nivel),
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = jsonToSheet(rows);
   ws["!cols"] = [
     { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 },
     { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 28 }, { wch: 28 },
   ];
+  applyGreenTableStyle(ws);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));

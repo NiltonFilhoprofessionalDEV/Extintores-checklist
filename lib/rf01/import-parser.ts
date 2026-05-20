@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { formatDateOnlyIso } from "@/lib/date/date-only";
 
 const REQUIRED_HEADERS = [
   "Código",
@@ -75,7 +76,7 @@ function formatDate(value: unknown): string {
   }
 
   if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
+    return formatDateOnlyIso(value);
   }
 
   const parsedDate = new Date(String(value));

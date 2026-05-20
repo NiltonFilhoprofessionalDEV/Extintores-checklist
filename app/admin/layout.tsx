@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import AuthGuard from "@/src/components/AuthGuard";
+import AdminAreaGuard from "@/src/components/AdminAreaGuard";
 import AdminSidebar from "@/src/components/AdminSidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -9,14 +10,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isMapeamento = pathname?.includes("/mapeamento");
 
   return (
-    <AuthGuard allowedRoles={["admin"]}>
+    <AuthGuard allowedRoles={["admin", "leadership"]}>
+      <AdminAreaGuard>
       <div
-        className="bg-[#f6f7fb]"
+        className="app-shell-bg"
         style={isMapeamento ? { height: "100dvh", display: "flex", flexDirection: "column" } : { minHeight: "100vh" }}
       >
         <AdminSidebar />
         <div
-          className={isMapeamento ? "flex-1 min-h-0 lg:pl-60" : "lg:pl-60"}
+          className={isMapeamento ? "flex-1 min-h-0 lg:pl-64" : "lg:pl-64"}
           style={isMapeamento ? { display: "flex", flexDirection: "column" } : undefined}
         >
           {isMapeamento ? (
@@ -25,10 +27,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {children}
             </div>
           ) : (
-            <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+            <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">{children}</main>
           )}
         </div>
       </div>
+      </AdminAreaGuard>
     </AuthGuard>
   );
 }

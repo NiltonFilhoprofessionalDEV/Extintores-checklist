@@ -26,13 +26,16 @@ import {
   type ChecklistExtintorMesRow,
   type ChecklistHidranteMesRow,
 } from "@/lib/supabase/checklists-do-mes";
-import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
+import { isCargoLabel, resolveConferenteNome } from "@/lib/auth/conferente";
+import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
+import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import {
   CHECKLIST_INITIAL,
   mergeObservacoesComNaoConformidades,
   checklistTemNaoConformidade,
+  isDataVencida,
   type ChecklistData,
 } from "@/lib/checklist/types";
 import {
@@ -160,10 +163,7 @@ const INITIAL_CHECKLIST: ChecklistState = CHECKLIST_INITIAL;
 const preloadedImages = new Set<string>();
 
 function parseDate(value: string | null) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
+  return parseCalendarDateAsLocal(value);
 }
 
 function normalizeText(value: string | null | undefined) {
@@ -397,6 +397,44 @@ function MapClickHandler({
 const FULL_IMAGE_WIDTH = 14042;
 const FULL_IMAGE_HEIGHT = 9934;
 
+/** Layout compacto do mapa só em telas realmente pequenas (evita modal “mobile” no PC). */
+const MAP_MOBILE_MAX_WIDTH_PX = 768;
+
+function InspecaoModalFrame({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl max-h-[min(92dvh,920px)] sm:rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 justify-end border-b border-slate-100 px-4 py-2.5 sm:px-5">
+          <button
+            type="button"
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            onClick={onClose}
+          >
+            Fechar
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MapView() {
   const [mode, setMode] = useState<Mode>("edicao");
   const [pavimento, setPavimento] = useState<PavimentoOption>(PAVIMENTOS[0]);
@@ -410,7 +448,9 @@ export default function MapView() {
   const [checklistForm, setChecklistForm] = useState<ChecklistState>(INITIAL_CHECKLIST);
   const [savingChecklist, setSavingChecklist] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 1024px)").matches : false,
+    typeof window !== "undefined"
+      ? window.matchMedia(`(max-width: ${MAP_MOBILE_MAX_WIDTH_PX}px)`).matches
+      : false,
   );
   const [canEdit, setCanEdit] = useState(false);
   const [conferidosNoMesIds, setConferidosNoMesIds] = useState<Set<string>>(new Set());
@@ -420,6 +460,7 @@ export default function MapView() {
     return canvas.toDataURL("image/webp").startsWith("data:image/webp");
   });
   const [conferenteNome, setConferenteNome] = useState("");
+  const [actorProfile, setActorProfile] = useState<Profile | null>(null);
   // Painel de informação (long press no mobile)
   const [infoMarker, setInfoMarker] = useState<Extintor | null>(null);
   const [ultimoChecklistExtintorMes, setUltimoChecklistExtintorMes] = useState<
@@ -571,12 +612,21 @@ export default function MapView() {
         }
         const profile = await getProfileBySession(session);
         const isAdmin = profile?.role === "admin";
-        const nome = profile?.nome?.trim() ?? "";
+        const nome = resolveConferenteNome(session, profile);
         if (mounted) {
           setCanEdit(Boolean(isAdmin));
+          setActorProfile(profile);
           setConferenteNome(nome);
-          setChecklistForm((prev) => ({ ...prev, conferente: prev.conferente || nome }));
-          setHidranteChecklistForm((prev) => ({ ...prev, conferente: prev.conferente || nome }));
+          setChecklistForm((prev) => ({
+            ...prev,
+            conferente:
+              !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
+          }));
+          setHidranteChecklistForm((prev) => ({
+            ...prev,
+            conferente:
+              !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
+          }));
           if (!isAdmin) setMode("inspecao");
           void loadConferenciasDoMes();
           void loadConferenciasHidrantesDoMes();
@@ -597,7 +647,7 @@ export default function MapView() {
   }, [loadConferenciasDoMes, loadConferenciasHidrantesDoMes]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 1024px)");
+    const mediaQuery = window.matchMedia(`(max-width: ${MAP_MOBILE_MAX_WIDTH_PX}px)`);
     const handleMediaChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
     mediaQuery.addEventListener("change", handleMediaChange);
 
@@ -703,6 +753,7 @@ export default function MapView() {
       placementExtra === "placa_saida_emergencia");
 
   function extintorIconColor(item: Extintor): "green" | "red" | "amber" {
+    if (isDataVencida(item.manutencao_2_nivel)) return "red";
     const ult = ultimoChecklistExtintorMes.get(item.id);
     const temNc = ult ? checklistTemNaoConformidade(ult) : false;
     if (temNc) return "red";
@@ -832,12 +883,25 @@ export default function MapView() {
     setSavingChecklist(true);
     setMessage("");
 
+    const session = await getCurrentSession();
+    const profile = session
+      ? await getProfileBySession(session).catch(() => actorProfile)
+      : actorProfile;
+    const conferente =
+      resolveConferenteNome(session, profile ?? actorProfile, checklistForm.conferente) ||
+      conferenteNome.trim();
+    if (!conferente) {
+      setMessage("Informe o nome do conferente.");
+      setSavingChecklist(false);
+      return;
+    }
+
     const observacoesFinal = mergeObservacoesComNaoConformidades(checklistForm);
 
     const payloadNovo = {
       extintor_id: selectedMarker.id,
       data_conferencia: new Date().toISOString(),
-      conferente: checklistForm.conferente.trim(),
+      conferente,
       status_lacre: checklistForm.alca_gatilho_status === "conforme",
       status_manometro: checklistForm.medidor_pressao_status === "conforme",
       local_correto: checklistForm.local_correto,
@@ -875,7 +939,7 @@ export default function MapView() {
       const payloadLegado = {
         extintor_id: selectedMarker.id,
         data_conferencia: new Date().toISOString(),
-        conferente: checklistForm.conferente.trim(),
+        conferente,
         status_lacre: checklistForm.alca_gatilho_status === "conforme",
         status_manometro: checklistForm.medidor_pressao_status === "conforme",
         observacoes: observacoesLegado || null,
@@ -933,12 +997,25 @@ export default function MapView() {
     setSavingHidranteChecklist(true);
     setMessage("");
 
+    const session = await getCurrentSession();
+    const profile = session
+      ? await getProfileBySession(session).catch(() => actorProfile)
+      : actorProfile;
+    const conferente =
+      resolveConferenteNome(session, profile ?? actorProfile, hidranteChecklistForm.conferente) ||
+      conferenteNome.trim();
+    if (!conferente) {
+      setMessage("Informe o nome do conferente.");
+      setSavingHidranteChecklist(false);
+      return;
+    }
+
     const observacoesFinal = mergeHidranteObservacoes(hidranteChecklistForm);
 
     const payload = {
       hidrante_id: selectedHidrante.id,
       data_conferencia: new Date().toISOString(),
-      conferente: hidranteChecklistForm.conferente.trim(),
+      conferente,
       acesso_desobstruido: hidranteChecklistForm.acesso_desobstruido,
       identificacao_sinalizacao: hidranteChecklistForm.identificacao_sinalizacao,
       mangueira_esguicho: hidranteChecklistForm.mangueira_esguicho,
@@ -1009,7 +1086,12 @@ export default function MapView() {
     setSavingPosition(true);
     setMessage("");
     const verifiedAt = new Date().toISOString();
-    const verifiedBy = conferenteNome.trim() || "Conferente";
+    const session = await getCurrentSession();
+    const profile = session
+      ? await getProfileBySession(session).catch(() => actorProfile)
+      : actorProfile;
+    const verifiedBy =
+      resolveConferenteNome(session, profile ?? actorProfile) || conferenteNome.trim() || "Conferente";
 
     let markerError = (
       await supabase
@@ -1166,11 +1248,14 @@ export default function MapView() {
           >
             {!(isMobile && mode === "inspecao") && (
               <Popup
-                key={`ext-${item.id}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${ultimoChecklistExtintorMes.get(item.id)?.data_conferencia ?? ""}`}
+                key={`ext-${item.id}-${isDataVencida(item.manutencao_2_nivel) ? 1 : 0}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${ultimoChecklistExtintorMes.get(item.id)?.data_conferencia ?? ""}`}
               >
                 <div className="text-sm" style={{ minWidth: 160 }}>
                   <p className="font-semibold">{item.codigo}</p>
                   <p className="text-zinc-500">{formatExtintorLocalizacao(item)}</p>
+                  {isDataVencida(item.manutencao_2_nivel) && (
+                    <p className="mt-1 text-xs font-semibold text-red-700">⚠ Teste nível 2 vencido</p>
+                  )}
                   {(() => {
                     const ult = ultimoChecklistExtintorMes.get(item.id);
                     const nc = ult ? checklistTemNaoConformidade(ult) : false;
@@ -1416,8 +1501,6 @@ export default function MapView() {
               [
                 ["extintor", "Ext"],
                 ["hidrante", "Hid"],
-                ["luz_emergencia", "Luz"],
-                ["placa_saida_emergencia", "Saída"],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -1442,7 +1525,7 @@ export default function MapView() {
                 <p className="mt-0.5 text-slate-600">
                   <span className="font-semibold text-yellow-700">Âmbar</span> falta ·{" "}
                   <span className="font-semibold text-green-700">Verde</span> ok ·{" "}
-                  <span className="font-semibold text-red-700">Vermelho</span> NC
+                  <span className="font-semibold text-red-700">Vermelho</span> NC ou teste nível 2 vencido
                 </p>
                 <p className="mt-1 font-semibold text-slate-700">Anel = tipo</p>
                 <p className="mt-0.5 text-slate-600">
@@ -1464,8 +1547,6 @@ export default function MapView() {
               {([
                 [null, "Ext"],
                 ["hidrante", "Hid"],
-                ["luz_emergencia", "Luz"],
-                ["placa_saida_emergencia", "Placa"],
               ] as const).map(([val, label]) => (
                 <button
                   key={String(val)}
@@ -1482,13 +1563,6 @@ export default function MapView() {
                   {label}
                 </button>
               ))}
-              <button
-                type="button"
-                className="ml-auto rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
-                onClick={() => void cadastrarNovoHidrante()}
-              >
-                + Hid
-              </button>
             </div>
 
             {placementExtra === null && (
@@ -1524,9 +1598,6 @@ export default function MapView() {
               </select>
             )}
 
-            {(placementExtra === "luz_emergencia" || placementExtra === "placa_saida_emergencia") && (
-              <p className="mt-1 text-[11px] text-slate-600">Toque no mapa para posicionar.</p>
-            )}
           </div>
         )}
 
@@ -1573,11 +1644,12 @@ export default function MapView() {
                     <span
                       className="inline-block h-3 w-3 rounded-full"
                       style={{
-                        background: (() => {
-                          const u = ultimoChecklistExtintorMes.get(infoMarker.id);
-                          if (u && checklistTemNaoConformidade(u)) return "#dc2626";
-                          return conferidosNoMesIds.has(infoMarker.id) ? "#16a34a" : "#d97706";
-                        })(),
+                        background:
+                          extintorIconColor(infoMarker) === "red"
+                            ? "#dc2626"
+                            : extintorIconColor(infoMarker) === "green"
+                              ? "#16a34a"
+                              : "#d97706",
                       }}
                     />
                     <h3 className="text-lg font-bold text-zinc-900">{infoMarker.codigo}</h3>
@@ -1795,62 +1867,39 @@ export default function MapView() {
         )}
 
         {selectedMarker && (
-          <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
-            <div className="w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl" style={{ maxHeight: "90dvh" }}>
-              <div className="mb-2 flex justify-end">
-                <button
-                  type="button"
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
-                  onClick={() => setSelectedMarker(null)}
-                >
-                  Fechar
-                </button>
-              </div>
-
-              <ChecklistForm
-                data={checklistForm}
-                onChange={setChecklistForm}
-                onSubmit={saveChecklist}
-                onCancel={() => setSelectedMarker(null)}
-                isSaving={savingChecklist}
-                cabecalho={{
-                  codigo: selectedMarker.codigo,
-                  pavimento: selectedMarker.pavimento,
-                  local_detalhado: selectedMarker.local_detalhado,
-                  num_inmetro: selectedMarker.num_inmetro,
-                  tipo: selectedMarker.tipo,
-                  tamanho: selectedMarker.tamanho,
-                  capacidade_extintora: selectedMarker.capacidade_extintora,
-                  manutencao_2_nivel: selectedMarker.manutencao_2_nivel,
-                  manutencao_3_nivel: selectedMarker.manutencao_3_nivel,
-                }}
-              />
-            </div>
-          </div>
+          <InspecaoModalFrame onClose={() => setSelectedMarker(null)}>
+            <ChecklistForm
+              data={checklistForm}
+              onChange={setChecklistForm}
+              onSubmit={saveChecklist}
+              onCancel={() => setSelectedMarker(null)}
+              isSaving={savingChecklist}
+              cabecalho={{
+                codigo: selectedMarker.codigo,
+                pavimento: selectedMarker.pavimento,
+                local_detalhado: selectedMarker.local_detalhado,
+                num_inmetro: selectedMarker.num_inmetro,
+                tipo: selectedMarker.tipo,
+                tamanho: selectedMarker.tamanho,
+                capacidade_extintora: selectedMarker.capacidade_extintora,
+                manutencao_2_nivel: selectedMarker.manutencao_2_nivel,
+                manutencao_3_nivel: selectedMarker.manutencao_3_nivel,
+              }}
+            />
+          </InspecaoModalFrame>
         )}
 
         {selectedHidrante && (
-          <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50">
-            <div className="w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl" style={{ maxHeight: "90dvh" }}>
-              <div className="mb-2 flex justify-end">
-                <button
-                  type="button"
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
-                  onClick={() => setSelectedHidrante(null)}
-                >
-                  Fechar
-                </button>
-              </div>
-              <HidranteChecklistForm
-                data={hidranteChecklistForm}
-                onChange={setHidranteChecklistForm}
-                onSubmit={saveHidranteChecklist}
-                onCancel={() => setSelectedHidrante(null)}
-                isSaving={savingHidranteChecklist}
-                hidrante={hidranteCabecalhoForm(selectedHidrante)}
-              />
-            </div>
-          </div>
+          <InspecaoModalFrame onClose={() => setSelectedHidrante(null)}>
+            <HidranteChecklistForm
+              data={hidranteChecklistForm}
+              onChange={setHidranteChecklistForm}
+              onSubmit={saveHidranteChecklist}
+              onCancel={() => setSelectedHidrante(null)}
+              isSaving={savingHidranteChecklist}
+              hidrante={hidranteCabecalhoForm(selectedHidrante)}
+            />
+          </InspecaoModalFrame>
         )}
       </main>
     );
@@ -1905,7 +1954,8 @@ export default function MapView() {
                 <span className="font-semibold text-green-700">Verde:</span> inspecionado, conforme.
               </li>
               <li>
-                <span className="font-semibold text-red-700">Vermelho:</span> última inspeção do mês com não conforme.
+                <span className="font-semibold text-red-700">Vermelho:</span> não conforme no mês ou{" "}
+                <span className="font-semibold text-red-700">teste nível 2 vencido</span> (sempre vermelho).
               </li>
             </ul>
 
@@ -2006,39 +2056,6 @@ export default function MapView() {
                 >
                   Hidrante
                 </button>
-                <button
-                  type="button"
-                  className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === "luz_emergencia" ? "bg-[#b42318] text-white" : "bg-slate-100 text-slate-700"
-                  }`}
-                  onClick={() => {
-                    setPlacementExtra("luz_emergencia");
-                    setSelectedExtintorId("");
-                    setSelectedHidranteId("");
-                  }}
-                >
-                  Luz
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === "placa_saida_emergencia" ? "bg-[#b42318] text-white" : "bg-slate-100 text-slate-700"
-                  }`}
-                  onClick={() => {
-                    setPlacementExtra("placa_saida_emergencia");
-                    setSelectedExtintorId("");
-                    setSelectedHidranteId("");
-                  }}
-                >
-                  Placa
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600"
-                  onClick={() => void cadastrarNovoHidrante()}
-                >
-                  + Hidrante
-                </button>
               </div>
 
               {placementExtra === null && (
@@ -2094,16 +2111,10 @@ export default function MapView() {
                       </button>
                     ))}
                     {hidrantesSemPosicao.length === 0 && (
-                      <p className="text-sm text-zinc-500">Nenhum hidrante pendente. Use + Hidrante.</p>
+                      <p className="text-sm text-zinc-500">Nenhum hidrante pendente neste pavimento.</p>
                     )}
                   </div>
                 </>
-              )}
-
-              {(placementExtra === "luz_emergencia" || placementExtra === "placa_saida_emergencia") && (
-                <p className="text-xs text-slate-600">
-                  Clique no mapa; informe a <strong>quantidade</strong> no diálogo.
-                </p>
               )}
             </div>
           )}
@@ -2122,62 +2133,39 @@ export default function MapView() {
       </div>
 
       {selectedMarker && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-xl">
-            <div className="mb-2 flex justify-end">
-              <button
-                type="button"
-                className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
-                onClick={() => setSelectedMarker(null)}
-              >
-                Fechar
-              </button>
-            </div>
-
-            <ChecklistForm
-              data={checklistForm}
-              onChange={setChecklistForm}
-              onSubmit={saveChecklist}
-              onCancel={() => setSelectedMarker(null)}
-              isSaving={savingChecklist}
-              cabecalho={{
-                codigo: selectedMarker.codigo,
-                pavimento: selectedMarker.pavimento,
-                local_detalhado: selectedMarker.local_detalhado,
-                num_inmetro: selectedMarker.num_inmetro,
-                tipo: selectedMarker.tipo,
-                tamanho: selectedMarker.tamanho,
-                capacidade_extintora: selectedMarker.capacidade_extintora,
-                manutencao_2_nivel: selectedMarker.manutencao_2_nivel,
-                manutencao_3_nivel: selectedMarker.manutencao_3_nivel,
-              }}
-            />
-          </div>
-        </div>
+        <InspecaoModalFrame onClose={() => setSelectedMarker(null)}>
+          <ChecklistForm
+            data={checklistForm}
+            onChange={setChecklistForm}
+            onSubmit={saveChecklist}
+            onCancel={() => setSelectedMarker(null)}
+            isSaving={savingChecklist}
+            cabecalho={{
+              codigo: selectedMarker.codigo,
+              pavimento: selectedMarker.pavimento,
+              local_detalhado: selectedMarker.local_detalhado,
+              num_inmetro: selectedMarker.num_inmetro,
+              tipo: selectedMarker.tipo,
+              tamanho: selectedMarker.tamanho,
+              capacidade_extintora: selectedMarker.capacidade_extintora,
+              manutencao_2_nivel: selectedMarker.manutencao_2_nivel,
+              manutencao_3_nivel: selectedMarker.manutencao_3_nivel,
+            }}
+          />
+        </InspecaoModalFrame>
       )}
 
       {selectedHidrante && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-xl">
-            <div className="mb-2 flex justify-end">
-              <button
-                type="button"
-                className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
-                onClick={() => setSelectedHidrante(null)}
-              >
-                Fechar
-              </button>
-            </div>
-            <HidranteChecklistForm
-              data={hidranteChecklistForm}
-              onChange={setHidranteChecklistForm}
-              onSubmit={saveHidranteChecklist}
-              onCancel={() => setSelectedHidrante(null)}
-              isSaving={savingHidranteChecklist}
-              hidrante={hidranteCabecalhoForm(selectedHidrante)}
-            />
-          </div>
-        </div>
+        <InspecaoModalFrame onClose={() => setSelectedHidrante(null)}>
+          <HidranteChecklistForm
+            data={hidranteChecklistForm}
+            onChange={setHidranteChecklistForm}
+            onSubmit={saveHidranteChecklist}
+            onCancel={() => setSelectedHidrante(null)}
+            isSaving={savingHidranteChecklist}
+            hidrante={hidranteCabecalhoForm(selectedHidrante)}
+          />
+        </InspecaoModalFrame>
       )}
     </main>
   );

@@ -1,22 +1,9 @@
-import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { getUserManagerFromRequest } from "@/lib/auth/user-management-server";
 
+/** @deprecated Use getUserManagerFromRequest — mantido para compatibilidade. */
 export async function getAdminUserIdFromRequest(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) return null;
-
-  const supabaseAdmin = getSupabaseAdminClient();
-  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !authData.user) return null;
-
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .select("role,active")
-    .eq("id", authData.user.id)
-    .maybeSingle<{ role: "admin" | "user"; active: boolean }>();
-
-  if (profileError || !profile || !profile.active || profile.role !== "admin") return null;
-  return authData.user.id;
+  const manager = await getUserManagerFromRequest(request);
+  return manager?.role === "admin" ? manager.id : null;
 }
+
+export { getUserManagerFromRequest } from "@/lib/auth/user-management-server";

@@ -4,6 +4,8 @@
 :root {
   --brand-red: #e02020;
   --brand-red-dark: #b51313;
+  --brand-red-soft: #fff1f2;
+  --brand-slate: #0f172a;
   --brand-bg: #f5f5f5;
   --background: #f6f7fb;
   --foreground: #101828;
@@ -27,17 +29,121 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top right, rgb(224 32 32 / 0.08), transparent 28rem),
+    linear-gradient(180deg, #f8fafc 0%, var(--background) 42%, #eef2f7 100%);
   color: var(--foreground);
   font-family: var(--font-montserrat), Montserrat, sans-serif;
 }
 
 .surface-card {
-  border: 1px solid var(--border);
+  border: 1px solid rgb(255 255 255 / 0.78);
   background: var(--card);
   color: var(--card-foreground);
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgb(16 24 40 / 0.08), 0 1px 2px -1px rgb(16 24 40 / 0.04);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -24px rgb(15 23 42 / 0.45), 0 1px 3px 0 rgb(16 24 40 / 0.08);
+}
+
+.app-shell-bg {
+  background:
+    radial-gradient(circle at top right, rgb(224 32 32 / 0.08), transparent 26rem),
+    linear-gradient(180deg, #f8fafc 0%, #f3f6fb 45%, #eef2f7 100%);
+}
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 20px 50px -32px rgb(15 23 42 / 0.65);
+}
+
+.page-hero::before {
+  content: "";
+  position: absolute;
+  top: -5rem;
+  right: -4rem;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 9999px;
+  background: rgb(224 32 32 / 0.28);
+  filter: blur(44px);
+}
+
+.page-hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 35%;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 9999px;
+  background: rgb(245 158 11 / 0.20);
+  filter: blur(32px);
+}
+
+.page-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.section-card {
+  border: 1px solid rgb(255 255 255 / 0.78);
+  background: rgb(255 255 255 / 0.92);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -24px rgb(15 23 42 / 0.45), 0 1px 3px 0 rgb(16 24 40 / 0.08);
+}
+
+.field-control {
+  width: 100%;
+  border-radius: 0.875rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.field-control::placeholder {
+  color: #94a3b8;
+}
+
+.field-control:focus {
+  outline: none;
+  border-color: var(--brand-red);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(224 32 32 / 0.12);
+}
+
+.modern-table {
+  width: 100%;
+  font-size: 0.875rem;
+}
+
+.modern-table thead tr {
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgb(248 250 252 / 0.95);
+}
+
+.modern-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.modern-table td {
+  padding: 0.85rem 1rem;
+}
+
+.modern-table tbody {
+  divide: auto;
 }
 
 /* Botão primário consistente */
@@ -46,16 +152,16 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   background: linear-gradient(135deg, var(--brand-red), var(--brand-red-dark));
   color: #fff;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 800;
   padding: 0.625rem 1.25rem;
-  transition: opacity 0.15s, box-shadow 0.15s;
-  box-shadow: 0 1px 4px 0 rgb(224 32 32 / 0.25);
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 10px 18px -12px rgb(224 32 32 / 0.75);
 }
-.btn-primary:hover { opacity: 0.92; box-shadow: 0 4px 12px 0 rgb(224 32 32 / 0.3); }
+.btn-primary:hover { opacity: 0.96; transform: translateY(-1px); box-shadow: 0 16px 28px -16px rgb(224 32 32 / 0.85); }
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Botão secundário */
@@ -64,12 +170,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--foreground);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 800;
   padding: 0.625rem 1.25rem;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -82,6 +188,10 @@ body {
 
 .brand-gradient {
   background: linear-gradient(90deg, var(--brand-red), var(--brand-red-dark));
+}
+
+.brand-gradient-soft {
+  background: linear-gradient(135deg, #fff1f2, #fff7ed);
 }
 
 .status-danger-soft {

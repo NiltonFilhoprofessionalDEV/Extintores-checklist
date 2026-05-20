@@ -2,8 +2,9 @@
 
 import AuthGuard from "@/src/components/AuthGuard";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import BrandLogo from "@/src/components/BrandLogo";
 
 const NAV_LINKS = [
@@ -54,14 +55,45 @@ const NAV_LINKS = [
   },
 ];
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
 function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [userInitials, setUserInitials] = useState("?");
 
-  async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
-    router.replace("/login");
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUserInitials = async () => {
+      const session = await getCurrentSession();
+      if (!session) return;
+
+      const profile = await getProfileBySession(session).catch(() => null);
+      if (!mounted) return;
+
+      setUserInitials(getInitials(profile?.nome || session.user.email || "Usuário"));
+    };
+
+    void loadUserInitials();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  function handleBackFromMap() {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.replace("/mobile/conferencia");
   }
 
   const isActive = (href: string) => pathname.startsWith(href);
@@ -69,31 +101,37 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
   return (
     <>
       {/* Top header — escuro, coerente com a tela de login */}
-      <header
-        className="sticky top-0 z-40 flex shrink-0 items-center justify-between px-4 py-3"
-        style={{ background: "#0f172a" }}
-      >
-        <div className="flex items-center gap-2.5">
-          <BrandLogo size={28} />
-          <div>
-            <p className="text-xs font-bold leading-none text-white">Extintor</p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Conferência</p>
-          </div>
+      <header className="sticky top-0 z-40 flex shrink-0 items-center justify-between bg-slate-950 px-4 py-3 shadow-lg shadow-slate-950/20">
+        <div className="px-2.5 py-1.5">
+          <BrandLogo height={26} className="drop-shadow-md" />
         </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
-        >
-          Sair
-        </button>
+        <div className="flex items-center gap-2">
+          <div
+            className="grid h-9 min-w-9 place-items-center rounded-xl border border-white/10 bg-white/10 px-2 text-xs font-black tracking-tight text-white shadow-inner shadow-black/20"
+            aria-label={`Usuário logado: ${userInitials}`}
+          >
+            {userInitials}
+          </div>
+          {isMapaRoute ? (
+            <button
+              type="button"
+              onClick={handleBackFromMap}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:border-white/20 hover:text-white"
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Voltar
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {/* Bottom navigation — só aparece fora do mapa */}
       {!isMapaRoute && (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-100 bg-white/98 backdrop-blur-md"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", boxShadow: "0 -1px 0 0 #e4e7ec, 0 -4px 16px 0 rgb(15 23 42 / 0.05)" }}
+          className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/70 bg-white/90 backdrop-blur-xl"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", boxShadow: "0 -10px 30px -24px rgb(15 23 42 / 0.45)" }}
         >
           <div className="mx-auto flex max-w-lg items-center justify-around px-2">
             {NAV_LINKS.map(({ href, label, icon }) => {
@@ -102,15 +140,12 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
                 <Link
                   key={href}
                   href={href}
-                  className={`relative flex flex-col items-center gap-1 px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                  className={`relative flex flex-col items-center gap-1 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
                     active ? "text-[#e02020]" : "text-slate-400"
                   }`}
                 >
                   {active && (
-                    <span
-                      className="absolute top-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-b-full"
-                      style={{ background: "linear-gradient(90deg, #e02020, #b51313)" }}
-                    />
+                    <span className="brand-gradient absolute top-1 left-1/2 h-1 w-8 -translate-x-1/2 rounded-full" />
                   )}
                   {icon(active)}
                   {label}
@@ -131,7 +166,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   return (
     <AuthGuard allowedRoles={["user", "admin"]}>
       <div
-        className="flex flex-col bg-[#f6f7fb]"
+        className="app-shell-bg flex flex-col"
         style={{ height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
       >
         <MobileNav isMapaRoute={isMapaRoute} />
