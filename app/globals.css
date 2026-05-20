@@ -210,8 +210,47 @@ body {
 }
 
 .map-plant-overlay {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
   transform-origin: top left;
   will-change: transform;
+  backface-visibility: hidden;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+.leaflet-container {
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.leaflet-pane,
+.leaflet-image-layer,
+.leaflet-marker-pane {
+  backface-visibility: hidden;
+}
+
+.map-mobile-marker-icon {
+  background: transparent;
+  border: 0;
+}
+
+.map-mobile-marker {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 3px solid var(--marker-ring);
+  border-radius: 9999px;
+  background: var(--marker-bg);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateZ(0);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
+}
+
+.map-mobile-marker--hydrant {
+  border-radius: 0.55rem;
 }

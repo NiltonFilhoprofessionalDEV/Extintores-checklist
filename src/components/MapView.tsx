@@ -204,11 +204,34 @@ const MARCADOR_LUZ_RING = "#0d9488";
 const MARCADOR_PLACA_RING = "#db2777";
 const MARCADOR_RING_PAD = 4;
 
-function extinguisherIcon(color: "green" | "red" | "amber", codigo = "") {
+function escapeMarkerLabel(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+}
+
+function extinguisherIcon(color: "green" | "red" | "amber", codigo = "", compact = false) {
   const statusBg = color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#eab308";
   const ring = MARCADOR_EXTINTOR_RING;
   const numMatch = codigo.match(/\d+/);
   const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo;
+  const safeLabel = escapeMarkerLabel(label);
+  if (compact) {
+    return L.divIcon({
+      className: "map-mobile-marker-icon",
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      html: `<div class="map-mobile-marker" style="--marker-bg:${statusBg};--marker-ring:${ring};">${safeLabel}</div>`,
+    });
+  }
+
   return L.divIcon({
     className: "",
     iconSize: [38, 50],
@@ -217,7 +240,7 @@ function extinguisherIcon(color: "green" | "red" | "amber", codigo = "") {
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9999px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
         <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${statusBg};color:#fff;font-size:14px;border:2px solid #fff;font-family:system-ui,sans-serif;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">🧯</div>
       </div>
-      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${label}</span>
+      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${safeLabel}</span>
     </div>`,
   });
 }
@@ -244,11 +267,21 @@ function buildUltimoPorHidrante(rows: ChecklistHidranteMesRow[]): Map<string, Ch
   return map;
 }
 
-function hydrantIcon(color: "green" | "red" | "amber", codigo: string) {
+function hydrantIcon(color: "green" | "red" | "amber", codigo: string, compact = false) {
   const statusBg = color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#eab308";
   const ring = MARCADOR_HIDRANTE_RING;
   const numMatch = codigo.match(/\d+/);
   const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo.slice(0, 6);
+  const safeLabel = escapeMarkerLabel(label);
+  if (compact) {
+    return L.divIcon({
+      className: "map-mobile-marker-icon",
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      html: `<div class="map-mobile-marker map-mobile-marker--hydrant" style="--marker-bg:${statusBg};--marker-ring:${ring};">${safeLabel}</div>`,
+    });
+  }
+
   return L.divIcon({
     className: "",
     iconSize: [34, 44],
@@ -257,7 +290,7 @@ function hydrantIcon(color: "green" | "red" | "amber", codigo: string) {
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
         <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:${statusBg};color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;font-family:system-ui,sans-serif;line-height:1;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">H</div>
       </div>
-      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:2px;padding:1px 4px;white-space:nowrap;">${label}</span>
+      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:2px;padding:1px 4px;white-space:nowrap;">${safeLabel}</span>
     </div>`,
   });
 }
@@ -1211,10 +1244,12 @@ export default function MapView() {
     <MapContainer
       key={pavimento.key}
       crs={L.CRS.Simple}
-      preferCanvas={!isMobile}
-      zoomSnap={isMobile ? 0.5 : 0.25}
+      preferCanvas
+      zoomSnap={0.25}
       zoomDelta={isMobile ? 0.5 : 0.5}
       zoomAnimation={!isMobile}
+      fadeAnimation={!isMobile}
+      markerZoomAnimation={!isMobile}
       maxBoundsViscosity={1}
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
@@ -1236,7 +1271,7 @@ export default function MapView() {
           <Marker
             key={item.id}
             position={[item.coord_y as number, item.coord_x as number]}
-            icon={extinguisherIcon(extintorIconColor(item), item.codigo)}
+            icon={extinguisherIcon(extintorIconColor(item), item.codigo, isMobile)}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao") openChecklistModal(item);
@@ -1318,7 +1353,7 @@ export default function MapView() {
           <Marker
             key={h.id}
             position={[h.coord_y as number, h.coord_x as number]}
-            icon={hydrantIcon(hidranteIconColor(h), h.codigo)}
+            icon={hydrantIcon(hidranteIconColor(h), h.codigo, isMobile)}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao") openHidranteChecklistModal(h);
@@ -1360,7 +1395,7 @@ export default function MapView() {
           </Marker>
         ))}
 
-      {marcadoresDoPavimento
+      {!isMobile && marcadoresDoPavimento
         .filter((m) => showLayers[m.kind === "luz_emergencia" ? "luz_emergencia" : "placa_saida_emergencia"])
         .map((m) => (
           <Marker
