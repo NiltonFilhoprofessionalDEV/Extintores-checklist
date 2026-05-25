@@ -226,9 +226,14 @@ function extinguisherIcon(color: "green" | "red" | "amber", codigo = "", compact
   if (compact) {
     return L.divIcon({
       className: "map-mobile-marker-icon",
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      html: `<div class="map-mobile-marker" style="--marker-bg:${statusBg};--marker-ring:${ring};">${safeLabel}</div>`,
+      iconSize: [38, 50],
+      iconAnchor: [19, 16],
+      html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
+        <div class="map-marker-mobile__ring-wrap">
+          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--ext">🧯</div>
+        </div>
+        <span class="map-marker-mobile__label">${safeLabel}</span>
+      </div>`,
     });
   }
 
@@ -276,9 +281,14 @@ function hydrantIcon(color: "green" | "red" | "amber", codigo: string, compact =
   if (compact) {
     return L.divIcon({
       className: "map-mobile-marker-icon",
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      html: `<div class="map-mobile-marker map-mobile-marker--hydrant" style="--marker-bg:${statusBg};--marker-ring:${ring};">${safeLabel}</div>`,
+      iconSize: [34, 44],
+      iconAnchor: [17, 15],
+      html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
+        <div class="map-marker-mobile__ring-wrap map-marker-mobile__ring-wrap--square">
+          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--hyd">H</div>
+        </div>
+        <span class="map-marker-mobile__label">${safeLabel}</span>
+      </div>`,
     });
   }
 

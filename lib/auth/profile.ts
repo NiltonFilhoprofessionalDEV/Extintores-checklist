@@ -28,12 +28,24 @@ async function getProfileWithoutTeam(session: Session): Promise<Profile | null> 
   return data ? { ...data, team: null } : null;
 }
 
-export async function getCurrentSession() {
+/** Evita chamadas paralelas a `getUser()` no mesmo instante (disputa o lock do Supabase Auth). */
+let sessionRequestInFlight: Promise<Session | null> | null = null;
+
+async function fetchCurrentSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
   const { data } = await supabase.auth.getSession();
-  return data.session;
+  return data.session ?? null;
+}
+
+export async function getCurrentSession(): Promise<Session | null> {
+  if (!sessionRequestInFlight) {
+    sessionRequestInFlight = fetchCurrentSession().finally(() => {
+      sessionRequestInFlight = null;
+    });
+  }
+  return sessionRequestInFlight;
 }
 
 export async function getProfileBySession(session: Session) {
