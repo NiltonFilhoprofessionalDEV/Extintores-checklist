@@ -1,7 +1,17 @@
 import * as XLSX from "xlsx-js-style";
+import { codigoPertenceEquipe, type EquipeConferenciaId } from "@/lib/equipes/conferencia-filtro";
+import { COLUNAS_PADRAO } from "@/lib/inventario/equipamento-padrao";
+import {
+  corLinhaConferenciaExport,
+  resolveExtintorConferenciaExport,
+  resolveHidranteConferenciaExport,
+  type ConferenciaExportStatus,
+} from "@/lib/export/conferencia-historico";
+import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
+import { hidranteTemMangueiraVencida } from "@/lib/hidrantes/vencimento-mangueiras";
 import { HIDRANTE_ACTIVE_ITEM_KEYS, HIDRANTE_ITEM_LABELS } from "@/lib/checklist/hidrante-types";
 import { CHECKLIST_EXPORT_COLUMN_LABELS } from "@/lib/checklist/export-labels";
-import { CHECKLIST_ITEM_KEYS, dataVencimentoTeste } from "@/lib/checklist/types";
+import { CHECKLIST_ITEM_KEYS, dataVencimentoTeste, isDataVencida } from "@/lib/checklist/types";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
 
 export type ExtintorRow = {
@@ -178,6 +188,138 @@ const EXCEL_BODY_BORDER = {
   right: { style: "thin", color: { rgb: "FFD9EAD3" } },
 };
 
+function applyConferenciaHistoricoStyle(
+  ws: XLSX.WorkSheet,
+  rowStatuses: ConferenciaExportStatus[],
+): void {
+  if (!ws["!ref"]) return;
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  ws["!autofilter"] = { ref: ws["!ref"] };
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!rows"] = [{ hpt: 24 }];
+
+  let bodyIndex = 0;
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const address = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = (ws[address] ?? { t: "s", v: "" }) as StyledCell;
+      ws[address] = cell;
+
+      if (row === range.s.r) {
+        cell.s = EXCEL_HEADER_STYLE;
+        continue;
+      }
+
+      const status = rowStatuses[bodyIndex] ?? "conforme";
+      const fillRgb = corLinhaConferenciaExport(status, bodyIndex);
+      const border =
+        status === "vencido"
+          ? {
+              top: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              bottom: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              left: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              right: { style: "thin", color: { rgb: "FFEF9A9A" } },
+            }
+          : EXCEL_BODY_BORDER;
+      cell.s = {
+        fill: { patternType: "solid", fgColor: { rgb: fillRgb } },
+        alignment: { vertical: "center", wrapText: true },
+        border,
+      };
+    }
+    if (row > range.s.r) bodyIndex += 1;
+  }
+}
+
+export type AlertaVencimentoRowHighlight = "vencido" | "alerta" | "none";
+
+function applyAlertaVencimentoStyle(ws: XLSX.WorkSheet, rowHighlight: AlertaVencimentoRowHighlight): void {
+  if (rowHighlight === "none") {
+    applyGreenTableStyle(ws);
+    return;
+  }
+  if (!ws["!ref"]) return;
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  ws["!autofilter"] = { ref: ws["!ref"] };
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!rows"] = [{ hpt: 24 }];
+
+  const status: ConferenciaExportStatus = rowHighlight === "vencido" ? "vencido" : "alerta";
+  let bodyIndex = 0;
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const address = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = (ws[address] ?? { t: "s", v: "" }) as StyledCell;
+      ws[address] = cell;
+
+      if (row === range.s.r) {
+        cell.s = EXCEL_HEADER_STYLE;
+        continue;
+      }
+
+      const fillRgb = corLinhaConferenciaExport(status, bodyIndex);
+      const border =
+        status === "vencido"
+          ? {
+              top: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              bottom: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              left: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              right: { style: "thin", color: { rgb: "FFEF9A9A" } },
+            }
+          : EXCEL_BODY_BORDER;
+      cell.s = {
+        fill: { patternType: "solid", fgColor: { rgb: fillRgb } },
+        alignment: { vertical: "center", wrapText: true },
+        border,
+      };
+    }
+    if (row > range.s.r) bodyIndex += 1;
+  }
+}
+
+function applyInventarioExportStyle(ws: XLSX.WorkSheet, vencidoPorLinha: boolean[]): void {
+  if (!ws["!ref"]) return;
+
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  ws["!autofilter"] = { ref: ws["!ref"] };
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!rows"] = [{ hpt: 24 }];
+
+  let bodyIndex = 0;
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const address = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = (ws[address] ?? { t: "s", v: "" }) as StyledCell;
+      ws[address] = cell;
+
+      if (row === range.s.r) {
+        cell.s = EXCEL_HEADER_STYLE;
+        continue;
+      }
+
+      const status: ConferenciaExportStatus = vencidoPorLinha[bodyIndex] ? "vencido" : "conforme";
+      const fillRgb = corLinhaConferenciaExport(status, bodyIndex);
+      const border =
+        status === "vencido"
+          ? {
+              top: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              bottom: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              left: { style: "thin", color: { rgb: "FFEF9A9A" } },
+              right: { style: "thin", color: { rgb: "FFEF9A9A" } },
+            }
+          : EXCEL_BODY_BORDER;
+      cell.s = {
+        fill: { patternType: "solid", fgColor: { rgb: fillRgb } },
+        alignment: { vertical: "center", wrapText: true },
+        border,
+      };
+    }
+    if (row > range.s.r) bodyIndex += 1;
+  }
+}
+
 function applyGreenTableStyle(ws: XLSX.WorkSheet): void {
   if (!ws["!ref"]) return;
 
@@ -218,6 +360,18 @@ function jsonToSheet(rows: Record<string, string | number>[]): ReturnType<typeof
   return XLSX.utils.json_to_sheet(rows);
 }
 
+export type HidranteVencimentoExportRow = {
+  id: string;
+  codigo: string;
+  pavimento: string | null;
+  local_detalhado: string;
+  quantidade_mangueiras: number | null;
+  teste_hidrostatico_m1: string | null;
+  teste_hidrostatico_m2: string | null;
+  teste_hidrostatico_m3: string | null;
+  teste_hidrostatico_m4: string | null;
+};
+
 /** Export 1: All extintores with basic data */
 export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
   const rows = sortExtintoresByCodigo(extintores).map((e) => ({
@@ -248,6 +402,86 @@ export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Extintores");
   XLSX.writeFile(wb, `extintores_${today()}.xlsx`);
+}
+
+export type HidranteInventarioCompletoRow = HidranteVencimentoExportRow & {
+  quantidade_chaves_storz: number | null;
+  quantidade_esguichos: number | null;
+  coord_x: number | null;
+  coord_y: number | null;
+  created_at: string;
+};
+
+function buildExtintorInventarioExport(extintores: ExtintorRow[]): {
+  rows: Record<string, string | number>[];
+  vencidoPorLinha: boolean[];
+} {
+  const sorted = sortExtintoresByCodigo(extintores);
+  const vencidoPorLinha = sorted.map(
+    (e) => isDataVencida(e.manutencao_2_nivel) || isDataVencida(e.manutencao_3_nivel),
+  );
+  const rows = sorted.map((e) => ({
+    Código: e.codigo,
+    Setor: e.setor,
+    "Local Detalhado": e.local_detalhado,
+    "Nº INMETRO": e.num_inmetro,
+    Tipo: e.tipo,
+    Tamanho: e.tamanho,
+    "Capacidade Extintora": e.capacidade_extintora,
+    "Pavimento na planta": e.pavimento ?? "",
+    "Vencto. Manutenção Nível 2": formatDate(e.manutencao_2_nivel),
+    "Vencto. Manutenção Nível 3": formatDate(e.manutencao_3_nivel),
+  }));
+  return { rows, vencidoPorLinha };
+}
+
+function buildHidranteInventarioExport(hidrantes: HidranteInventarioCompletoRow[]): {
+  rows: Record<string, string | number>[];
+  vencidoPorLinha: boolean[];
+} {
+  const sorted = [...hidrantes].sort((a, b) => compareCodigo(a.codigo, b.codigo));
+  const vencidoPorLinha = sorted.map((h) => hidranteTemMangueiraVencida(h));
+  const rows = sorted.map((h) => ({
+    Código: h.codigo,
+    Pavimento: h.pavimento ?? "",
+    "Local detalhado": h.local_detalhado,
+    "Quantidade de Mangueiras": h.quantidade_mangueiras ?? "",
+    "Últ. teste hidrostático M-1": formatDate(h.teste_hidrostatico_m1),
+    "Últ. teste hidrostático M-2": formatDate(h.teste_hidrostatico_m2),
+    "Últ. teste hidrostático M-3": formatDate(h.teste_hidrostatico_m3),
+    "Últ. teste hidrostático M-4": formatDate(h.teste_hidrostatico_m4),
+    "Quantidade de Chaves Storz": h.quantidade_chaves_storz ?? "",
+    "Quantidade de Esguichos": h.quantidade_esguichos ?? "",
+  }));
+  return { rows, vencidoPorLinha };
+}
+
+/** Inventário completo: um arquivo Excel com planilhas Extintores e Hidrantes. */
+export function exportInventarioCompleto(
+  extintores: ExtintorRow[],
+  hidrantes: HidranteInventarioCompletoRow[],
+): void {
+  const extExport = buildExtintorInventarioExport(extintores);
+  const extWs = jsonToSheet(extExport.rows);
+  extWs["!cols"] = [
+    { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
+    { wch: 20 }, { wch: 18 }, { wch: 28 }, { wch: 28 },
+  ];
+  applyInventarioExportStyle(extWs, extExport.vencidoPorLinha);
+
+  const hidExport = buildHidranteInventarioExport(hidrantes);
+  const hidWs = jsonToSheet(hidExport.rows);
+  hidWs["!cols"] = [
+    { wch: 14 }, { wch: 18 }, { wch: 32 }, { wch: 16 },
+    { wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 18 },
+  ];
+  applyInventarioExportStyle(hidWs, hidExport.vencidoPorLinha);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, extWs, "Extintores");
+  XLSX.utils.book_append_sheet(wb, hidWs, "Hidrantes");
+  XLSX.writeFile(wb, `inventario_extintores_hidrantes_${today()}.xlsx`);
 }
 
 /** Uma linha por checklist de extintor (histórico completo). */
@@ -373,22 +607,11 @@ export function exportInspecoesMarcadoresEmergencia(rows: InspecaoMarcadorEmerge
   XLSX.writeFile(wb, `inspecoes_luz_placa_${today()}.xlsx`);
 }
 
-export type HidranteVencimentoExportRow = {
-  id: string;
-  codigo: string;
-  pavimento: string | null;
-  local_detalhado: string;
-  quantidade_mangueiras: number | null;
-  teste_hidrostatico_m1: string | null;
-  teste_hidrostatico_m2: string | null;
-  teste_hidrostatico_m3: string | null;
-  teste_hidrostatico_m4: string | null;
-};
-
 /** Export: alertas de vencimento de mangueiras (hidrantes) */
 export function exportAlertasVencimentoHidrantes(
   hidrantes: HidranteVencimentoExportRow[],
   label: string,
+  rowHighlight: AlertaVencimentoRowHighlight = "none",
 ): void {
   const rows = [...hidrantes]
     .sort((a, b) => compareCodigo(a.codigo, b.codigo))
@@ -417,7 +640,7 @@ export function exportAlertasVencimentoHidrantes(
     { wch: 14 },
     { wch: 14 },
   ];
-  applyGreenTableStyle(ws);
+  applyAlertaVencimentoStyle(ws, rowHighlight);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
@@ -428,6 +651,7 @@ export function exportAlertasVencimentoHidrantes(
 export function exportAlertasVencimento(
   extintores: ExtintorRow[],
   label: string,
+  rowHighlight: AlertaVencimentoRowHighlight = "none",
 ): void {
   const rows = sortExtintoresByCodigo(extintores).map((e) => ({
     "Código": e.codigo,
@@ -446,11 +670,168 @@ export function exportAlertasVencimento(
     { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 },
     { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 28 }, { wch: 28 },
   ];
-  applyGreenTableStyle(ws);
+  applyAlertaVencimentoStyle(ws, rowHighlight);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
   XLSX.writeFile(wb, `alertas_${label.replace(/\s+/g, "_")}_${today()}.xlsx`);
+}
+
+export type ConferenciaHistoricoExtintorRow = {
+  id: string;
+  data_conferencia: string;
+  conferente: string;
+  codigo: string;
+  setor: string;
+  local_detalhado: string;
+  tipo: string;
+  tamanho: string;
+  equipe: string;
+  manutencao_2_nivel: string | null;
+  manutencao_3_nivel: string | null;
+  checklistRaw: Record<string, unknown>;
+  /** Quando vindo da listagem filtrada, evita recalcular observação/status. */
+  observacao?: string;
+  exportStatus?: ConferenciaExportStatus;
+};
+
+export type ConferenciaHistoricoHidranteRow = {
+  id: string;
+  data_conferencia: string;
+  conferente: string;
+  codigo: string;
+  pavimento: string;
+  local_detalhado: string;
+  equipe: string;
+  hidrante: HidranteVencimentoRow | null;
+  checklistRaw: Record<string, unknown>;
+  observacao?: string;
+  exportStatus?: ConferenciaExportStatus;
+};
+
+export type ConferenciasHistoricoExportOptions = {
+  /** Sufixo opcional no nome do arquivo quando há filtros ativos. */
+  sufixoArquivo?: string;
+};
+
+function resolveEquipeLabel(codigo: string, tipo: "extintor" | "hidrante"): string {
+  const ids: EquipeConferenciaId[] = ["equipe_1", "equipe_2", "equipe_3", "equipe_4"];
+  for (const id of ids) {
+    if (codigoPertenceEquipe(codigo, id, tipo)) {
+      return id.replace("equipe_", "Equipe ");
+    }
+  }
+  return "";
+}
+
+/** Histórico de conferências: sempre gera planilhas Extintores e Hidrantes no mesmo arquivo. */
+export function exportConferenciasHistorico(
+  extintores: ConferenciaHistoricoExtintorRow[],
+  hidrantes: ConferenciaHistoricoHidranteRow[],
+  options?: ConferenciasHistoricoExportOptions,
+): void {
+  const extSorted = [...extintores].sort(
+    (a, b) =>
+      compareCodigo(a.codigo, b.codigo) ||
+      new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+  );
+  const extStatuses: ConferenciaExportStatus[] = [];
+  const extRows = extSorted.map((r) => {
+    const resolved = resolveExtintorConferenciaExport(
+      r.checklistRaw,
+      r.manutencao_2_nivel,
+      r.manutencao_3_nivel ?? null,
+    );
+    const status = resolved.status;
+    const observacao = r.observacao ?? resolved.observacao;
+    extStatuses.push(status);
+    return {
+      [COLUNAS_PADRAO.equipe]: r.equipe || resolveEquipeLabel(r.codigo, "extintor"),
+      [COLUNAS_PADRAO.codigo]: r.codigo,
+      [COLUNAS_PADRAO.setor]: r.setor,
+      [COLUNAS_PADRAO.localDetalhado]: r.local_detalhado,
+      [COLUNAS_PADRAO.tipo]: r.tipo,
+      [COLUNAS_PADRAO.tamanho]: r.tamanho,
+      "Vencto. manutenção 2º nível": formatDate(r.manutencao_2_nivel),
+      "Vencto. manutenção 3º nível": formatDate(r.manutencao_3_nivel),
+      [COLUNAS_PADRAO.dataConferencia]: formatDateTime(r.data_conferencia),
+      [COLUNAS_PADRAO.conferente]: r.conferente,
+      [COLUNAS_PADRAO.observacao]: observacao,
+    };
+  });
+
+  const hidSorted = [...hidrantes].sort(
+    (a, b) =>
+      compareCodigo(a.codigo, b.codigo) ||
+      new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+  );
+  const hidStatuses: ConferenciaExportStatus[] = [];
+  const hidRows = hidSorted.map((r) => {
+    const resolved = resolveHidranteConferenciaExport(r.checklistRaw, r.hidrante);
+    const status = resolved.status;
+    const observacao = r.observacao ?? resolved.observacao;
+    const h = r.hidrante;
+    hidStatuses.push(status);
+    return {
+      [COLUNAS_PADRAO.equipe]: r.equipe || resolveEquipeLabel(r.codigo, "hidrante"),
+      [COLUNAS_PADRAO.codigo]: r.codigo,
+      [COLUNAS_PADRAO.pavimento]: r.pavimento,
+      [COLUNAS_PADRAO.localDetalhado]: r.local_detalhado,
+      "Qtd. mangueiras": h?.quantidade_mangueiras ?? "",
+      "Teste hidrostático M-1": formatDate(h?.teste_hidrostatico_m1 ?? null),
+      "Teste hidrostático M-2": formatDate(h?.teste_hidrostatico_m2 ?? null),
+      "Teste hidrostático M-3": formatDate(h?.teste_hidrostatico_m3 ?? null),
+      "Teste hidrostático M-4": formatDate(h?.teste_hidrostatico_m4 ?? null),
+      "Qtd. esguichos": h?.quantidade_esguichos ?? "",
+      "Qtd. chaves Storz": h?.quantidade_chaves_storz ?? "",
+      [COLUNAS_PADRAO.dataConferencia]: formatDateTime(r.data_conferencia),
+      [COLUNAS_PADRAO.conferente]: r.conferente,
+      [COLUNAS_PADRAO.observacao]: observacao,
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  const wsExt = jsonToSheet(extRows);
+  wsExt["!cols"] = [
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 32 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 48 },
+  ];
+  applyConferenciaHistoricoStyle(wsExt, extStatuses);
+  XLSX.utils.book_append_sheet(wb, wsExt, "Extintores");
+
+  const wsHid = jsonToSheet(hidRows);
+  wsHid["!cols"] = [
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 32 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 48 },
+  ];
+  applyConferenciaHistoricoStyle(wsHid, hidStatuses);
+  XLSX.utils.book_append_sheet(wb, wsHid, "Hidrantes");
+
+  const sufixo = options?.sufixoArquivo?.trim();
+  const nomeBase = sufixo ? `conferencias_${sufixo}_${today()}` : `conferencias_historico_${today()}`;
+  XLSX.writeFile(wb, `${nomeBase}.xlsx`);
 }
 
 function today(): string {

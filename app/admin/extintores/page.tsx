@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
+import { COLUNAS_PADRAO, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
+
+import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
+
+type HidranteRow = HidranteInventarioCompletoRow;
 
 type ExtintorRow = {
   id: string;
@@ -18,9 +24,10 @@ type ExtintorRow = {
   pavimento: string | null;
   coord_x: number | null;
   coord_y: number | null;
+  created_at: string;
 };
 
-type FormData = Omit<ExtintorRow, "id" | "coord_x" | "coord_y">;
+type FormData = Omit<ExtintorRow, "id" | "coord_x" | "coord_y" | "created_at">;
 
 const EMPTY_FORM: FormData = {
   codigo: "",
@@ -86,8 +93,11 @@ const TAMANHOS_POR_TIPO: Record<string, string[]> = {
 
 export default function AdminExtintoresPage() {
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
+  const [hidrantes, setHidrantes] = useState<HidranteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [filterHidrante, setFilterHidrante] = useState("");
+  const [tipoLista, setTipoLista] = useState<TipoEquipamento>("extintor");
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -131,16 +141,28 @@ export default function AdminExtintoresPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("extintores")
-      .select(
-        "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y",
-      )
-      .order("codigo", { ascending: true });
-    const rows = ((data ?? []) as ExtintorRow[]).sort((a, b) =>
+    const [extRes, hidRes] = await Promise.all([
+      supabase
+        .from("extintores")
+        .select(
+          "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at",
+        )
+        .order("codigo", { ascending: true }),
+      supabase
+        .from("hidrantes")
+        .select(
+          "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at",
+        )
+        .order("codigo", { ascending: true }),
+    ]);
+    const rows = ((extRes.data ?? []) as ExtintorRow[]).sort((a, b) =>
+      a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
+    );
+    const hidRows = ((hidRes.data ?? []) as HidranteRow[]).sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
     setExtintores(rows);
+    setHidrantes(hidRows);
     setLoading(false);
   }, [supabase]);
 
@@ -163,6 +185,17 @@ export default function AdminExtintoresPage() {
         e.tipo.toLowerCase().includes(q),
     );
   }, [extintores, filter]);
+
+  const filteredHidrantes = useMemo(() => {
+    const q = filterHidrante.toLowerCase().trim();
+    if (!q) return hidrantes;
+    return hidrantes.filter(
+      (h) =>
+        h.codigo.toLowerCase().includes(q) ||
+        (h.pavimento ?? "").toLowerCase().includes(q) ||
+        h.local_detalhado.toLowerCase().includes(q),
+    );
+  }, [hidrantes, filterHidrante]);
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -287,32 +320,60 @@ export default function AdminExtintoresPage() {
         <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Inventário</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Extintores</h1>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Extintores e Hidrantes</h1>
             <p className="mt-2 text-sm font-medium text-slate-300">
-              {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} cadastrado{extintores.length !== 1 ? "s" : ""}.
+              {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} e {hidrantes.length} hidrante
+              {hidrantes.length !== 1 ? "s" : ""} cadastrados.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100"
-          >
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Novo Extintor
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={loading || (extintores.length === 0 && hidrantes.length === 0)}
+              onClick={() => exportInventarioCompleto(extintores, hidrantes)}
+              className="flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Exportar Excel ({extintores.length} ext. + {hidrantes.length} hid.)
+            </button>
+            {tipoLista === "extintor" && (
+              <button
+                type="button"
+                onClick={openCreate}
+                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100"
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Novo Extintor
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Search */}
+      <InventarioTipoTabs
+        value={tipoLista}
+        onChange={setTipoLista}
+        extintoresCount={extintores.length}
+        hidrantesCount={hidrantes.length}
+      />
+
+      {tipoLista === "extintor" && (
+        <>
       <div className="section-card flex items-center gap-2 px-4 py-3">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
           <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
         </svg>
         <input
           type="search"
-          placeholder="Buscar por código, setor, local, tipo ou INMETRO..."
+          placeholder="Buscar extintor por código, setor, local, tipo ou INMETRO..."
           className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -339,13 +400,13 @@ export default function AdminExtintoresPage() {
             <table className="modern-table">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Código</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Setor / Local</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">Tipo / Tamanho</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Nº INMETRO</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Vencto. N2</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">Mapa</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Ações</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigo}</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.setor} / {COLUNAS_PADRAO.localDetalhado}</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">{COLUNAS_PADRAO.tipo} / {COLUNAS_PADRAO.tamanho}</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.numInmetro}</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.venctoN2}</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">{COLUNAS_PADRAO.mapa}</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -405,6 +466,82 @@ export default function AdminExtintoresPage() {
           </div>
         )}
       </div>
+        </>
+      )}
+
+      {tipoLista === "hidrante" && (
+        <>
+      <div className="section-card flex items-center gap-2 px-4 py-3">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
+          <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+        </svg>
+        <input
+          type="search"
+          placeholder="Buscar hidrante por código, pavimento ou local..."
+          className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
+          value={filterHidrante}
+          onChange={(e) => setFilterHidrante(e.target.value)}
+        />
+        {filterHidrante && (
+          <button type="button" onClick={() => setFilterHidrante("")} className="text-xs text-slate-400 hover:text-slate-600">
+            Limpar
+          </button>
+        )}
+      </div>
+
+      <div className="section-card overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+          </div>
+        ) : filteredHidrantes.length === 0 ? (
+          <div className="px-6 py-16 text-center text-sm text-slate-400">
+            {filterHidrante ? "Nenhum hidrante encontrado para o filtro." : "Nenhum hidrante cadastrado ainda."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="modern-table">
+              <thead>
+                <tr className="text-left">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigo}</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.pavimento}</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.localDetalhado}</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">
+                    {COLUNAS_PADRAO.mangueiras}
+                  </th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">
+                    {COLUNAS_PADRAO.mapa}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredHidrantes.map((h) => (
+                  <tr key={h.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                    <td className="px-4 py-3 font-bold text-slate-900">{h.codigo}</td>
+                    <td className="px-4 py-3 text-slate-600">{h.pavimento ?? "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{h.local_detalhado || "—"}</td>
+                    <td className="hidden px-4 py-3 text-slate-600 md:table-cell">{h.quantidade_mangueiras ?? "—"}</td>
+                    <td className="hidden px-4 py-3 lg:table-cell">
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={
+                          h.coord_x != null
+                            ? { background: "#dcfce7", color: "#15803d" }
+                            : { background: "#f2f4f7", color: "#667085" }
+                        }
+                      >
+                        {h.coord_x != null ? "Posicionado" : "Sem posição"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+        </>
+      )}
 
       {/* Create / Edit Modal */}
       {modalMode && (

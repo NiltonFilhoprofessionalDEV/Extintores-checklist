@@ -28,12 +28,19 @@
   --font-sans: var(--font-montserrat);
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background:
     radial-gradient(circle at top right, rgb(224 32 32 / 0.08), transparent 28rem),
     linear-gradient(180deg, #f8fafc 0%, var(--background) 42%, #eef2f7 100%);
   color: var(--foreground);
   font-family: var(--font-montserrat), Montserrat, sans-serif;
+  overflow-x: hidden;
+  touch-action: manipulation;
 }
 
 .surface-card {

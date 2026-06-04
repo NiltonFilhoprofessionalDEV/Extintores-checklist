@@ -9,12 +9,13 @@ import {
   type ChecklistHidranteMesRow,
 } from "@/lib/supabase/checklists-do-mes";
 import { getCurrentSession } from "@/lib/auth/profile";
-import { exportAlertasVencimento, type ExtintorRow } from "@/lib/export/excel";
+import { exportAlertasVencimento, type AlertaVencimentoRowHighlight, type ExtintorRow } from "@/lib/export/excel";
+import { extintorTemManutencaoVencida } from "@/lib/export/conferencia-historico";
 import { checklistTemNaoConformidade, isDataVencida } from "@/lib/checklist/types";
 import { hidranteChecklistTemNaoConformidade } from "@/lib/checklist/hidrante-types";
 import { getLocalCalendarMonthUtcIsoRange } from "@/lib/date/local-month-range";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
+import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
 
@@ -95,6 +96,32 @@ function formatDatePt(d: string | null): string {
 
 type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "semPosicao";
 
+const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
+  vencidos: "vencido",
+  alerta30: "alerta",
+  alerta60: "alerta",
+  semPosicao: "none",
+};
+
+function extintorNaoConformeNoMes(e: ExtintorRow, u: ChecklistExtintorMesRow | undefined): boolean {
+  if (!u) return false;
+  return (
+    extintorTemManutencaoVencida(e.manutencao_2_nivel, e.manutencao_3_nivel) ||
+    checklistTemNaoConformidade(u)
+  );
+}
+
+function hidranteNaoConformeNoMes(
+  h: HidranteVencimentoRow,
+  u: ChecklistHidranteMesRow | undefined,
+): boolean {
+  if (!u) return false;
+  return (
+    hidranteTemMangueiraVencida(h) ||
+    hidranteChecklistTemNaoConformidade(u as Record<string, string | null>)
+  );
+}
+
 const MANUTENCAO_MODAL_META: Record<
   ManutencaoModalKey,
   { title: string; subtitle: string; color: string; exportLabel: string }
@@ -164,7 +191,7 @@ function ExtintorManutencaoModal({
             {items.length > 0 && (
               <button
                 type="button"
-                onClick={() => exportAlertasVencimento(items, meta.exportLabel)}
+                onClick={() => exportAlertasVencimento(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])}
                 className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white ring-1 ring-white/20 transition hover:bg-white/25"
               >
                 <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -297,6 +324,7 @@ function AlertTable({
   color,
   items,
   exportLabel,
+  exportHighlight,
   diasReferencia = "earliest",
 }: {
   title: string;
@@ -304,6 +332,7 @@ function AlertTable({
   color: string;
   items: ExtintorRow[];
   exportLabel: string;
+  exportHighlight: AlertaVencimentoRowHighlight;
   diasReferencia?: "earliest" | "nivel2";
 }) {
   if (items.length === 0) return null;
@@ -317,7 +346,7 @@ function AlertTable({
         </div>
         <button
           type="button"
-          onClick={() => exportAlertasVencimento(items, exportLabel)}
+          onClick={() => exportAlertasVencimento(items, exportLabel, exportHighlight)}
           className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"
         >
           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -522,7 +551,7 @@ export default function AdminDashboardPage() {
     for (const e of extintores) {
       const u = ultimoChecklistExtintor.get(e.id);
       if (!u) pendente += 1;
-      else if (checklistTemNaoConformidade(u)) naoConforme += 1;
+      else if (extintorNaoConformeNoMes(e, u)) naoConforme += 1;
       else conforme += 1;
     }
     return { conforme, naoConforme, pendente, total: extintores.length };
@@ -535,7 +564,7 @@ export default function AdminDashboardPage() {
     for (const h of hidrantes) {
       const u = ultimoChecklistHidrante.get(h.id);
       if (!u) pendente += 1;
-      else if (hidranteChecklistTemNaoConformidade(u as Record<string, string | null>)) naoConforme += 1;
+      else if (hidranteNaoConformeNoMes(h, u)) naoConforme += 1;
       else conforme += 1;
     }
     return { conforme, naoConforme, pendente, total: hidrantes.length };
@@ -544,14 +573,16 @@ export default function AdminDashboardPage() {
   const extintoresNcMes = useMemo(() => {
     return extintores
       .map((e) => ({ e, u: ultimoChecklistExtintor.get(e.id) }))
-      .filter((x): x is { e: ExtintorRow; u: ChecklistExtintorMesRow } => Boolean(x.u && checklistTemNaoConformidade(x.u)));
+      .filter((x): x is { e: ExtintorRow; u: ChecklistExtintorMesRow } =>
+        Boolean(x.u && extintorNaoConformeNoMes(x.e, x.u)),
+      );
   }, [extintores, ultimoChecklistExtintor]);
 
   const hidrantesNcMes = useMemo(() => {
     return hidrantes
       .map((h) => ({ h, u: ultimoChecklistHidrante.get(h.id) }))
       .filter((x): x is { h: HidranteVencimentoRow; u: ChecklistHidranteMesRow } =>
-        Boolean(x.u && hidranteChecklistTemNaoConformidade(x.u as Record<string, string | null>)),
+        Boolean(x.u && hidranteNaoConformeNoMes(x.h, x.u)),
       );
   }, [hidrantes, ultimoChecklistHidrante]);
 
@@ -651,7 +682,7 @@ export default function AdminDashboardPage() {
             <h2 className="mt-1 text-xl font-black text-slate-950">Conferência no mês</h2>
           </div>
           <p className="max-w-xl text-xs font-medium text-slate-500">
-            Última conferência registrada no mês para extintores e hidrantes (mesma regra do mapa).
+            Última conferência registrada no mês. Vencidos (manutenção ou mangueira) entram em não conforme.
           </p>
         </div>
 
@@ -694,7 +725,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <p className="rounded-2xl bg-white px-4 py-3 text-xs font-medium text-slate-500">
-                Nenhum extintor com não conformidade na última conferência do mês.
+                Nenhum extintor com não conformidade ou vencimento na última conferência do mês.
               </p>
             )}
           </div>
@@ -739,7 +770,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <p className="rounded-2xl bg-white px-4 py-3 text-xs font-medium text-slate-500">
-                Nenhum hidrante com não conformidade na última conferência do mês.
+                Nenhum hidrante com não conformidade ou mangueira vencida na última conferência do mês.
               </p>
             )}
           </div>
@@ -806,6 +837,7 @@ export default function AdminDashboardPage() {
         color="#dc2626"
         items={vencidosList}
         exportLabel="Nivel_2_vencidos"
+        exportHighlight="vencido"
         diasReferencia="nivel2"
       />
       <AlertTable
@@ -814,6 +846,7 @@ export default function AdminDashboardPage() {
         color="#f59e0b"
         items={alerta30List}
         exportLabel="Vencendo_30_dias"
+        exportHighlight="alerta"
       />
       <AlertTable
         title="Extintores vencendo nos próximos 60 dias"
@@ -821,6 +854,7 @@ export default function AdminDashboardPage() {
         color="#eab308"
         items={alerta60List}
         exportLabel="Vencendo_60_dias"
+        exportHighlight="alerta"
       />
 
       {/* All good banner */}

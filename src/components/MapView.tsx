@@ -38,6 +38,7 @@ import {
   isDataVencida,
   type ChecklistData,
 } from "@/lib/checklist/types";
+import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
 import {
   HIDRANTE_CHECKLIST_INITIAL,
   mergeHidranteObservacoes,
@@ -46,6 +47,16 @@ import {
 } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { getLocalCalendarMonthUtcIsoRange, isIsoDateWithinInclusiveRange } from "@/lib/date/local-month-range";
+import {
+  EQUIPES_CONFERENCIA,
+  filtrarPorEquipe,
+  type EquipeConferenciaId,
+} from "@/lib/equipes/conferencia-filtro";
+import {
+  extintorMarkerColors,
+  hidranteMarkerColors,
+  type MarkerColors,
+} from "@/lib/map/marker-styles";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MapErrorBoundary extends Component<
@@ -197,12 +208,21 @@ function getMaintenanceStatus(extintor: Extintor) {
   return "Em dia";
 }
 
-/** Anel externo por tipo — cores bem afastadas no círculo cromático (azul / laranja / teal / magenta). */
-const MARCADOR_EXTINTOR_RING = "#155dfc";
-const MARCADOR_HIDRANTE_RING = "#ea580c";
-const MARCADOR_LUZ_RING = "#0d9488";
-const MARCADOR_PLACA_RING = "#db2777";
 const MARCADOR_RING_PAD = 4;
+
+const markerIconCache = new Map<string, L.DivIcon>();
+
+function getCachedDivIcon(key: string, factory: () => L.DivIcon): L.DivIcon {
+  const cached = markerIconCache.get(key);
+  if (cached) return cached;
+  const icon = factory();
+  markerIconCache.set(key, icon);
+  if (markerIconCache.size > 400) {
+    const first = markerIconCache.keys().next().value;
+    if (first) markerIconCache.delete(first);
+  }
+  return icon;
+}
 
 function escapeMarkerLabel(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
@@ -217,36 +237,38 @@ function escapeMarkerLabel(value: string): string {
   });
 }
 
-function extinguisherIcon(color: "green" | "red" | "amber", codigo = "", compact = false) {
-  const statusBg = color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#eab308";
-  const ring = MARCADOR_EXTINTOR_RING;
+function extinguisherIcon(colors: MarkerColors, codigo = "", compact = false) {
+  const { bg: statusBg, ring } = colors;
   const numMatch = codigo.match(/\d+/);
   const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo;
   const safeLabel = escapeMarkerLabel(label);
-  if (compact) {
-    return L.divIcon({
-      className: "map-mobile-marker-icon",
-      iconSize: [38, 50],
-      iconAnchor: [19, 16],
-      html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
+  const cacheKey = `ext-${statusBg}-${ring}-${safeLabel}-${compact ? "m" : "d"}`;
+  return getCachedDivIcon(cacheKey, () => {
+    if (compact) {
+      return L.divIcon({
+        className: "map-mobile-marker-icon",
+        iconSize: [38, 50],
+        iconAnchor: [19, 16],
+        html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
         <div class="map-marker-mobile__ring-wrap">
           <div class="map-marker-mobile__symbol map-marker-mobile__symbol--ext">🧯</div>
         </div>
         <span class="map-marker-mobile__label">${safeLabel}</span>
       </div>`,
-    });
-  }
+      });
+    }
 
-  return L.divIcon({
-    className: "",
-    iconSize: [38, 50],
-    iconAnchor: [19, 16],
-    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+    return L.divIcon({
+      className: "",
+      iconSize: [38, 50],
+      iconAnchor: [19, 16],
+      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9999px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
         <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${statusBg};color:#fff;font-size:14px;border:2px solid #fff;font-family:system-ui,sans-serif;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">🧯</div>
       </div>
       <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${safeLabel}</span>
     </div>`,
+    });
   });
 }
 
@@ -272,36 +294,38 @@ function buildUltimoPorHidrante(rows: ChecklistHidranteMesRow[]): Map<string, Ch
   return map;
 }
 
-function hydrantIcon(color: "green" | "red" | "amber", codigo: string, compact = false) {
-  const statusBg = color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#eab308";
-  const ring = MARCADOR_HIDRANTE_RING;
+function hydrantIcon(colors: MarkerColors, codigo: string, compact = false) {
+  const { bg: statusBg, ring } = colors;
   const numMatch = codigo.match(/\d+/);
   const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo.slice(0, 6);
   const safeLabel = escapeMarkerLabel(label);
-  if (compact) {
-    return L.divIcon({
-      className: "map-mobile-marker-icon",
-      iconSize: [34, 44],
-      iconAnchor: [17, 15],
-      html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
+  const cacheKey = `hid-${statusBg}-${ring}-${safeLabel}-${compact ? "m" : "d"}`;
+  return getCachedDivIcon(cacheKey, () => {
+    if (compact) {
+      return L.divIcon({
+        className: "map-mobile-marker-icon",
+        iconSize: [34, 44],
+        iconAnchor: [17, 15],
+        html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
         <div class="map-marker-mobile__ring-wrap map-marker-mobile__ring-wrap--square">
           <div class="map-marker-mobile__symbol map-marker-mobile__symbol--hyd">H</div>
         </div>
         <span class="map-marker-mobile__label">${safeLabel}</span>
       </div>`,
-    });
-  }
+      });
+    }
 
-  return L.divIcon({
-    className: "",
-    iconSize: [34, 44],
-    iconAnchor: [17, 15],
-    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+    return L.divIcon({
+      className: "",
+      iconSize: [34, 44],
+      iconAnchor: [17, 15],
+      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
         <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:${statusBg};color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;font-family:system-ui,sans-serif;line-height:1;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">H</div>
       </div>
       <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:2px;padding:1px 4px;white-space:nowrap;">${safeLabel}</span>
     </div>`,
+    });
   });
 }
 
@@ -318,23 +342,6 @@ function hidranteCabecalhoForm(h: HidranteRow): Partial<HidranteImportRow> & { c
     quantidade_chaves_storz: h.quantidade_chaves_storz ?? null,
     quantidade_esguichos: h.quantidade_esguichos ?? null,
   };
-}
-
-function emergencyIcon(kind: "luz_emergencia" | "placa_saida_emergencia", qty: number, color: "green" | "red" | "amber") {
-  const statusBg = color === "green" ? "#16a34a" : color === "red" ? "#dc2626" : "#eab308";
-  const ring = kind === "luz_emergencia" ? MARCADOR_LUZ_RING : MARCADOR_PLACA_RING;
-  const sym = kind === "luz_emergencia" ? "💡" : "🚪";
-  return L.divIcon({
-    className: "",
-    iconSize: [40, 48],
-    iconAnchor: [20, 24],
-    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-      <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9999px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
-        <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;background:${statusBg};border:2px solid #fff;font-size:14px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">${sym}</div>
-      </div>
-      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:1px 4px;">×${qty}</span>
-    </div>`,
-  });
 }
 
 function FitBounds({
@@ -525,9 +532,8 @@ export default function MapView() {
   const [showLayers, setShowLayers] = useState({
     extintor: true,
     hidrante: true,
-    luz_emergencia: true,
-    placa_saida_emergencia: true,
   });
+  const [filtroEquipe, setFiltroEquipe] = useState<EquipeConferenciaId | "">("");
   const [infoEmergencia, setInfoEmergencia] = useState<MarcadorEmergenciaRow | null>(null);
   const [infoHidrante, setInfoHidrante] = useState<HidranteRow | null>(null);
 
@@ -757,8 +763,9 @@ export default function MapView() {
         item.coord_y != null &&
         isSameFloor(item.pavimento, pavimento.label),
     );
-    return [...list].sort(compareExtintorCodigoAsc);
-  }, [extintores, pavimento.label]);
+    const sorted = [...list].sort(compareExtintorCodigoAsc);
+    return filtrarPorEquipe(sorted, filtroEquipe, "extintor");
+  }, [extintores, pavimento.label, filtroEquipe]);
 
   const hidrantesSemPosicao = useMemo(
     () =>
@@ -771,16 +778,17 @@ export default function MapView() {
     [hidrantes, pavimento.label],
   );
 
-  const hidrantesDoPavimento = useMemo(
-    () =>
-      hidrantes.filter(
-        (item) =>
-          item.coord_x != null &&
-          item.coord_y != null &&
-          isSameFloor(item.pavimento, pavimento.label),
-      ),
-    [hidrantes, pavimento.label],
-  );
+  const hidrantesDoPavimento = useMemo(() => {
+    const list = hidrantes.filter(
+      (item) =>
+        item.coord_x != null &&
+        item.coord_y != null &&
+        isSameFloor(item.pavimento, pavimento.label),
+    );
+    return filtrarPorEquipe(list, filtroEquipe, "hidrante");
+  }, [hidrantes, pavimento.label, filtroEquipe]);
+
+  const mostrarFiltroEquipe = mode === "inspecao";
 
   const marcadoresDoPavimento = useMemo(
     () => marcadoresEmergencia.filter((m) => isSameFloor(m.pavimento, pavimento.label)),
@@ -795,20 +803,28 @@ export default function MapView() {
       placementExtra === "luz_emergencia" ||
       placementExtra === "placa_saida_emergencia");
 
-  function extintorIconColor(item: Extintor): "green" | "red" | "amber" {
-    if (isDataVencida(item.manutencao_2_nivel)) return "red";
+  function extintorMarkerStyle(item: Extintor): MarkerColors {
     const ult = ultimoChecklistExtintorMes.get(item.id);
-    const temNc = ult ? checklistTemNaoConformidade(ult) : false;
-    if (temNc) return "red";
-    if (conferidosNoMesIds.has(item.id)) return "green";
+    return extintorMarkerColors(item, conferidosNoMesIds.has(item.id), ult);
+  }
+
+  function hidranteMarkerStyle(h: HidranteRow): MarkerColors {
+    const ult = ultimoChecklistHidranteMes.get(h.id);
+    return hidranteMarkerColors(h, conferidosHidranteMesIds.has(h.id), ult as Record<string, string | null> | undefined);
+  }
+
+  /** Legado para painéis que usam uma cor única no indicador. */
+  function extintorIconColor(item: Extintor): "green" | "red" | "amber" {
+    const { bg } = extintorMarkerStyle(item);
+    if (bg === "#16a34a") return "green";
+    if (bg === "#dc2626") return "red";
     return "amber";
   }
 
   function hidranteIconColor(h: HidranteRow): "green" | "red" | "amber" {
-    const ult = ultimoChecklistHidranteMes.get(h.id);
-    const temNc = ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false;
-    if (temNc) return "red";
-    if (conferidosHidranteMesIds.has(h.id)) return "green";
+    const { bg } = hidranteMarkerStyle(h);
+    if (bg === "#16a34a") return "green";
+    if (bg === "#dc2626") return "red";
     return "amber";
   }
 
@@ -965,19 +981,10 @@ export default function MapView() {
     let finalError = error;
 
     if (error?.message?.includes("schema cache") || error?.message?.includes("column")) {
-      const observacoesLegado = [
+      const observacoesLegado = buildObservacoesLegadoApenasNaoConformidades(
         observacoesFinal,
-        `Local correto conforme mapa: ${checklistForm.local_correto ?? ""}`,
-        `Dados do extintor corretos: ${checklistForm.dados_corretos ?? ""}`,
-        `Sinalização correta: ${checklistForm.sinalizacao_correta ?? ""}`,
-        `Mangueira em boas condições: ${checklistForm.mangueira_status ?? ""}`,
-        `Bico/Difusor em boas condições: ${checklistForm.bico_difusor_status ?? ""}`,
-        `Alça/Gatilho/Lacre/Pino em boas condições: ${checklistForm.alca_gatilho_status ?? ""}`,
-        `Medidor de pressão correto: ${checklistForm.medidor_pressao_status ?? ""}`,
-        `Cilindro em boas condições: ${checklistForm.cilindro_status ?? ""}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
+        checklistForm,
+      );
 
       const payloadLegado = {
         extintor_id: selectedMarker.id,
@@ -1247,7 +1254,7 @@ export default function MapView() {
   }
 
   const leafletRotateOpts = isMobile
-    ? { rotate: true, touchRotate: true, bearing: 0, rotateControl: false }
+    ? { rotate: true, touchRotate: true, bearing: 0, rotateControl: false, touchRotateThreshold: 12 }
     : { rotate: false, rotateControl: false };
 
   const mapContent = (
@@ -1256,10 +1263,13 @@ export default function MapView() {
       crs={L.CRS.Simple}
       preferCanvas
       zoomSnap={0.25}
-      zoomDelta={isMobile ? 0.5 : 0.5}
-      zoomAnimation={!isMobile}
-      fadeAnimation={!isMobile}
-      markerZoomAnimation={!isMobile}
+      zoomDelta={0.5}
+      zoomAnimation={false}
+      fadeAnimation={false}
+      markerZoomAnimation={false}
+      inertia={isMobile}
+      wheelDebounceTime={isMobile ? 80 : 40}
+      zoomAnimationThreshold={4}
       maxBoundsViscosity={1}
       attributionControl={false}
       style={{ height: "100%", width: "100%" }}
@@ -1281,7 +1291,7 @@ export default function MapView() {
           <Marker
             key={item.id}
             position={[item.coord_y as number, item.coord_x as number]}
-            icon={extinguisherIcon(extintorIconColor(item), item.codigo, isMobile)}
+            icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, isMobile)}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao") openChecklistModal(item);
@@ -1363,7 +1373,7 @@ export default function MapView() {
           <Marker
             key={h.id}
             position={[h.coord_y as number, h.coord_x as number]}
-            icon={hydrantIcon(hidranteIconColor(h), h.codigo, isMobile)}
+            icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, isMobile)}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao") openHidranteChecklistModal(h);
@@ -1405,93 +1415,6 @@ export default function MapView() {
           </Marker>
         ))}
 
-      {!isMobile && marcadoresDoPavimento
-        .filter((m) => showLayers[m.kind === "luz_emergencia" ? "luz_emergencia" : "placa_saida_emergencia"])
-        .map((m) => (
-          <Marker
-            key={m.id}
-            position={[m.coord_y, m.coord_x]}
-            icon={emergencyIcon(m.kind, m.quantidade, marcadorEmergenciaIconColor(m))}
-            eventHandlers={{
-              click: () => {
-                if (mode === "inspecao") setInfoEmergencia(m);
-              },
-              contextmenu: () => {
-                if (isMobile) setInfoEmergencia(m);
-              },
-            }}
-          >
-            {!(isMobile && mode === "inspecao") && (
-              <Popup
-                key={`em-${m.id}-${marcadorEmergenciaIconColor(m)}-${m.verified_at ?? ""}-${m.inspecao_resultado ?? ""}`}
-              >
-                <div className="text-sm" style={{ minWidth: 180 }}>
-                  <p className="font-semibold">
-                    {m.kind === "luz_emergencia" ? "Luz de emergência" : "Placa saída de emergência"}
-                  </p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    {m.kind === "luz_emergencia" ? "Anel verde-água (teal) no mapa" : "Anel rosa no mapa"}
-                  </p>
-                  <p className="text-zinc-500">Quantidade: {m.quantidade}</p>
-                  <p
-                    className={`mt-1 text-xs font-semibold ${
-                      marcadorEmergenciaIconColor(m) === "green"
-                        ? "text-green-700"
-                        : marcadorEmergenciaIconColor(m) === "red"
-                          ? "text-red-700"
-                          : "text-yellow-700"
-                    }`}
-                  >
-                    {marcadorEmergenciaIconColor(m) === "green"
-                      ? "✓ Conforme no mês"
-                      : marcadorEmergenciaIconColor(m) === "red"
-                        ? "⚠ Não conforme no mês"
-                        : "⚠ Inspeção pendente no mês"}
-                  </p>
-                  {m.inspecao_resultado === "nao_conforme" && m.nao_conformidade_descricao && (
-                    <p className="mt-1 rounded border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-900">
-                      {m.nao_conformidade_descricao}
-                    </p>
-                  )}
-                  {m.verified_at && (
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      Último registro: {new Date(m.verified_at).toLocaleString("pt-BR")}
-                    </p>
-                  )}
-                  {mode === "inspecao" && (
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        className="w-full rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white"
-                        onClick={() => void salvarInspecaoEmergencia(m, "conforme")}
-                        disabled={savingPosition}
-                      >
-                        Conforme
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold text-white"
-                        onClick={() => void salvarInspecaoEmergencia(m, "nao_conforme")}
-                        disabled={savingPosition}
-                      >
-                        Não conforme…
-                      </button>
-                    </div>
-                  )}
-                  {canEdit && mode === "edicao" && (
-                    <button
-                      type="button"
-                      className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 py-1.5 text-xs font-semibold text-red-600"
-                      onClick={() => void removerMarcadorEmergencia(m)}
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
-              </Popup>
-            )}
-          </Marker>
-        ))}
     </MapContainer>
   );
 
@@ -1540,6 +1463,24 @@ export default function MapView() {
             </button>
           </div>
 
+          {mostrarFiltroEquipe && (
+            <div className="px-2 pb-1">
+              <select
+                aria-label="Filtrar por equipe"
+                className="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                value={filtroEquipe}
+                onChange={(e) => setFiltroEquipe(e.target.value as EquipeConferenciaId | "")}
+              >
+                <option value="">Todas as equipes</option>
+                {EQUIPES_CONFERENCIA.map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {eq.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Linha 2: camadas + legenda */}
           <div className="flex items-center gap-1 px-2 pb-1.5">
             {(
@@ -1565,19 +1506,21 @@ export default function MapView() {
               <summary className="cursor-pointer list-none rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 marker:content-none [&::-webkit-details-marker]:hidden">
                 Legenda
               </summary>
-              <div className="absolute right-0 top-full z-[2000] mt-1 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                <p className="font-semibold text-slate-700">Cor do meio = mês atual</p>
+              <div className="absolute right-0 top-full z-[2000] mt-1 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                <p className="font-semibold text-slate-700">Centro (fundo)</p>
                 <p className="mt-0.5 text-slate-600">
-                  <span className="font-semibold text-yellow-700">Âmbar</span> falta ·{" "}
-                  <span className="font-semibold text-green-700">Verde</span> ok ·{" "}
-                  <span className="font-semibold text-red-700">Vermelho</span> NC ou teste nível 2 vencido
+                  <span className="font-semibold text-yellow-700">Âmbar</span> pendente ·{" "}
+                  <span className="font-semibold text-green-700">Verde</span> conferido ok ·{" "}
+                  <span className="font-semibold text-red-700">Vermelho</span> pendência ou NC
                 </p>
-                <p className="mt-1 font-semibold text-slate-700">Anel = tipo</p>
+                <p className="mt-1 font-semibold text-slate-700">Anel (conferência / alerta)</p>
                 <p className="mt-0.5 text-slate-600">
-                  <span className="font-semibold text-blue-700">Azul</span> extintor ·{" "}
-                  <span className="font-semibold text-orange-600">Laranja</span> hidrante ·{" "}
-                  <span className="font-semibold text-teal-700">Teal</span> luz ·{" "}
-                  <span className="font-semibold text-pink-600">Rosa</span> saída
+                  <span className="font-semibold text-green-700">Verde</span> conferido no mês ·{" "}
+                  <span className="font-semibold text-red-700">Vermelho</span> vencido ou NC após conferência
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Extintor vencido conferido: centro vermelho, anel verde. Hidrante com problema conferido: centro
+                  vermelho, anel verde.
                 </p>
               </div>
             </details>
@@ -1990,35 +1933,34 @@ export default function MapView() {
               estiver pendente é atualizado.
             </p>
 
-            <p className="mt-1.5 font-semibold text-slate-800">1) Cor do meio = inspeção neste mês</p>
+            <p className="mt-1.5 font-semibold text-slate-800">1) Centro do marcador</p>
             <ul className="mt-0.5 list-disc space-y-0.5 pl-3.5 text-slate-600">
               <li>
-                <span className="font-semibold text-yellow-700">Âmbar:</span> ainda não inspecionado no mês.
+                <span className="font-semibold text-yellow-700">Âmbar:</span> ainda não conferido no mês.
               </li>
               <li>
-                <span className="font-semibold text-green-700">Verde:</span> inspecionado, conforme.
+                <span className="font-semibold text-green-700">Verde:</span> conferido e sem pendências.
               </li>
               <li>
-                <span className="font-semibold text-red-700">Vermelho:</span> não conforme no mês ou{" "}
-                <span className="font-semibold text-red-700">teste nível 2 vencido</span> (sempre vermelho).
+                <span className="font-semibold text-red-700">Vermelho:</span> pendente com vencimento, NC ou item em
+                falta (hidrante).
               </li>
             </ul>
 
-            <p className="mt-1.5 font-semibold text-slate-800">2) Anel colorido = tipo de equipamento</p>
-            <p className="mt-0.5 text-slate-600">
-              O anel não indica bom/ruim, só o tipo:{" "}
-              <span className="font-semibold text-blue-700">azul</span> extintor,{" "}
-              <span className="font-semibold text-orange-600">laranja</span> hidrante,{" "}
-              <span className="font-semibold text-teal-700">verde-água</span> luz,{" "}
-              <span className="font-semibold text-pink-600">rosa</span> placa de saída.
-            </p>
-
-            <p className="mt-1.5 font-semibold text-slate-800">3) Luzes e placas</p>
-            <p className="mt-0.5 text-slate-600">
-              Use <span className="font-semibold text-slate-800">Conforme</span> ou{" "}
-              <span className="font-semibold text-slate-800">Não conforme</span>. Em não conforme, a descrição é
-              obrigatória (auditoria).
-            </p>
+            <p className="mt-1.5 font-semibold text-slate-800">2) Anel ao redor</p>
+            <ul className="mt-0.5 list-disc space-y-0.5 pl-3.5 text-slate-600">
+              <li>
+                <span className="font-semibold text-green-700">Verde:</span> conferido no mês (anel de conferência).
+              </li>
+              <li>
+                <span className="font-semibold text-red-700">Vermelho:</span> não conformidade após conferência, ou
+                pendência antes da conferência.
+              </li>
+              <li>
+                Conferido com alerta: extintor vencido → centro vermelho e anel verde; NC sem vencimento → centro
+                verde e anel vermelho; hidrante com problema → centro vermelho e anel verde.
+              </li>
+            </ul>
           </div>
         </details>
       </header>
@@ -2046,13 +1988,32 @@ export default function MapView() {
             ))}
           </select>
 
+          {mostrarFiltroEquipe && (
+            <>
+              <label htmlFor="filtro-equipe" className="mb-1 mt-3 block text-sm font-semibold text-slate-700">
+                Equipe (inspeção)
+              </label>
+              <select
+                id="filtro-equipe"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                value={filtroEquipe}
+                onChange={(e) => setFiltroEquipe(e.target.value as EquipeConferenciaId | "")}
+              >
+                <option value="">Todas as equipes</option>
+                {EQUIPES_CONFERENCIA.map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {eq.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           <div className="mt-3 flex flex-wrap gap-1">
             {(
               [
                 ["extintor", "Extintores"],
                 ["hidrante", "Hidrantes"],
-                ["luz_emergencia", "Luz emerg."],
-                ["placa_saida_emergencia", "Saída"],
               ] as const
             ).map(([key, label]) => (
               <button

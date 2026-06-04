@@ -164,7 +164,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   const isMapaRoute = pathname.startsWith("/mobile/mapa");
 
   return (
-    <AuthGuard allowedRoles={["user", "admin"]}>
+    <AuthGuard allowedRoles={["user", "admin", "leadership"]}>
       <div
         className="app-shell-bg flex flex-col"
         style={{ height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}

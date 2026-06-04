@@ -1,7 +1,7 @@
 import { CHECKLIST_ITEM_KEYS, type ChecklistItemKey, type ChecklistValue } from "./types";
 
 /** Prefixos gravados em `observacoes` quando o banco ainda não tinha colunas dedicadas. */
-const LEGACY_PREFIXES: { key: ChecklistItemKey; prefixes: string[] }[] = [
+export const LEGACY_PREFIXES: { key: ChecklistItemKey; prefixes: string[] }[] = [
   { key: "local_correto", prefixes: ["Local correto conforme mapa:"] },
   { key: "dados_corretos", prefixes: ["Dados do extintor corretos:"] },
   { key: "sinalizacao_correta", prefixes: ["Sinalização correta:"] },
@@ -61,4 +61,75 @@ export function fillChecklistItemsFromObservacoes<
   }
 
   return next;
+}
+
+/** Trecho gerado automaticamente ao salvar (eco legado ou bloco de NC já refletido nas colunas). */
+function isTrechoObservacaoAutomatica(trecho: string): boolean {
+  const t = trecho.trim();
+  if (!t) return true;
+  if (t.startsWith("[Não conforme")) return true;
+
+  for (const { prefixes } of LEGACY_PREFIXES) {
+    for (const prefix of prefixes) {
+      if (!t.includes(prefix)) continue;
+      const valor = t.slice(t.indexOf(prefix) + prefix.length).trim().toLowerCase();
+      if (
+        valor === "conforme" ||
+        valor === "nao_aplica" ||
+        valor === "nao_conforme" ||
+        valor === "nao conforme" ||
+        valor === "não conforme" ||
+        valor === "não se aplica"
+      ) {
+        return true;
+      }
+    }
+  }
+
+  if (/^[^:]+:\s*(conforme|nao_conforme|nao_aplica)\s*$/i.test(t)) return true;
+  if (/^[^:]+:\s*não\s*conforme\s*\.?\s*$/i.test(t)) return true;
+  if (/^[^:]+:\s*nao\s*conforme\s*\.?\s*$/i.test(t)) return true;
+  if (/descrição informada:/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Texto livre do conferente em `observacoes`, sem eco legado "item: conforme" nem blocos [Não conforme — …].
+ * Usado para status Conforme vs Atenção na listagem e no Excel.
+ */
+export function extrairObservacaoUsuarioLivre(observacoes: string | null | undefined): string {
+  if (!observacoes?.trim()) return "";
+
+  let texto = observacoes.replace(
+    /\[Não conforme —[\s\S]*?(?=\n\n---\n\n|\s*\|\s*|$)/g,
+    "",
+  );
+
+  const partes = texto
+    .split(/\n\n---\n\n|\s*\|\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const livres = partes.filter((p) => !isTrechoObservacaoAutomatica(p));
+  return livres.join(" — ").trim();
+}
+
+/**
+ * Fallback quando o banco não tem colunas do checklist: grava só NC em `observacoes`,
+ * sem repetir itens conformes (evita poluir a listagem).
+ */
+export function buildObservacoesLegadoApenasNaoConformidades(
+  observacoesBase: string,
+  valores: Partial<Record<ChecklistItemKey, ChecklistValue | null>>,
+): string {
+  const partes: string[] = [];
+  if (observacoesBase.trim()) partes.push(observacoesBase.trim());
+
+  for (const { key, prefixes } of LEGACY_PREFIXES) {
+    if (valores[key] !== "nao_conforme") continue;
+    partes.push(`${prefixes[0]} nao_conforme`);
+  }
+
+  return partes.join(" | ");
 }

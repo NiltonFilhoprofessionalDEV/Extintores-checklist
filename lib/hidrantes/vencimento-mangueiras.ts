@@ -15,9 +15,21 @@ export type HidranteVencimentoRow = {
   teste_hidrostatico_m2: string | null;
   teste_hidrostatico_m3: string | null;
   teste_hidrostatico_m4: string | null;
+  quantidade_chaves_storz: number | null;
+  quantidade_esguichos: number | null;
   coord_x: number | null;
   coord_y: number | null;
 };
+
+/** Campos mínimos para calcular vencimento de mangueiras (sem coordenadas). */
+export type HidranteMangueiraVencimentoInput = Pick<
+  HidranteVencimentoRow,
+  | "quantidade_mangueiras"
+  | "teste_hidrostatico_m1"
+  | "teste_hidrostatico_m2"
+  | "teste_hidrostatico_m3"
+  | "teste_hidrostatico_m4"
+>;
 
 export type MangueiraSlot = {
   numero: number;
@@ -39,7 +51,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 /** Mangueiras cadastradas no hidrante (M-1 … M-n, máx. 4). */
-export function listarMangueirasAtivas(h: HidranteVencimentoRow): MangueiraSlot[] {
+export function listarMangueirasAtivas(h: HidranteMangueiraVencimentoInput): MangueiraSlot[] {
   const qty = h.quantidade_mangueiras ?? 4;
   const n = Math.min(4, Math.max(1, qty));
   const tests: MangueiraSlot[] = [
@@ -52,12 +64,12 @@ export function listarMangueirasAtivas(h: HidranteVencimentoRow): MangueiraSlot[
 }
 
 /** Pelo menos uma mangueira com teste hidrostático vencido (última realização + 1 ano). */
-export function hidranteTemMangueiraVencida(h: HidranteVencimentoRow): boolean {
+export function hidranteTemMangueiraVencida(h: HidranteMangueiraVencimentoInput): boolean {
   return listarMangueirasAtivas(h).some((m) => isTesteHidrostaticoVencido(m.ultimaRealizacao));
 }
 
 /** Menor data de vencimento entre mangueiras com última realização registrada. */
-export function earliestVencimentoMangueira(h: HidranteVencimentoRow): Date | null {
+export function earliestVencimentoMangueira(h: HidranteMangueiraVencimentoInput): Date | null {
   let earliest: Date | null = null;
   for (const m of listarMangueirasAtivas(h)) {
     const venc = dataVencimentoTeste(m.ultimaRealizacao);
@@ -68,7 +80,7 @@ export function earliestVencimentoMangueira(h: HidranteVencimentoRow): Date | nu
 }
 
 /** Menor quantidade de dias até o vencimento (a mangueira mais crítica). */
-export function diasRestantesMangueiraCritica(h: HidranteVencimentoRow): number | null {
+export function diasRestantesMangueiraCritica(h: HidranteMangueiraVencimentoInput): number | null {
   const dias = listarMangueirasAtivas(h)
     .map((m) => diasParaVencimentoTeste(m.ultimaRealizacao))
     .filter((d): d is number => d !== null);

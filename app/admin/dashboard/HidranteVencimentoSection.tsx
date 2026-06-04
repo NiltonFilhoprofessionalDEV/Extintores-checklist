@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { exportAlertasVencimentoHidrantes } from "@/lib/export/excel";
+import { exportAlertasVencimentoHidrantes, type AlertaVencimentoRowHighlight } from "@/lib/export/excel";
 import {
   computeHidranteVencimentoBuckets,
   diasRestantesMangueiraCritica,
@@ -12,6 +12,13 @@ import {
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 
 type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "semPosicao";
+
+const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
+  vencidos: "vencido",
+  alerta30: "alerta",
+  alerta60: "alerta",
+  semPosicao: "none",
+};
 
 const MODAL_META: Record<
   ManutencaoModalKey,
@@ -104,7 +111,9 @@ function HidranteManutencaoModal({
             {items.length > 0 && (
               <button
                 type="button"
-                onClick={() => exportAlertasVencimentoHidrantes(items, meta.exportLabel)}
+                onClick={() =>
+                  exportAlertasVencimentoHidrantes(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])
+                }
                 className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white ring-1 ring-white/20 transition hover:bg-white/25"
               >
                 Exportar
@@ -185,12 +194,14 @@ function HidranteAlertTable({
   color,
   items,
   exportLabel,
+  exportHighlight,
 }: {
   title: string;
   subtitle: string;
   color: string;
   items: HidranteVencimentoRow[];
   exportLabel: string;
+  exportHighlight: AlertaVencimentoRowHighlight;
 }) {
   if (items.length === 0) return null;
 
@@ -203,7 +214,7 @@ function HidranteAlertTable({
         </div>
         <button
           type="button"
-          onClick={() => exportAlertasVencimentoHidrantes(items, exportLabel)}
+          onClick={() => exportAlertasVencimentoHidrantes(items, exportLabel, exportHighlight)}
           className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"
         >
           Exportar
@@ -407,6 +418,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         color="#dc2626"
         items={vencidosList}
         exportLabel="Mangueiras_vencidas"
+        exportHighlight="vencido"
       />
       <HidranteAlertTable
         title="Hidrantes vencendo nos próximos 30 dias"
@@ -414,6 +426,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         color="#f59e0b"
         items={alerta30List}
         exportLabel="Mangueiras_30_dias"
+        exportHighlight="alerta"
       />
       <HidranteAlertTable
         title="Hidrantes vencendo nos próximos 60 dias"
@@ -421,6 +434,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         color="#eab308"
         items={alerta60List}
         exportLabel="Mangueiras_60_dias"
+        exportHighlight="alerta"
       />
 
       {stats.vencidos === 0 && stats.alerta30 === 0 && stats.alerta60 === 0 && stats.total > 0 && (
