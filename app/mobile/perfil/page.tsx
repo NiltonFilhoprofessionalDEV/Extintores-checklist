@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { signOutCurrentUser } from "@/lib/auth/session-client";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
 
 type Stats = {
@@ -61,7 +62,7 @@ export default function MobilePerfilPage() {
   }, [supabase, router]);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    await signOutCurrentUser();
     router.replace("/login");
   }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { signOutCurrentUser } from "@/lib/auth/session-client";
 import BrandLogo from "@/src/components/BrandLogo";
 
 type AppHeaderProps = {
@@ -15,8 +15,7 @@ export default function AppHeader({ title, links }: AppHeaderProps) {
   const pathname = usePathname();
 
   async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    await signOutCurrentUser();
     router.replace("/login");
   }
 

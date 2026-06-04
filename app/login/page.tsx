@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { getProfileBySession } from "@/lib/auth/profile";
+import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import { getHomePathForRole } from "@/lib/auth/roles";
+import { waitForAuthReady } from "@/lib/auth/session-client";
 import BrandLogo from "@/src/components/BrandLogo";
 
 export default function LoginPage() {
@@ -13,7 +14,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const restoreSession = async () => {
+      try {
+        await waitForAuthReady();
+        const session = await getCurrentSession();
+        if (!session) return;
+
+        const profile = await getProfileBySession(session);
+        if (profile?.active && mounted) {
+          router.replace(getHomePathForRole(profile.role));
+        }
+      } catch {
+        // Mantém na tela de login se não conseguir validar perfil
+      } finally {
+        if (mounted) setCheckingSession(false);
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,10 +69,17 @@ export default function LoginPage() {
 
       router.replace(getHomePathForRole(profile.role));
     } catch (err) {
-      await supabase.auth.signOut();
       setMessage(err instanceof Error ? err.message : "Não foi possível concluir o login.");
       setLoading(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-medium text-slate-300">
+        Verificando sessão…
+      </main>
+    );
   }
 
   return (

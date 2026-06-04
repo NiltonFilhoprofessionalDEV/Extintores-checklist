@@ -23,14 +23,11 @@ export function getSupabaseClient() {
       supabaseAnonKey.trim(),
       {
         auth: {
-          // Garante que a sessão persista em localStorage entre abas e recargas
           persistSession: true,
-          // Renova o token automaticamente antes de expirar
           autoRefreshToken: true,
-          // Chave específica do app evita conflitos com outros projetos Supabase
           storageKey: "extintor-app-v1",
-          // PWA não precisa ler tokens da URL
           detectSessionInUrl: false,
+          storage: typeof window !== "undefined" ? window.localStorage : undefined,
         },
       },
     );

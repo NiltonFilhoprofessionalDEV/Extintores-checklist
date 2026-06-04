@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import { isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { signOutCurrentUser } from "@/lib/auth/session-client";
 import BrandLogo from "./BrandLogo";
 
 const NAV_ITEMS = [
@@ -130,8 +130,7 @@ function SidebarContent({
       : NAV_ITEMS;
 
   async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    await signOutCurrentUser();
     router.replace("/login");
   }
 

@@ -1,8 +1,10 @@
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCurrentSession } from "@/lib/auth/session-client";
 import type { UserRole, UserTeam } from "@/lib/auth/roles";
 
 export type { UserRole } from "@/lib/auth/roles";
+export { getCurrentSession, signOutCurrentUser } from "@/lib/auth/session-client";
 
 export type Profile = {
   id: string;
@@ -26,26 +28,6 @@ async function getProfileWithoutTeam(session: Session): Promise<Profile | null> 
 
   if (error) throw error;
   return data ? { ...data, team: null } : null;
-}
-
-/** Evita chamadas paralelas a `getUser()` no mesmo instante (disputa o lock do Supabase Auth). */
-let sessionRequestInFlight: Promise<Session | null> | null = null;
-
-async function fetchCurrentSession(): Promise<Session | null> {
-  const supabase = getSupabaseClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session ?? null;
-}
-
-export async function getCurrentSession(): Promise<Session | null> {
-  if (!sessionRequestInFlight) {
-    sessionRequestInFlight = fetchCurrentSession().finally(() => {
-      sessionRequestInFlight = null;
-    });
-  }
-  return sessionRequestInFlight;
 }
 
 export async function getProfileBySession(session: Session) {

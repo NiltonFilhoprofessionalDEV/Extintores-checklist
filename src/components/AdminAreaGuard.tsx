@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import { getHomePathForRole, isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
+import { waitForAuthReady } from "@/lib/auth/session-client";
 
 export default function AdminAreaGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,6 +16,7 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
 
     const check = async () => {
       try {
+        await waitForAuthReady();
         const session = await getCurrentSession();
         if (!session) {
           router.replace("/login");
