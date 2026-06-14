@@ -167,6 +167,9 @@ const PAVIMENTOS: PavimentoOption[] = [
   { key: "galeria_tecnica", label: "Galeria Técnica", imageBase: "/maps/galeria_tecniica" },
   { key: "pavimento_tecnico", label: "Pavimento Técnico", imageBase: "/maps/pavimento_tecnico" },
   { key: "subsolo", label: "Subsolo", imageBase: "/maps/subsolo" },
+  { key: "teca", label: "TECA", imageBase: "/maps/teca" },
+  { key: "tps_1", label: "TPS 1", imageBase: "/maps/tps_1" },
+  { key: "sci", label: "SCI", imageBase: "/maps/sci" },
 ];
 
 const INITIAL_CHECKLIST: ChecklistState = CHECKLIST_INITIAL;

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "maps:optimize": "node scripts/optimize-maps.mjs"
+    "maps:optimize": "node scripts/optimize-maps.mjs",
+    "maps:extract-pdf": "node scripts/extract-pdf-map.mjs",
+    "maps:crop": "node scripts/crop-map-content.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
@@ -29,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "pdf-to-img": "^6.2.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
