@@ -121,6 +121,52 @@ const TAMANHOS_POR_TIPO: Record<string, string[]> = {
   CO2: ["4 kg", "6 kg", "10 kg", "20 kg", "25 kg", "30 kg", "50 kg"],
 };
 
+const MANGUEIRA_OPCOES = [0, 1, 2, 3, 4] as const;
+
+const HIDRANTE_TESTE_M_CAMPOS: { key: keyof Pick<HidranteFormData, "teste_hidrostatico_m1" | "teste_hidrostatico_m2" | "teste_hidrostatico_m3" | "teste_hidrostatico_m4">; label: string }[] = [
+  { key: "teste_hidrostatico_m1", label: "Mangueira 1 (M-1)" },
+  { key: "teste_hidrostatico_m2", label: "Mangueira 2 (M-2)" },
+  { key: "teste_hidrostatico_m3", label: "Mangueira 3 (M-3)" },
+  { key: "teste_hidrostatico_m4", label: "Mangueira 4 (M-4)" },
+];
+
+function parseQuantidadeMangueiras(value: string): number {
+  if (value.trim() === "") return 0;
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(4, n);
+}
+
+function clampQuantidadeMangueirasString(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const n = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  if (!Number.isFinite(n) || n < 0) return "0";
+  return String(Math.min(4, n));
+}
+
+function parseOptionalIntField(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildHidranteSavePayload(form: HidranteFormData) {
+  const qtd = parseQuantidadeMangueiras(form.quantidade_mangueiras);
+  return {
+    codigo: form.codigo.trim(),
+    pavimento: form.pavimento.trim() || null,
+    local_detalhado: form.local_detalhado.trim(),
+    quantidade_mangueiras: qtd,
+    teste_hidrostatico_m1: qtd >= 1 ? form.teste_hidrostatico_m1.trim() || null : null,
+    teste_hidrostatico_m2: qtd >= 2 ? form.teste_hidrostatico_m2.trim() || null : null,
+    teste_hidrostatico_m3: qtd >= 3 ? form.teste_hidrostatico_m3.trim() || null : null,
+    teste_hidrostatico_m4: qtd >= 4 ? form.teste_hidrostatico_m4.trim() || null : null,
+    quantidade_chaves_storz: parseOptionalIntField(form.quantidade_chaves_storz),
+    quantidade_esguichos: parseOptionalIntField(form.quantidade_esguichos),
+  };
+}
+
 export default function AdminExtintoresPage() {
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteRow[]>([]);
@@ -266,15 +312,17 @@ export default function AdminExtintoresPage() {
   }
 
   function openEditHidrante(h: HidranteRow) {
+    const qtdStr = clampQuantidadeMangueirasString(h.quantidade_mangueiras);
+    const qtd = parseQuantidadeMangueiras(qtdStr);
     setFormHidrante({
       codigo: h.codigo,
       pavimento: h.pavimento ? toUppercaseLabel(h.pavimento) : "",
       local_detalhado: h.local_detalhado,
-      quantidade_mangueiras: h.quantidade_mangueiras != null ? String(h.quantidade_mangueiras) : "",
-      teste_hidrostatico_m1: h.teste_hidrostatico_m1 ?? "",
-      teste_hidrostatico_m2: h.teste_hidrostatico_m2 ?? "",
-      teste_hidrostatico_m3: h.teste_hidrostatico_m3 ?? "",
-      teste_hidrostatico_m4: h.teste_hidrostatico_m4 ?? "",
+      quantidade_mangueiras: qtdStr,
+      teste_hidrostatico_m1: qtd >= 1 ? (h.teste_hidrostatico_m1 ?? "") : "",
+      teste_hidrostatico_m2: qtd >= 2 ? (h.teste_hidrostatico_m2 ?? "") : "",
+      teste_hidrostatico_m3: qtd >= 3 ? (h.teste_hidrostatico_m3 ?? "") : "",
+      teste_hidrostatico_m4: qtd >= 4 ? (h.teste_hidrostatico_m4 ?? "") : "",
       quantidade_chaves_storz: h.quantidade_chaves_storz != null ? String(h.quantidade_chaves_storz) : "",
       quantidade_esguichos: h.quantidade_esguichos != null ? String(h.quantidade_esguichos) : "",
     });
@@ -297,11 +345,16 @@ export default function AdminExtintoresPage() {
     setFormHidrante((p) => ({ ...p, [key]: value }));
   }
 
-  function parseOptionalIntField(value: string): number | null {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const n = Number.parseInt(trimmed, 10);
-    return Number.isFinite(n) ? n : null;
+  function setQuantidadeMangueiras(value: string) {
+    const qtd = parseQuantidadeMangueiras(value);
+    setFormHidrante((prev) => {
+      const next = { ...prev, quantidade_mangueiras: value };
+      if (qtd < 1) next.teste_hidrostatico_m1 = "";
+      if (qtd < 2) next.teste_hidrostatico_m2 = "";
+      if (qtd < 3) next.teste_hidrostatico_m3 = "";
+      if (qtd < 4) next.teste_hidrostatico_m4 = "";
+      return next;
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -359,18 +412,7 @@ export default function AdminExtintoresPage() {
     setSaving(true);
     setFeedback(null);
 
-    const payload = {
-      codigo: formHidrante.codigo.trim(),
-      pavimento: formHidrante.pavimento.trim() || null,
-      local_detalhado: formHidrante.local_detalhado.trim(),
-      quantidade_mangueiras: parseOptionalIntField(formHidrante.quantidade_mangueiras),
-      teste_hidrostatico_m1: formHidrante.teste_hidrostatico_m1.trim() || null,
-      teste_hidrostatico_m2: formHidrante.teste_hidrostatico_m2.trim() || null,
-      teste_hidrostatico_m3: formHidrante.teste_hidrostatico_m3.trim() || null,
-      teste_hidrostatico_m4: formHidrante.teste_hidrostatico_m4.trim() || null,
-      quantidade_chaves_storz: parseOptionalIntField(formHidrante.quantidade_chaves_storz),
-      quantidade_esguichos: parseOptionalIntField(formHidrante.quantidade_esguichos),
-    };
+    const payload = buildHidranteSavePayload(formHidrante);
 
     try {
       if (modalMode === "create") {
@@ -815,7 +857,18 @@ export default function AdminExtintoresPage() {
                 </Field>
 
                 <Field label="Capacidade Extintora" required>
-                  <input required className={inputCls} placeholder="Ex: 4kg ABC" value={form.capacidade_extintora} onChange={(e) => set("capacidade_extintora", e.target.value)} />
+                  <input
+                    required
+                    readOnly={modalMode === "edit"}
+                    className={
+                      modalMode === "edit"
+                        ? `${inputCls} cursor-not-allowed bg-slate-50 text-slate-500`
+                        : inputCls
+                    }
+                    placeholder="Ex: 4kg ABC"
+                    value={form.capacidade_extintora}
+                    onChange={(e) => set("capacidade_extintora", e.target.value)}
+                  />
                 </Field>
 
                 <div className="sm:col-span-2">
@@ -944,14 +997,21 @@ export default function AdminExtintoresPage() {
                 </Field>
 
                 <Field label="Quantidade de Mangueiras">
-                  <input
-                    type="number"
-                    min={0}
+                  <select
+                    required
                     className={inputCls}
-                    placeholder="Ex: 4"
                     value={formHidrante.quantidade_mangueiras}
-                    onChange={(e) => setHidrante("quantidade_mangueiras", e.target.value)}
-                  />
+                    onChange={(e) => setQuantidadeMangueiras(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Selecione a quantidade...
+                    </option>
+                    {MANGUEIRA_OPCOES.map((n) => (
+                      <option key={n} value={String(n)}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Quantidade de Chaves Storz">
@@ -981,44 +1041,26 @@ export default function AdminExtintoresPage() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       Datas do Último Teste Hidrostático
                     </p>
+                    {parseQuantidadeMangueiras(formHidrante.quantidade_mangueiras) === 0 && (
+                      <p className="mt-1 text-sm text-slate-500">
+                        Nenhuma mangueira cadastrada — não há datas de teste a informar.
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <Field label="Mangueira 1 (M-1)">
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={formHidrante.teste_hidrostatico_m1}
-                    onChange={(e) => setHidrante("teste_hidrostatico_m1", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Mangueira 2 (M-2)">
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={formHidrante.teste_hidrostatico_m2}
-                    onChange={(e) => setHidrante("teste_hidrostatico_m2", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Mangueira 3 (M-3)">
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={formHidrante.teste_hidrostatico_m3}
-                    onChange={(e) => setHidrante("teste_hidrostatico_m3", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Mangueira 4 (M-4)">
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={formHidrante.teste_hidrostatico_m4}
-                    onChange={(e) => setHidrante("teste_hidrostatico_m4", e.target.value)}
-                  />
-                </Field>
+                {HIDRANTE_TESTE_M_CAMPOS.slice(0, parseQuantidadeMangueiras(formHidrante.quantidade_mangueiras)).map(
+                  ({ key, label }) => (
+                    <Field key={key} label={label}>
+                      <input
+                        type="date"
+                        className={inputCls}
+                        value={formHidrante[key]}
+                        onChange={(e) => setHidrante(key, e.target.value)}
+                      />
+                    </Field>
+                  ),
+                )}
               </div>
 
               {feedback && (

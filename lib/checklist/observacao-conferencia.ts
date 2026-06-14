@@ -252,7 +252,8 @@ export function formatarObservacaoConferenciaExtintor(
       }
 
       const rotulo = CHECKLIST_EXPORT_COLUMN_LABELS[key];
-      linhas.push(detalhe ? `• ${rotulo}: ${detalhe}` : `• ${rotulo}`);
+      if (detalhe) linhas.push(`• ${detalhe}`);
+      else linhas.push(`• ${rotulo}`);
       if (index < ncKeys.length - 1) linhas.push("");
     });
   }
@@ -260,7 +261,8 @@ export function formatarObservacaoConferenciaExtintor(
   for (let i = 0; i < blocos.length; i++) {
     if (usados.has(i)) continue;
     const detalhe = extrairSomenteTextoUsuario(blocos[i].descricao);
-    linhas.push(detalhe ? `• ${blocos[i].titulo}: ${detalhe}` : `• ${blocos[i].titulo}`);
+    if (detalhe) linhas.push(`• ${detalhe}`);
+    else linhas.push(`• ${blocos[i].titulo}`);
     usados.add(i);
   }
 
@@ -270,7 +272,7 @@ export function formatarObservacaoConferenciaExtintor(
 
   if (comentariosFinais.length > 0) {
     if (linhas.length > 0) linhas.push("");
-    comentariosFinais.forEach((c) => linhas.push(`• Observação do conferente: ${c}`));
+    comentariosFinais.forEach((c) => linhas.push(`• ${c}`));
   }
 
   return linhas.join("\n");
@@ -307,7 +309,8 @@ export function formatarObservacaoConferenciaHidrante(
       }
 
       const rotulo = tituloCurtoHidrante(key);
-      linhas.push(detalhe ? `• ${rotulo}: ${detalhe}` : `• ${rotulo}`);
+      if (detalhe) linhas.push(`• ${detalhe}`);
+      else linhas.push(`• ${rotulo}`);
       if (index < ncKeys.length - 1) linhas.push("");
     });
   }
@@ -315,7 +318,8 @@ export function formatarObservacaoConferenciaHidrante(
   for (let i = 0; i < blocos.length; i++) {
     if (usados.has(i)) continue;
     const detalhe = extrairSomenteTextoUsuario(blocos[i].descricao);
-    linhas.push(detalhe ? `• ${blocos[i].titulo}: ${detalhe}` : `• ${blocos[i].titulo}`);
+    if (detalhe) linhas.push(`• ${detalhe}`);
+    else linhas.push(`• ${blocos[i].titulo}`);
     usados.add(i);
   }
 
@@ -325,7 +329,7 @@ export function formatarObservacaoConferenciaHidrante(
 
   if (comentariosFinais.length > 0) {
     if (linhas.length > 0) linhas.push("");
-    comentariosFinais.forEach((c) => linhas.push(`• Observação do conferente: ${c}`));
+    comentariosFinais.forEach((c) => linhas.push(`• ${c}`));
   }
 
   return linhas.join("\n");
