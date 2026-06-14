@@ -9,6 +9,12 @@ import {
   type HidranteImportRow,
 } from "@/lib/rf01/hidrante-import-parser";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import {
+  formatSyncResultMessage,
+  syncExtintores,
+  syncHidrantes,
+  type ImportMode,
+} from "@/lib/import/spreadsheet-sync";
 import AuthGuard from "@/src/components/AuthGuard";
 
 const ACCEPTED_FILES = ".xlsx,.csv";
@@ -17,8 +23,21 @@ type ImportStatus = "idle" | "parsing" | "ready" | "uploading" | "success" | "er
 
 type DestinoImport = "extintores" | "hidrantes";
 
+function isDuplicateError(message: string): boolean {
+  return /duplicate|unique|already exists|violates unique/i.test(message);
+}
+
+function isSchemaError(message: string): boolean {
+  return (
+    /column of ['"]hidrantes['"]/i.test(message) ||
+    /schema cache/i.test(message) ||
+    /could not find the/i.test(message)
+  );
+}
+
 export default function ImportacaoPage() {
   const [destino, setDestino] = useState<DestinoImport>("extintores");
+  const [modo, setModo] = useState<ImportMode>("cadastro");
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [rowsExtintor, setRowsExtintor] = useState<ExtintorImportRecord[]>([]);
   const [rowsHidrante, setRowsHidrante] = useState<HidranteImportRow[]>([]);
@@ -61,7 +80,9 @@ export default function ImportacaoPage() {
         }
         setRowsExtintor(parsed.records);
         setStatus("ready");
-        setMessage(`${parsed.records.length} registros prontos para importação (extintores).`);
+        setMessage(
+          `${parsed.records.length} extintores prontos para ${modo === "cadastro" ? "cadastro" : "atualização em lote"}.`,
+        );
         return;
       }
 
@@ -83,7 +104,7 @@ export default function ImportacaoPage() {
       setRowsHidrante(parsed.records);
       setHidranteSkipped(parsed.skippedSemCodigo);
       setStatus("ready");
-      let msg = `${parsed.records.length} hidrantes prontos para importação.`;
+      let msg = `${parsed.records.length} hidrantes prontos para ${modo === "cadastro" ? "cadastro" : "atualização em lote"}.`;
       if (parsed.skippedSemCodigo > 0) {
         msg += ` ${parsed.skippedSemCodigo} linha(s) sem código foram ignoradas.`;
       }
@@ -95,24 +116,31 @@ export default function ImportacaoPage() {
   }
 
   async function handleImport() {
+    const supabase = getSupabaseClient();
+
     if (destino === "extintores") {
       if (rowsExtintor.length === 0) return;
       setStatus("uploading");
       setMessage("");
 
-      const supabase = getSupabaseClient();
-      const { error } = await supabase
-        .from("extintores")
-        .insert(rowsExtintor as unknown as Record<string, unknown>[]);
+      const result = await syncExtintores(supabase, rowsExtintor, modo);
 
-      if (error) {
+      if (result.error) {
         setStatus("error");
-        setMessage(`Erro ao importar no Supabase: ${error.message}`);
+        const hint =
+          modo === "cadastro" && isDuplicateError(result.error)
+            ? "\n\nCódigos já existem no sistema. Use o modo «Atualizar em lote» para alterar registros existentes."
+            : "";
+        setMessage(`Erro ao importar extintores: ${result.error}${hint}`);
         return;
       }
 
       setStatus("success");
-      setMessage(`${rowsExtintor.length} extintores importados com sucesso.`);
+      setMessage(
+        modo === "cadastro"
+          ? `${result.inserted} extintores cadastrados com sucesso.`
+          : formatSyncResultMessage(result, "extintor"),
+      );
       return;
     }
 
@@ -120,30 +148,28 @@ export default function ImportacaoPage() {
     setStatus("uploading");
     setMessage("");
 
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from("hidrantes")
-      .insert(rowsHidrante as unknown as Record<string, unknown>[]);
+    const result = await syncHidrantes(supabase, rowsHidrante, modo);
 
-    if (error) {
+    if (result.error) {
       setStatus("error");
-      const base = `Erro ao importar hidrantes: ${error.message}`;
-      const schemaHint =
-        /column of ['"]hidrantes['"]/i.test(error.message) ||
-        /schema cache/i.test(error.message) ||
-        /could not find the/i.test(error.message);
-      setMessage(
-        schemaHint
-          ? `${base}\n\nO banco ainda não tem todas as colunas da planilha. No Supabase → SQL Editor, execute o bloco com comentário "Colunas da planilha RF01 hidrantes" no arquivo docs/migration_mapa_recursos.sql (vários ALTER TABLE … ADD COLUMN IF NOT EXISTS).`
-          : base,
-      );
+      const base = `Erro ao importar hidrantes: ${result.error}`;
+      const duplicateHint =
+        modo === "cadastro" && isDuplicateError(result.error)
+          ? "\n\nCódigos já existem no sistema. Use o modo «Atualizar em lote» para alterar registros existentes."
+          : "";
+      const schemaHint = isSchemaError(result.error)
+        ? "\n\nO banco ainda não tem todas as colunas da planilha. No Supabase → SQL Editor, execute o bloco com comentário \"Colunas da planilha RF01 hidrantes\" no arquivo docs/migration_mapa_recursos.sql (vários ALTER TABLE … ADD COLUMN IF NOT EXISTS)."
+        : "";
+      setMessage(`${base}${duplicateHint}${schemaHint}`);
       return;
     }
 
     setStatus("success");
-    let msg = `${rowsHidrante.length} hidrantes importados com sucesso.`;
-    if (hidranteSkipped > 0) msg += ` (${hidranteSkipped} linha(s) tinham sido ignoradas na validação por falta de código.)`;
-    setMessage(msg);
+    setMessage(
+      modo === "cadastro"
+        ? `${result.inserted} hidrantes cadastrados com sucesso.${hidranteSkipped > 0 ? ` (${hidranteSkipped} linha(s) ignoradas por falta de código.)` : ""}`
+        : formatSyncResultMessage(result, "hidrante", hidranteSkipped),
+    );
   }
 
   const readyCount = destino === "extintores" ? rowsExtintor.length : rowsHidrante.length;
@@ -157,7 +183,8 @@ export default function ImportacaoPage() {
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Importar planilha</h1>
           <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
             <strong>Extintores:</strong> modelo RF01 com colunas de extintores.{" "}
-            <strong>Hidrantes:</strong> planilha própria com os cabeçalhos padronizados listados abaixo (.xlsx ou .csv).
+            <strong>Hidrantes:</strong> planilha própria com os cabeçalhos padronizados listados abaixo (.xlsx ou .csv).{" "}
+            Use <strong>Atualizar em lote</strong> para reimportar a planilha com dados alterados — o código do equipamento é a chave.
           </p>
           </div>
         </header>
@@ -196,6 +223,39 @@ export default function ImportacaoPage() {
               Hidrantes
             </button>
           </div>
+        </section>
+
+        <section className="section-card p-6">
+          <p className="mb-2 text-sm font-black text-slate-950">Modo de importação</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
+                modo === "cadastro"
+                  ? "brand-gradient text-white shadow-lg shadow-red-100"
+                  : "border border-slate-200 bg-slate-50 text-slate-700"
+              }`}
+              onClick={() => setModo("cadastro")}
+            >
+              Cadastrar novos
+            </button>
+            <button
+              type="button"
+              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
+                modo === "atualizacao"
+                  ? "brand-gradient text-white shadow-lg shadow-red-100"
+                  : "border border-slate-200 bg-slate-50 text-slate-700"
+              }`}
+              onClick={() => setModo("atualizacao")}
+            >
+              Atualizar em lote
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            {modo === "cadastro"
+              ? "Insere apenas registros novos. Falha se o código já existir no banco."
+              : "Atualiza registros existentes pelo código. Códigos novos são cadastrados automaticamente. Coordenadas do mapa e histórico de conferências são preservados."}
+          </p>
         </section>
 
         <section className="section-card p-6">
@@ -252,7 +312,13 @@ export default function ImportacaoPage() {
             disabled={status !== "ready"}
             onClick={() => void handleImport()}
           >
-            {status === "uploading" ? "Importando..." : "Importar para Supabase"}
+            {status === "uploading"
+              ? modo === "atualizacao"
+                ? "Atualizando..."
+                : "Importando..."
+              : modo === "atualizacao"
+                ? "Atualizar em lote"
+                : "Cadastrar novos"}
           </button>
         </section>
 
