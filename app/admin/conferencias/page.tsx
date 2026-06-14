@@ -74,6 +74,22 @@ function endOfDayIso(dateStr: string): string | null {
   return d.toISOString();
 }
 
+function formatDateInputLocal(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getDatasPadraoMesVigente(): { inicio: string; fim: string } {
+  const hoje = new Date();
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  return {
+    inicio: formatDateInputLocal(inicioMes),
+    fim: formatDateInputLocal(hoje),
+  };
+}
+
 function cardClassByStatus(status: ConferenciaExportStatus): string {
   if (status === "vencido") return "border-red-300 bg-red-100/90";
   if (status === "alerta") return "border-amber-200 bg-amber-50/90";
@@ -184,14 +200,15 @@ export default function AdminConferenciasPage() {
   const [loading, setLoading] = useState(true);
   const [tipoLista, setTipoLista] = useState<TipoEquipamento>("extintor");
   const [filtroEquipe, setFiltroEquipe] = useState<EquipeConferenciaId | "">("");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
+  const [dataInicio, setDataInicio] = useState(() => getDatasPadraoMesVigente().inicio);
+  const [dataFim, setDataFim] = useState(() => getDatasPadraoMesVigente().fim);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatusConferencia>("");
   const [exportando, setExportando] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const extintorLookupRef = useRef<Map<string, ExtintorLookupRow>>(new Map());
   const hidranteLookupRef = useRef<Map<string, HidranteLookupRow>>(new Map());
+  const datasEditadasPeloUsuarioRef = useRef(false);
 
   const loadConferencias = useCallback(async () => {
     setLoading(true);
@@ -290,6 +307,23 @@ export default function AdminConferenciasPage() {
     return () => window.clearTimeout(timer);
   }, [loadConferencias]);
 
+  useEffect(() => {
+    function sincronizarDatasMesVigente() {
+      const { inicio, fim } = getDatasPadraoMesVigente();
+      setDataInicio(inicio);
+      setDataFim(fim);
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible" && !datasEditadasPeloUsuarioRef.current) {
+        sincronizarDatasMesVigente();
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
   const filteredBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
     const startIso = startOfDayIso(dataInicio);
@@ -341,7 +375,12 @@ export default function AdminConferenciasPage() {
 
   const extCount = filteredExt.length;
   const hidCount = filteredHid.length;
-  const temFiltrosAtivos = Boolean(filtroEquipe || filtroStatus || dataInicio || dataFim || busca.trim());
+  const datasPadraoMes = getDatasPadraoMesVigente();
+  const datasPersonalizadas =
+    dataInicio !== datasPadraoMes.inicio || dataFim !== datasPadraoMes.fim;
+  const temFiltrosAtivos = Boolean(
+    filtroEquipe || filtroStatus || datasPersonalizadas || busca.trim(),
+  );
   const totalTipoAtual =
     tipoLista === "extintor"
       ? rows.filter((r) => r.tipo === "extintor").length
@@ -355,11 +394,13 @@ export default function AdminConferenciasPage() {
     OPCOES_FILTRO_STATUS.find((op) => op.value === filtroStatus)?.label ?? "";
 
   function limparFiltros() {
+    const { inicio, fim } = getDatasPadraoMesVigente();
+    datasEditadasPeloUsuarioRef.current = false;
     setBusca("");
     setFiltroEquipe("");
     setFiltroStatus("");
-    setDataInicio("");
-    setDataFim("");
+    setDataInicio(inicio);
+    setDataFim(fim);
   }
 
   function handleExport() {
@@ -572,7 +613,10 @@ export default function AdminConferenciasPage() {
               type="date"
               className="field-control !pl-10"
               value={dataInicio}
-              onChange={(e) => setDataInicio(e.target.value)}
+              onChange={(e) => {
+                datasEditadasPeloUsuarioRef.current = true;
+                setDataInicio(e.target.value);
+              }}
             />
           </FiltroCampo>
 
@@ -582,7 +626,10 @@ export default function AdminConferenciasPage() {
               type="date"
               className="field-control !pl-10"
               value={dataFim}
-              onChange={(e) => setDataFim(e.target.value)}
+              onChange={(e) => {
+                datasEditadasPeloUsuarioRef.current = true;
+                setDataFim(e.target.value);
+              }}
               min={dataInicio || undefined}
             />
           </FiltroCampo>
@@ -644,14 +691,18 @@ export default function AdminConferenciasPage() {
                 </button>
               </span>
             )}
-            {dataInicio && (
+            {dataInicio !== datasPadraoMes.inicio && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
                 De {formatarDataFiltro(dataInicio)}
                 <button
                   type="button"
-                  onClick={() => setDataInicio("")}
+                  onClick={() => {
+                    setDataInicio(datasPadraoMes.inicio);
+                    datasEditadasPeloUsuarioRef.current =
+                      dataFim !== getDatasPadraoMesVigente().fim;
+                  }}
                   className="rounded-full p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"
-                  aria-label="Remover data inicial"
+                  aria-label="Restaurar data inicial do mês vigente"
                 >
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
@@ -659,14 +710,18 @@ export default function AdminConferenciasPage() {
                 </button>
               </span>
             )}
-            {dataFim && (
+            {dataFim !== datasPadraoMes.fim && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
                 Até {formatarDataFiltro(dataFim)}
                 <button
                   type="button"
-                  onClick={() => setDataFim("")}
+                  onClick={() => {
+                    setDataFim(datasPadraoMes.fim);
+                    datasEditadasPeloUsuarioRef.current =
+                      dataInicio !== getDatasPadraoMesVigente().inicio;
+                  }}
                   className="rounded-full p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"
-                  aria-label="Remover data final"
+                  aria-label="Restaurar data final de hoje"
                 >
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
