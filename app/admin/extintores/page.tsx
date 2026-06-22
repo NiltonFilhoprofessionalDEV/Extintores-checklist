@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import { COLUNAS_PADRAO, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
@@ -70,6 +70,29 @@ const EMPTY_HIDRANTE_FORM: HidranteFormData = {
 
 type ModalMode = "create" | "edit";
 type ModalEntity = "extintor" | "hidrante";
+
+type DetalheView =
+  | { tipo: "extintor"; item: ExtintorRow }
+  | { tipo: "hidrante"; item: HidranteRow };
+
+function DetalheCampo({
+  label,
+  value,
+  valueClassName = "",
+  className = "",
+}: {
+  label: string;
+  value: React.ReactNode;
+  valueClassName?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 ${className}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={`mt-1 text-sm font-semibold text-slate-900 ${valueClassName}`}>{value}</p>
+    </div>
+  );
+}
 
 function Field({
   label,
@@ -183,6 +206,7 @@ export default function AdminExtintoresPage() {
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ExtintorRow | null>(null);
   const [deleteTargetHidrante, setDeleteTargetHidrante] = useState<HidranteRow | null>(null);
+  const [detalheView, setDetalheView] = useState<DetalheView | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -335,6 +359,28 @@ export default function AdminExtintoresPage() {
   function closeModal() {
     setModalMode(null);
     setEditId(null);
+  }
+
+  function openDetalheExtintor(item: ExtintorRow) {
+    setDetalheView({ tipo: "extintor", item });
+  }
+
+  function openDetalheHidrante(item: HidranteRow) {
+    setDetalheView({ tipo: "hidrante", item });
+  }
+
+  function closeDetalhe() {
+    setDetalheView(null);
+  }
+
+  function editarFromDetalhe() {
+    if (!detalheView) return;
+    if (detalheView.tipo === "extintor") {
+      openEdit(detalheView.item);
+    } else {
+      openEditHidrante(detalheView.item);
+    }
+    closeDetalhe();
   }
 
   function set(key: keyof FormData, value: string) {
@@ -605,7 +651,11 @@ export default function AdminExtintoresPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((e) => (
-                  <tr key={e.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                  <tr
+                    key={e.id}
+                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                    onClick={() => openDetalheExtintor(e)}
+                  >
                     <td className="px-4 py-3 font-bold text-slate-900">{e.codigo}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{e.setor}</p>
@@ -635,7 +685,7 @@ export default function AdminExtintoresPage() {
                         {e.coord_x != null ? "Posicionado" : "Sem posição"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -711,7 +761,11 @@ export default function AdminExtintoresPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredHidrantes.map((h) => (
-                  <tr key={h.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                  <tr
+                    key={h.id}
+                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                    onClick={() => openDetalheHidrante(h)}
+                  >
                     <td className="px-4 py-3 font-bold text-slate-900">{h.codigo}</td>
                     <td className="px-4 py-3 text-slate-600">{h.pavimento ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{h.local_detalhado || "—"}</td>
@@ -728,7 +782,7 @@ export default function AdminExtintoresPage() {
                         {h.coord_x != null ? "Posicionado" : "Sem posição"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -1089,6 +1143,106 @@ export default function AdminExtintoresPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {detalheView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30">
+            <div className="flex items-center justify-between bg-slate-950 px-6 py-4 text-white">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
+                  Detalhes do equipamento
+                </p>
+                <h2 className="text-lg font-black text-white">
+                  {tituloEquipamento(detalheView.item.codigo, detalheView.tipo)}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetalhe}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/10"
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
+              {detalheView.tipo === "extintor" ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
+                  <DetalheCampo label={COLUNAS_PADRAO.setor} value={detalheView.item.setor || "—"} />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.localDetalhado}
+                    value={detalheView.item.local_detalhado || "—"}
+                    className="sm:col-span-2"
+                  />
+                  <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
+                  <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
+                  <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
+                  <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
+                  <DetalheCampo
+                    label="Capacidade Extintora"
+                    value={detalheView.item.capacidade_extintora || "—"}
+                  />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.venctoN2}
+                    value={formatDate(detalheView.item.manutencao_2_nivel)}
+                    valueClassName={isExpired(detalheView.item.manutencao_2_nivel) ? "text-red-700" : ""}
+                  />
+                  <DetalheCampo
+                    label="Vencto. manutenção N3"
+                    value={formatDate(detalheView.item.manutencao_3_nivel)}
+                    valueClassName={isExpired(detalheView.item.manutencao_3_nivel) ? "text-red-700" : ""}
+                  />
+                  <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
+                  <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.localDetalhado}
+                    value={detalheView.item.local_detalhado || "—"}
+                    className="sm:col-span-2"
+                  />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.mangueiras}
+                    value={
+                      detalheView.item.quantidade_mangueiras != null
+                        ? String(detalheView.item.quantidade_mangueiras)
+                        : "—"
+                    }
+                  />
+                  <DetalheCampo label="Quantidade de Chaves Storz" value={detalheView.item.quantidade_chaves_storz ?? "—"} />
+                  <DetalheCampo label="Quantidade de Esguichos" value={detalheView.item.quantidade_esguichos ?? "—"} />
+                  {HIDRANTE_TESTE_M_CAMPOS.slice(
+                    0,
+                    parseQuantidadeMangueiras(String(detalheView.item.quantidade_mangueiras ?? "")),
+                  ).map(({ key, label }) => (
+                    <DetalheCampo
+                      key={key}
+                      label={label}
+                      value={formatDate(detalheView.item[key])}
+                      valueClassName={isExpired(detalheView.item[key]) ? "text-red-700" : ""}
+                    />
+                  ))}
+                  <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
+                </div>
+              )}
+
+              <div className="mt-5 flex gap-3">
+                <button type="button" onClick={editarFromDetalhe} className="btn-primary flex-1">
+                  Editar
+                </button>
+                <button type="button" onClick={closeDetalhe} className="btn-secondary">
+                  Fechar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
