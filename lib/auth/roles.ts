@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "leadership" | "user";
+export type UserRole = "admin" | "leadership" | "user" | "cliente";
 export type UserTeam = "ALFA" | "BRAVO" | "CHARLIE" | "DELTA";
 
 export const USER_TEAMS: UserTeam[] = ["ALFA", "BRAVO", "CHARLIE", "DELTA"];
@@ -7,6 +7,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrador",
   leadership: "Liderança",
   user: "Bombeiro",
+  cliente: "Cliente",
 };
 
 export const TEAM_LABELS: Record<UserTeam, string> = {
@@ -44,7 +45,7 @@ export function canAssignRole(actorRole: UserRole, newRole: UserRole): boolean {
 }
 
 export function assignableRoles(actorRole: UserRole): UserRole[] {
-  if (actorRole === "admin") return ["admin", "leadership", "user"];
+  if (actorRole === "admin") return ["admin", "leadership", "user", "cliente"];
   if (actorRole === "leadership") return ["user"];
   return [];
 }
@@ -61,6 +62,35 @@ export function normalizeUserTeam(value: unknown): UserTeam | null {
   return isValidUserTeam(value) ? value : null;
 }
 
+/** Rotas do painel admin permitidas ao perfil cliente (somente consulta). */
+export const CLIENT_ALLOWED_ADMIN_PATHS = [
+  "/admin/dashboard",
+  "/admin/extintores",
+  "/admin/mapeamento",
+] as const;
+
+export function isClientAllowedAdminPath(pathname: string): boolean {
+  return CLIENT_ALLOWED_ADMIN_PATHS.some(
+    (allowed) => pathname === allowed || pathname.startsWith(`${allowed}/`),
+  );
+}
+
+export function isClientBlockedAdminPath(pathname: string): boolean {
+  return !isClientAllowedAdminPath(pathname);
+}
+
+export function canUseMapEditing(role: UserRole): boolean {
+  return role === "admin";
+}
+
+export function canUseMapInspection(role: UserRole): boolean {
+  return role === "admin" || role === "leadership" || role === "user";
+}
+
+export function isInventoryReadOnlyRole(role: UserRole): boolean {
+  return role === "cliente";
+}
+
 /** Rotas do painel admin bloqueadas para o perfil liderança. */
 export const LEADERSHIP_BLOCKED_ADMIN_PATHS = ["/admin/importacao"] as const;
 
@@ -71,6 +101,6 @@ export function isLeadershipBlockedAdminPath(pathname: string): boolean {
 }
 
 export function getHomePathForRole(role: UserRole): string {
-  if (role === "admin" || role === "leadership") return "/admin/dashboard";
+  if (role === "admin" || role === "leadership" || role === "cliente") return "/admin/dashboard";
   return "/mobile/conferencia";
 }

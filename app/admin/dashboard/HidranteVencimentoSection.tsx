@@ -11,12 +11,14 @@ import {
 } from "@/lib/hidrantes/vencimento-mangueiras";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 
-type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "semPosicao";
+type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semPosicao";
 
 const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
   vencidos: "vencido",
   alerta30: "alerta",
   alerta60: "alerta",
+  alerta90: "alerta",
+  alerta120: "alerta",
   semPosicao: "none",
 };
 
@@ -41,6 +43,18 @@ const MODAL_META: Record<
     subtitle: "Planejar teste hidrostático preventivo",
     color: "#eab308",
     exportLabel: "Mangueiras_60_dias",
+  },
+  alerta90: {
+    title: "Hidrantes vencendo em 90 dias",
+    subtitle: "Antecipar agendamento de teste hidrostático",
+    color: "#84cc16",
+    exportLabel: "Mangueiras_90_dias",
+  },
+  alerta120: {
+    title: "Hidrantes vencendo em 120 dias",
+    subtitle: "Incluir no planejamento trimestral",
+    color: "#22c55e",
+    exportLabel: "Mangueiras_120_dias",
   },
   semPosicao: {
     title: "Hidrantes sem posição no mapa",
@@ -282,7 +296,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
     return d;
   }, []);
 
-  const { stats, vencidosList, alerta30List, alerta60List, semPosicaoList } = useMemo(
+  const { stats, vencidosList, alerta30List, alerta60List, alerta90List, alerta120List, semPosicaoList } = useMemo(
     () => computeHidranteVencimentoBuckets(hidrantes, today),
     [hidrantes, today],
   );
@@ -292,8 +306,10 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
     if (modalKey === "vencidos") return vencidosList;
     if (modalKey === "alerta30") return alerta30List;
     if (modalKey === "alerta60") return alerta60List;
+    if (modalKey === "alerta90") return alerta90List;
+    if (modalKey === "alerta120") return alerta120List;
     return semPosicaoList;
-  }, [modalKey, vencidosList, alerta30List, alerta60List, semPosicaoList]);
+  }, [modalKey, vencidosList, alerta30List, alerta60List, alerta90List, alerta120List, semPosicaoList]);
 
   return (
     <>
@@ -307,7 +323,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
         <DashboardStatCard
           label="Total de hidrantes"
           value={stats.total}
@@ -334,6 +350,20 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
           color="#eab308"
           onClick={() => setModalKey("alerta60")}
           icon={<DashboardStatIcon name="alerta60" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 90 dias"
+          value={stats.alerta90}
+          color="#84cc16"
+          onClick={() => setModalKey("alerta90")}
+          icon={<DashboardStatIcon name="alerta90" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 120 dias"
+          value={stats.alerta120}
+          color="#22c55e"
+          onClick={() => setModalKey("alerta120")}
+          icon={<DashboardStatIcon name="alerta120" />}
         />
         <DashboardStatCard
           label="Sem posição no mapa"
@@ -389,6 +419,20 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
                 style={{ width: `${(stats.alerta60 / stats.total) * 100}%` }}
               />
             )}
+            {stats.alerta90 > 0 && (
+              <div
+                title={`Alerta 90d: ${stats.alerta90}`}
+                className="h-full bg-lime-400"
+                style={{ width: `${(stats.alerta90 / stats.total) * 100}%` }}
+              />
+            )}
+            {stats.alerta120 > 0 && (
+              <div
+                title={`Alerta 120d: ${stats.alerta120}`}
+                className="h-full bg-green-300"
+                style={{ width: `${(stats.alerta120 / stats.total) * 100}%` }}
+              />
+            )}
             <div className="h-full flex-1 bg-green-400" />
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-slate-500">
@@ -403,6 +447,14 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-300" />
               Alerta 60d
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-lime-400" />
+              Alerta 90d
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-300" />
+              Alerta 120d
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />
@@ -436,8 +488,29 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         exportLabel="Mangueiras_60_dias"
         exportHighlight="alerta"
       />
+      <HidranteAlertTable
+        title="Hidrantes vencendo nos próximos 90 dias"
+        subtitle="Antecipar agendamento de teste hidrostático"
+        color="#84cc16"
+        items={alerta90List}
+        exportLabel="Mangueiras_90_dias"
+        exportHighlight="alerta"
+      />
+      <HidranteAlertTable
+        title="Hidrantes vencendo nos próximos 120 dias"
+        subtitle="Incluir no planejamento trimestral"
+        color="#22c55e"
+        items={alerta120List}
+        exportLabel="Mangueiras_120_dias"
+        exportHighlight="alerta"
+      />
 
-      {stats.vencidos === 0 && stats.alerta30 === 0 && stats.alerta60 === 0 && stats.total > 0 && (
+      {stats.vencidos === 0 &&
+        stats.alerta30 === 0 &&
+        stats.alerta60 === 0 &&
+        stats.alerta90 === 0 &&
+        stats.alerta120 === 0 &&
+        stats.total > 0 && (
         <div className="flex items-center gap-4 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 shadow-sm shadow-emerald-100">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-200">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>

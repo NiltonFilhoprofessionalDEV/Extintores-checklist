@@ -10,7 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isMapeamento = pathname?.includes("/mapeamento");
 
   return (
-    <AuthGuard allowedRoles={["admin", "leadership"]}>
+    <AuthGuard allowedRoles={["admin", "leadership", "cliente"]}>
       <AdminAreaGuard>
       <div
         className="app-shell-bg"

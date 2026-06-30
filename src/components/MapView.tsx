@@ -28,6 +28,7 @@ import {
 } from "@/lib/supabase/checklists-do-mes";
 import { isCargoLabel, resolveConferenteNome } from "@/lib/auth/conferente";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
+import { canUseMapEditing, canUseMapInspection } from "@/lib/auth/roles";
 import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
@@ -506,6 +507,7 @@ export default function MapView() {
       : false,
   );
   const [canEdit, setCanEdit] = useState(false);
+  const [canInspect, setCanInspect] = useState(false);
   const [conferidosNoMesIds, setConferidosNoMesIds] = useState<Set<string>>(new Set());
   const [supportsWebp] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -658,15 +660,19 @@ export default function MapView() {
         if (!session) {
           if (mounted) {
             setCanEdit(false);
-            setMode("inspecao");
+            setCanInspect(false);
+            setMode("edicao");
           }
           return;
         }
         const profile = await getProfileBySession(session);
-        const isAdmin = profile?.role === "admin";
+        const role = profile?.role;
+        const editAllowed = role ? canUseMapEditing(role) : false;
+        const inspectAllowed = role ? canUseMapInspection(role) : false;
         const nome = resolveConferenteNome(session, profile);
         if (mounted) {
-          setCanEdit(Boolean(isAdmin));
+          setCanEdit(editAllowed);
+          setCanInspect(inspectAllowed);
           setActorProfile(profile);
           setConferenteNome(nome);
           setChecklistForm((prev) => ({
@@ -679,14 +685,17 @@ export default function MapView() {
             conferente:
               !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
           }));
-          if (!isAdmin) setMode("inspecao");
-          void loadConferenciasDoMes();
-          void loadConferenciasHidrantesDoMes();
+          setMode(inspectAllowed ? "inspecao" : "edicao");
+          if (inspectAllowed) {
+            void loadConferenciasDoMes();
+            void loadConferenciasHidrantesDoMes();
+          }
         }
       } catch {
         if (mounted) {
           setCanEdit(false);
-          setMode("inspecao");
+          setCanInspect(false);
+          setMode("edicao");
         }
       }
     };
@@ -791,7 +800,7 @@ export default function MapView() {
     return filtrarPorEquipe(list, filtroEquipe, "hidrante");
   }, [hidrantes, pavimento.label, filtroEquipe]);
 
-  const mostrarFiltroEquipe = mode === "inspecao";
+  const mostrarFiltroEquipe = mode === "inspecao" && canInspect;
 
   const marcadoresDoPavimento = useMemo(
     () => marcadoresEmergencia.filter((m) => isSameFloor(m.pavimento, pavimento.label)),
@@ -1297,7 +1306,7 @@ export default function MapView() {
             icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, isMobile)}
             eventHandlers={{
               click: () => {
-                if (mode === "inspecao") openChecklistModal(item);
+                if (mode === "inspecao" && canInspect) openChecklistModal(item);
               },
               contextmenu: () => {
                 if (isMobile) setInfoMarker(item);
@@ -1342,7 +1351,7 @@ export default function MapView() {
                   >
                     Manutenção: {getMaintenanceStatus(item)}
                   </p>
-                  {mode === "inspecao" && (
+                  {mode === "inspecao" && canInspect && (
                     <button
                       type="button"
                       className="mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-white"
@@ -1379,7 +1388,7 @@ export default function MapView() {
             icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, isMobile)}
             eventHandlers={{
               click: () => {
-                if (mode === "inspecao") openHidranteChecklistModal(h);
+                if (mode === "inspecao" && canInspect) openHidranteChecklistModal(h);
               },
               contextmenu: () => {
                 if (isMobile) setInfoHidrante(h);
@@ -1392,7 +1401,7 @@ export default function MapView() {
                   <p className="font-semibold">{h.codigo}</p>
                   <p className="text-zinc-500">{h.local_detalhado || "—"}</p>
                   <p className="mt-1 text-xs font-semibold text-blue-700">Hidrante</p>
-                  {mode === "inspecao" && (
+                  {mode === "inspecao" && canInspect && (
                     <button
                       type="button"
                       className="mt-2 w-full rounded-lg bg-blue-700 py-1.5 text-xs font-semibold text-white"
@@ -1455,15 +1464,17 @@ export default function MapView() {
                 Edição
               </button>
             )}
-            <button
-              type="button"
-              className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
-                mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
-              }`}
-              onClick={() => setMode("inspecao")}
-            >
-              Inspeção
-            </button>
+            {canInspect && (
+              <button
+                type="button"
+                className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                  mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                }`}
+                onClick={() => setMode("inspecao")}
+              >
+                Inspeção
+              </button>
+            )}
           </div>
 
           {mostrarFiltroEquipe && (
@@ -1704,7 +1715,7 @@ export default function MapView() {
 
               {/* Ações */}
               <div className="flex flex-col gap-2 px-5 pb-6">
-                {mode === "inspecao" && (
+                {mode === "inspecao" && canInspect && (
                   <button
                     type="button"
                     className="w-full rounded-xl py-3 text-sm font-bold text-white"
@@ -1750,7 +1761,7 @@ export default function MapView() {
               <h3 className="text-lg font-bold text-zinc-900">{infoHidrante.codigo}</h3>
               <p className="text-sm text-zinc-500">Hidrante</p>
               <div className="mt-4 flex flex-col gap-2">
-                {mode === "inspecao" && (
+                {mode === "inspecao" && canInspect && (
                   <button
                     type="button"
                     className="w-full rounded-xl bg-blue-700 py-3 text-sm font-bold text-white"
@@ -1820,7 +1831,7 @@ export default function MapView() {
                 </p>
               )}
               <div className="mt-4 flex flex-col gap-2">
-                {mode === "inspecao" && (
+                {mode === "inspecao" && canInspect && (
                   <>
                     <button
                       type="button"
@@ -1857,7 +1868,7 @@ export default function MapView() {
           </div>
         )}
 
-        {selectedMarker && (
+        {canInspect && selectedMarker && (
           <InspecaoModalFrame onClose={() => setSelectedMarker(null)}>
             <ChecklistForm
               data={checklistForm}
@@ -1880,7 +1891,7 @@ export default function MapView() {
           </InspecaoModalFrame>
         )}
 
-        {selectedHidrante && (
+        {canInspect && selectedHidrante && (
           <InspecaoModalFrame onClose={() => setSelectedHidrante(null)}>
             <HidranteChecklistForm
               data={hidranteChecklistForm}
@@ -1901,7 +1912,7 @@ export default function MapView() {
       <header className="surface-card flex shrink-0 flex-col gap-2 p-2 sm:p-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-base font-bold leading-tight text-slate-900 sm:text-lg">
-            Mapeamento e inspeção de extintores
+            {canInspect ? "Mapeamento e inspeção de extintores" : "Mapeamento de extintores e hidrantes"}
           </h1>
           <div className="flex shrink-0 flex-wrap gap-1.5">
             {canEdit && (
@@ -1915,15 +1926,17 @@ export default function MapView() {
                 Modo edição
               </button>
             )}
-            <button
-              type="button"
-              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
-                mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
-              }`}
-              onClick={() => setMode("inspecao")}
-            >
-              Modo inspeção
-            </button>
+            {canInspect && (
+              <button
+                type="button"
+                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                  mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                }`}
+                onClick={() => setMode("inspecao")}
+              >
+                Modo inspeção
+              </button>
+            )}
           </div>
         </div>
         <details className="rounded-md border border-slate-200 bg-slate-50 text-[11px] leading-snug text-slate-700 sm:text-xs sm:leading-relaxed">
@@ -2141,7 +2154,7 @@ export default function MapView() {
         </div>
       </div>
 
-      {selectedMarker && (
+      {canInspect && selectedMarker && (
         <InspecaoModalFrame onClose={() => setSelectedMarker(null)}>
           <ChecklistForm
             data={checklistForm}
@@ -2164,7 +2177,7 @@ export default function MapView() {
         </InspecaoModalFrame>
       )}
 
-      {selectedHidrante && (
+      {canInspect && selectedHidrante && (
         <InspecaoModalFrame onClose={() => setSelectedHidrante(null)}>
           <HidranteChecklistForm
             data={hidranteChecklistForm}

@@ -41,6 +41,8 @@ export type HidranteVencimentoStats = {
   vencidos: number;
   alerta30: number;
   alerta60: number;
+  alerta90: number;
+  alerta120: number;
   semPosicao: number;
 };
 
@@ -103,13 +105,19 @@ export function computeHidranteVencimentoBuckets(
   vencidosList: HidranteVencimentoRow[];
   alerta30List: HidranteVencimentoRow[];
   alerta60List: HidranteVencimentoRow[];
+  alerta90List: HidranteVencimentoRow[];
+  alerta120List: HidranteVencimentoRow[];
   semPosicaoList: HidranteVencimentoRow[];
 } {
   const in30 = addDays(today, 30);
   const in60 = addDays(today, 60);
+  const in90 = addDays(today, 90);
+  const in120 = addDays(today, 120);
   const vencidosList: HidranteVencimentoRow[] = [];
   const alerta30List: HidranteVencimentoRow[] = [];
   const alerta60List: HidranteVencimentoRow[] = [];
+  const alerta90List: HidranteVencimentoRow[] = [];
+  const alerta120List: HidranteVencimentoRow[] = [];
   const semPosicaoList: HidranteVencimentoRow[] = [];
 
   for (const h of hidrantes) {
@@ -124,6 +132,8 @@ export function computeHidranteVencimentoBuckets(
     dt.setHours(0, 0, 0, 0);
     if (dt >= today && dt <= in30) alerta30List.push(h);
     else if (dt > in30 && dt <= in60) alerta60List.push(h);
+    else if (dt > in60 && dt <= in90) alerta90List.push(h);
+    else if (dt > in90 && dt <= in120) alerta120List.push(h);
   }
 
   const sortByCodigo = (list: HidranteVencimentoRow[]) =>
@@ -135,11 +145,15 @@ export function computeHidranteVencimentoBuckets(
       vencidos: vencidosList.length,
       alerta30: alerta30List.length,
       alerta60: alerta60List.length,
+      alerta90: alerta90List.length,
+      alerta120: alerta120List.length,
       semPosicao: semPosicaoList.length,
     },
     vencidosList: sortByCodigo(vencidosList),
     alerta30List: sortByCodigo(alerta30List),
     alerta60List: sortByCodigo(alerta60List),
+    alerta90List: sortByCodigo(alerta90List),
+    alerta120List: sortByCodigo(alerta120List),
     semPosicaoList: sortByCodigo(semPosicaoList),
   };
 }

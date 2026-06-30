@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
+import { CLIENT_ALLOWED_ADMIN_PATHS, isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
 import { signOutCurrentUser } from "@/lib/auth/session-client";
 import BrandLogo from "./BrandLogo";
 
@@ -125,9 +125,15 @@ function SidebarContent({
   const router = useRouter();
 
   const navItems =
-    actorRole === "leadership"
-      ? NAV_ITEMS.filter((item) => !isLeadershipBlockedAdminPath(item.href))
-      : NAV_ITEMS;
+    actorRole === "cliente"
+      ? NAV_ITEMS.filter((item) =>
+          CLIENT_ALLOWED_ADMIN_PATHS.some(
+            (allowed) => item.href === allowed || item.href.startsWith(`${allowed}/`),
+          ),
+        )
+      : actorRole === "leadership"
+        ? NAV_ITEMS.filter((item) => !isLeadershipBlockedAdminPath(item.href))
+        : NAV_ITEMS;
 
   async function handleSignOut() {
     await signOutCurrentUser();
@@ -208,21 +214,25 @@ function SidebarContent({
           </div>
 
           <div className="grid grid-cols-2 gap-2 border-t border-white/10 bg-black/20 p-2">
-            <Link
-              href="/admin/configuracoes"
-              onClick={onClose}
-              className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 transition-all ${
-                configActive ? SIDEBAR_ITEM_ACTIVE : SIDEBAR_ITEM_IDLE
-              }`}
-            >
-              <SettingsGearIcon size={17} />
-              <span className="text-[10px] font-bold leading-none">Configurações</span>
-            </Link>
+            {actorRole !== "cliente" && (
+              <Link
+                href="/admin/configuracoes"
+                onClick={onClose}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 transition-all ${
+                  configActive ? SIDEBAR_ITEM_ACTIVE : SIDEBAR_ITEM_IDLE
+                }`}
+              >
+                <SettingsGearIcon size={17} />
+                <span className="text-[10px] font-bold leading-none">Configurações</span>
+              </Link>
+            )}
 
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-transparent bg-white/5 px-2 py-2.5 text-slate-400 transition-all hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-200"
+              className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border border-transparent bg-white/5 px-2 py-2.5 text-slate-400 transition-all hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-200 ${
+                actorRole === "cliente" ? "col-span-2" : ""
+              }`}
             >
               <LogoutIcon size={17} />
               <span className="text-[10px] font-bold leading-none">Sair</span>

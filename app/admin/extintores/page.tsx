@@ -6,6 +6,8 @@ import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only
 import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 
+import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
+import { isInventoryReadOnlyRole } from "@/lib/auth/roles";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 
 type HidranteRow = HidranteInventarioCompletoRow;
@@ -208,6 +210,9 @@ export default function AdminExtintoresPage() {
   const [deleteTargetHidrante, setDeleteTargetHidrante] = useState<HidranteRow | null>(null);
   const [detalheView, setDetalheView] = useState<DetalheView | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [actorRole, setActorRole] = useState<UserRole>("admin");
+
+  const readOnly = isInventoryReadOnlyRole(actorRole);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -275,6 +280,16 @@ export default function AdminExtintoresPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const session = await getCurrentSession();
+      if (!session) return;
+      const profile = await getProfileBySession(session);
+      if (profile) setActorRole(profile.role);
+    };
+    void loadProfile();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
@@ -570,7 +585,7 @@ export default function AdminExtintoresPage() {
               </svg>
               Exportar Excel ({extintores.length} ext. + {hidrantes.length} hid.)
             </button>
-            {tipoLista === "extintor" && (
+            {tipoLista === "extintor" && !readOnly && (
               <button
                 type="button"
                 onClick={openCreate}
@@ -582,7 +597,7 @@ export default function AdminExtintoresPage() {
                 Novo Extintor
               </button>
             )}
-            {tipoLista === "hidrante" && (
+            {tipoLista === "hidrante" && !readOnly && (
               <button
                 type="button"
                 onClick={openCreateHidrante}
@@ -646,7 +661,9 @@ export default function AdminExtintoresPage() {
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.numInmetro}</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.venctoN2}</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">{COLUNAS_PADRAO.mapa}</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                  {!readOnly && (
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -686,6 +703,7 @@ export default function AdminExtintoresPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                      {!readOnly && (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -702,6 +720,7 @@ export default function AdminExtintoresPage() {
                           Excluir
                         </button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -756,7 +775,9 @@ export default function AdminExtintoresPage() {
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">
                     {COLUNAS_PADRAO.mapa}
                   </th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                  {!readOnly && (
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -783,6 +804,7 @@ export default function AdminExtintoresPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                      {!readOnly && (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -799,6 +821,7 @@ export default function AdminExtintoresPage() {
                           Excluir
                         </button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1235,10 +1258,12 @@ export default function AdminExtintoresPage() {
               )}
 
               <div className="mt-5 flex gap-3">
-                <button type="button" onClick={editarFromDetalhe} className="btn-primary flex-1">
-                  Editar
-                </button>
-                <button type="button" onClick={closeDetalhe} className="btn-secondary">
+                {!readOnly && (
+                  <button type="button" onClick={editarFromDetalhe} className="btn-primary flex-1">
+                    Editar
+                  </button>
+                )}
+                <button type="button" onClick={closeDetalhe} className={`btn-secondary ${readOnly ? "flex-1" : ""}`}>
                   Fechar
                 </button>
               </div>

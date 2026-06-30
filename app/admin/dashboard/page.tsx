@@ -24,6 +24,8 @@ type Stats = {
   vencidos: number;
   alerta30: number;
   alerta60: number;
+  alerta90: number;
+  alerta120: number;
   semPosicao: number;
 };
 
@@ -94,12 +96,14 @@ function formatDatePt(d: string | null): string {
   return formatDateOnlyPt(d);
 }
 
-type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "semPosicao";
+type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semPosicao";
 
 const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
   vencidos: "vencido",
   alerta30: "alerta",
   alerta60: "alerta",
+  alerta90: "alerta",
+  alerta120: "alerta",
   semPosicao: "none",
 };
 
@@ -143,6 +147,18 @@ const MANUTENCAO_MODAL_META: Record<
     subtitle: "Planejar manutenção preventiva",
     color: "#eab308",
     exportLabel: "Vencendo_60_dias",
+  },
+  alerta90: {
+    title: "Extintores vencendo em 90 dias",
+    subtitle: "Antecipar agendamento de manutenção",
+    color: "#84cc16",
+    exportLabel: "Vencendo_90_dias",
+  },
+  alerta120: {
+    title: "Extintores vencendo em 120 dias",
+    subtitle: "Incluir no planejamento trimestral",
+    color: "#22c55e",
+    exportLabel: "Vencendo_120_dias",
   },
   semPosicao: {
     title: "Extintores sem posição no mapa",
@@ -465,7 +481,9 @@ export default function AdminDashboardPage() {
   const stats = useMemo<Stats>(() => {
     const in30 = addDays(today, 30);
     const in60 = addDays(today, 60);
-    let vencidos = 0, alerta30 = 0, alerta60 = 0, semPosicao = 0;
+    const in90 = addDays(today, 90);
+    const in120 = addDays(today, 120);
+    let vencidos = 0, alerta30 = 0, alerta60 = 0, alerta90 = 0, alerta120 = 0, semPosicao = 0;
 
     for (const e of extintores) {
       if (e.coord_x == null) semPosicao++;
@@ -480,8 +498,10 @@ export default function AdminDashboardPage() {
       dt.setHours(0, 0, 0, 0);
       if (dt <= in30) alerta30++;
       else if (dt <= in60) alerta60++;
+      else if (dt <= in90) alerta90++;
+      else if (dt <= in120) alerta120++;
     }
-    return { total: extintores.length, vencidos, alerta30, alerta60, semPosicao };
+    return { total: extintores.length, vencidos, alerta30, alerta60, alerta90, alerta120, semPosicao };
   }, [extintores, today]);
 
   const vencidosList = useMemo(
@@ -516,6 +536,34 @@ export default function AdminDashboardPage() {
     });
   }, [extintores, today]);
 
+  const alerta90List = useMemo(() => {
+    const in60 = addDays(today, 60);
+    const in90 = addDays(today, 90);
+    return extintores.filter((e) => {
+      if (isManutencaoNivel2Vencida(e)) return false;
+      const d = earliestDate(e);
+      if (!d) return false;
+      const dt = parseCalendarDateAsLocal(d);
+      if (!dt) return false;
+      dt.setHours(0, 0, 0, 0);
+      return dt > in60 && dt <= in90;
+    });
+  }, [extintores, today]);
+
+  const alerta120List = useMemo(() => {
+    const in90 = addDays(today, 90);
+    const in120 = addDays(today, 120);
+    return extintores.filter((e) => {
+      if (isManutencaoNivel2Vencida(e)) return false;
+      const d = earliestDate(e);
+      if (!d) return false;
+      const dt = parseCalendarDateAsLocal(d);
+      if (!dt) return false;
+      dt.setHours(0, 0, 0, 0);
+      return dt > in90 && dt <= in120;
+    });
+  }, [extintores, today]);
+
   const semPosicaoList = useMemo(
     () =>
       extintores
@@ -531,8 +579,10 @@ export default function AdminDashboardPage() {
     if (manutencaoModal === "vencidos") return sortByCodigo(vencidosList);
     if (manutencaoModal === "alerta30") return sortByCodigo(alerta30List);
     if (manutencaoModal === "alerta60") return sortByCodigo(alerta60List);
+    if (manutencaoModal === "alerta90") return sortByCodigo(alerta90List);
+    if (manutencaoModal === "alerta120") return sortByCodigo(alerta120List);
     return semPosicaoList;
-  }, [manutencaoModal, vencidosList, alerta30List, alerta60List, semPosicaoList]);
+  }, [manutencaoModal, vencidosList, alerta30List, alerta60List, alerta90List, alerta120List, semPosicaoList]);
 
   const ultimoChecklistExtintor = useMemo(
     () => buildUltimoPorExtintor(checklistsExtMes),
@@ -627,7 +677,7 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
         <DashboardStatCard
           label="Total de extintores"
           value={stats.total}
@@ -654,6 +704,20 @@ export default function AdminDashboardPage() {
           color="#eab308"
           onClick={() => setManutencaoModal("alerta60")}
           icon={<DashboardStatIcon name="alerta60" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 90 dias"
+          value={stats.alerta90}
+          color="#84cc16"
+          onClick={() => setManutencaoModal("alerta90")}
+          icon={<DashboardStatIcon name="alerta90" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 120 dias"
+          value={stats.alerta120}
+          color="#22c55e"
+          onClick={() => setManutencaoModal("alerta120")}
+          icon={<DashboardStatIcon name="alerta120" />}
         />
         <DashboardStatCard
           label="Sem posição no mapa"
@@ -819,12 +883,28 @@ export default function AdminDashboardPage() {
                 style={{ width: `${(stats.alerta60 / stats.total) * 100}%` }}
               />
             )}
+            {stats.alerta90 > 0 && (
+              <div
+                title={`Alerta 90d: ${stats.alerta90}`}
+                className="h-full bg-lime-400"
+                style={{ width: `${(stats.alerta90 / stats.total) * 100}%` }}
+              />
+            )}
+            {stats.alerta120 > 0 && (
+              <div
+                title={`Alerta 120d: ${stats.alerta120}`}
+                className="h-full bg-green-300"
+                style={{ width: `${(stats.alerta120 / stats.total) * 100}%` }}
+              />
+            )}
             <div className="h-full flex-1 bg-green-400" />
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-slate-500">
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Manutenção de 2º nível vencida</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />Alerta 30d</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-300" />Alerta 60d</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-lime-400" />Alerta 90d</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-300" />Alerta 120d</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />Em dia</span>
           </div>
         </div>
@@ -856,9 +936,30 @@ export default function AdminDashboardPage() {
         exportLabel="Vencendo_60_dias"
         exportHighlight="alerta"
       />
+      <AlertTable
+        title="Extintores vencendo nos próximos 90 dias"
+        subtitle="Antecipar agendamento de manutenção"
+        color="#84cc16"
+        items={alerta90List}
+        exportLabel="Vencendo_90_dias"
+        exportHighlight="alerta"
+      />
+      <AlertTable
+        title="Extintores vencendo nos próximos 120 dias"
+        subtitle="Incluir no planejamento trimestral"
+        color="#22c55e"
+        items={alerta120List}
+        exportLabel="Vencendo_120_dias"
+        exportHighlight="alerta"
+      />
 
       {/* All good banner */}
-      {stats.vencidos === 0 && stats.alerta30 === 0 && stats.alerta60 === 0 && stats.total > 0 && (
+      {stats.vencidos === 0 &&
+        stats.alerta30 === 0 &&
+        stats.alerta60 === 0 &&
+        stats.alerta90 === 0 &&
+        stats.alerta120 === 0 &&
+        stats.total > 0 && (
         <div className="flex items-center gap-4 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 shadow-sm shadow-emerald-100">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-200">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>

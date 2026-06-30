@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
-import { getHomePathForRole, isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
+import { getHomePathForRole, isClientBlockedAdminPath, isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
 import { waitForAuthReady } from "@/lib/auth/session-client";
 
 export default function AdminAreaGuard({ children }: { children: React.ReactNode }) {
@@ -35,6 +35,15 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
           isLeadershipBlockedAdminPath(pathname)
         ) {
           router.replace(getHomePathForRole("leadership"));
+          return;
+        }
+
+        if (
+          profile.role === "cliente" &&
+          pathname &&
+          isClientBlockedAdminPath(pathname)
+        ) {
+          router.replace(getHomePathForRole("cliente"));
           return;
         }
       } finally {

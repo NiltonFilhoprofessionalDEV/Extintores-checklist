@@ -1,5 +1,5 @@
-import MapeamentoPage from "@/app/mapeamento/page";
+import MapViewDynamic from "@/src/components/MapViewDynamic";
 
 export default function AdminMapeamentoPage() {
-  return <MapeamentoPage />;
+  return <MapViewDynamic />;
 }

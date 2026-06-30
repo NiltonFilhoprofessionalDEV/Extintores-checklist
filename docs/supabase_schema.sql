@@ -90,7 +90,7 @@ begin
     where t.typname = 'user_role'
       and n.nspname = 'public'
   ) then
-    create type public.user_role as enum ('admin', 'leadership', 'user');
+    create type public.user_role as enum ('admin', 'leadership', 'user', 'cliente');
   end if;
 end $$;
 
@@ -105,7 +105,7 @@ create table if not exists public.profiles (
   constraint profiles_team_allowed
     check (team is null or team in ('ALFA', 'BRAVO', 'CHARLIE', 'DELTA')),
   constraint profiles_team_required_for_non_admin
-    check (role = 'admin' or team is not null)
+    check (role in ('admin', 'cliente') or team is not null)
 );
 
 create index if not exists idx_profiles_team on public.profiles (team);

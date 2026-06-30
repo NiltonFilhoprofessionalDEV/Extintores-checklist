@@ -3,7 +3,7 @@ import AuthGuard from "@/src/components/AuthGuard";
 
 export default function MapeamentoPage() {
   return (
-    <AuthGuard allowedRoles={["admin", "leadership", "user"]}>
+    <AuthGuard allowedRoles={["admin", "leadership", "user", "cliente"]}>
       <MapViewDynamic />
     </AuthGuard>
   );
