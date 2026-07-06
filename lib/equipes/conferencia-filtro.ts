@@ -10,10 +10,10 @@ export type EquipeConferencia = {
 };
 
 export const EQUIPES_CONFERENCIA: EquipeConferencia[] = [
-  { id: "equipe_1", label: "Equipe 1", extintorMin: 1, extintorMax: 40, hidranteMin: 1, hidranteMax: 16 },
-  { id: "equipe_2", label: "Equipe 2", extintorMin: 41, extintorMax: 79, hidranteMin: 17, hidranteMax: 31 },
-  { id: "equipe_3", label: "Equipe 3", extintorMin: 80, extintorMax: 118, hidranteMin: 33, hidranteMax: 48 },
-  { id: "equipe_4", label: "Equipe 4", extintorMin: 119, extintorMax: 157, hidranteMin: 49, hidranteMax: 64 },
+  { id: "equipe_1", label: "Equipe 1", extintorMin: 1, extintorMax: 50, hidranteMin: 1, hidranteMax: 17 },
+  { id: "equipe_2", label: "Equipe 2", extintorMin: 51, extintorMax: 100, hidranteMin: 18, hidranteMax: 34 },
+  { id: "equipe_3", label: "Equipe 3", extintorMin: 101, extintorMax: 150, hidranteMin: 35, hidranteMax: 51 },
+  { id: "equipe_4", label: "Equipe 4", extintorMin: 151, extintorMax: 201, hidranteMin: 52, hidranteMax: 68 },
 ];
 
 /** Extrai o número sequencial do código (ex.: "EXT-041" → 41, "H-17" → 17). */
