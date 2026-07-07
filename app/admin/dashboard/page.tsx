@@ -16,6 +16,7 @@ import { hidranteChecklistTemNaoConformidade } from "@/lib/checklist/hidrante-ty
 import { getLocalCalendarMonthUtcIsoRange } from "@/lib/date/local-month-range";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
+import { EMPRESA_TABS, filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
 
@@ -433,6 +434,7 @@ export default function AdminDashboardPage() {
   const [checklistsHidMes, setChecklistsHidMes] = useState<ChecklistHidranteMesRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [manutencaoModal, setManutencaoModal] = useState<ManutencaoModalKey | null>(null);
+  const [empresaTab, setEmpresaTab] = useState<EmpresaTab>("santa_genoveva");
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const mesAtualRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
@@ -478,6 +480,16 @@ export default function AdminDashboardPage() {
     return date;
   }, []);
 
+  const extintoresVisiveis = useMemo(
+    () => filtrarPorEmpresa(extintores, empresaTab, (e) => e.setor),
+    [extintores, empresaTab],
+  );
+
+  const hidrantesVisiveis = useMemo(
+    () => filtrarPorEmpresa(hidrantes, empresaTab, (h) => h.pavimento),
+    [hidrantes, empresaTab],
+  );
+
   const stats = useMemo<Stats>(() => {
     const in30 = addDays(today, 30);
     const in60 = addDays(today, 60);
@@ -485,7 +497,7 @@ export default function AdminDashboardPage() {
     const in120 = addDays(today, 120);
     let vencidos = 0, alerta30 = 0, alerta60 = 0, alerta90 = 0, alerta120 = 0, semPosicao = 0;
 
-    for (const e of extintores) {
+    for (const e of extintoresVisiveis) {
       if (e.coord_x == null) semPosicao++;
       if (isManutencaoNivel2Vencida(e)) {
         vencidos++;
@@ -501,17 +513,17 @@ export default function AdminDashboardPage() {
       else if (dt <= in90) alerta90++;
       else if (dt <= in120) alerta120++;
     }
-    return { total: extintores.length, vencidos, alerta30, alerta60, alerta90, alerta120, semPosicao };
-  }, [extintores, today]);
+    return { total: extintoresVisiveis.length, vencidos, alerta30, alerta60, alerta90, alerta120, semPosicao };
+  }, [extintoresVisiveis, today]);
 
   const vencidosList = useMemo(
-    () => extintores.filter((e) => isManutencaoNivel2Vencida(e)),
-    [extintores],
+    () => extintoresVisiveis.filter((e) => isManutencaoNivel2Vencida(e)),
+    [extintoresVisiveis],
   );
 
   const alerta30List = useMemo(() => {
     const in30 = addDays(today, 30);
-    return extintores.filter((e) => {
+    return extintoresVisiveis.filter((e) => {
       if (isManutencaoNivel2Vencida(e)) return false;
       const d = earliestDate(e);
       if (!d) return false;
@@ -520,12 +532,12 @@ export default function AdminDashboardPage() {
       dt.setHours(0, 0, 0, 0);
       return dt >= today && dt <= in30;
     });
-  }, [extintores, today]);
+  }, [extintoresVisiveis, today]);
 
   const alerta60List = useMemo(() => {
     const in30 = addDays(today, 30);
     const in60 = addDays(today, 60);
-    return extintores.filter((e) => {
+    return extintoresVisiveis.filter((e) => {
       if (isManutencaoNivel2Vencida(e)) return false;
       const d = earliestDate(e);
       if (!d) return false;
@@ -534,12 +546,12 @@ export default function AdminDashboardPage() {
       dt.setHours(0, 0, 0, 0);
       return dt > in30 && dt <= in60;
     });
-  }, [extintores, today]);
+  }, [extintoresVisiveis, today]);
 
   const alerta90List = useMemo(() => {
     const in60 = addDays(today, 60);
     const in90 = addDays(today, 90);
-    return extintores.filter((e) => {
+    return extintoresVisiveis.filter((e) => {
       if (isManutencaoNivel2Vencida(e)) return false;
       const d = earliestDate(e);
       if (!d) return false;
@@ -548,12 +560,12 @@ export default function AdminDashboardPage() {
       dt.setHours(0, 0, 0, 0);
       return dt > in60 && dt <= in90;
     });
-  }, [extintores, today]);
+  }, [extintoresVisiveis, today]);
 
   const alerta120List = useMemo(() => {
     const in90 = addDays(today, 90);
     const in120 = addDays(today, 120);
-    return extintores.filter((e) => {
+    return extintoresVisiveis.filter((e) => {
       if (isManutencaoNivel2Vencida(e)) return false;
       const d = earliestDate(e);
       if (!d) return false;
@@ -562,14 +574,14 @@ export default function AdminDashboardPage() {
       dt.setHours(0, 0, 0, 0);
       return dt > in90 && dt <= in120;
     });
-  }, [extintores, today]);
+  }, [extintoresVisiveis, today]);
 
   const semPosicaoList = useMemo(
     () =>
-      extintores
+      extintoresVisiveis
         .filter((e) => e.coord_x == null)
         .sort((a, b) => a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true })),
-    [extintores],
+    [extintoresVisiveis],
   );
 
   const manutencaoModalItems = useMemo(() => {
@@ -598,43 +610,43 @@ export default function AdminDashboardPage() {
     let conforme = 0;
     let naoConforme = 0;
     let pendente = 0;
-    for (const e of extintores) {
+    for (const e of extintoresVisiveis) {
       const u = ultimoChecklistExtintor.get(e.id);
       if (!u) pendente += 1;
       else if (extintorNaoConformeNoMes(e, u)) naoConforme += 1;
       else conforme += 1;
     }
-    return { conforme, naoConforme, pendente, total: extintores.length };
-  }, [extintores, ultimoChecklistExtintor]);
+    return { conforme, naoConforme, pendente, total: extintoresVisiveis.length };
+  }, [extintoresVisiveis, ultimoChecklistExtintor]);
 
   const hidranteConferenciaMes = useMemo(() => {
     let conforme = 0;
     let naoConforme = 0;
     let pendente = 0;
-    for (const h of hidrantes) {
+    for (const h of hidrantesVisiveis) {
       const u = ultimoChecklistHidrante.get(h.id);
       if (!u) pendente += 1;
       else if (hidranteNaoConformeNoMes(h, u)) naoConforme += 1;
       else conforme += 1;
     }
-    return { conforme, naoConforme, pendente, total: hidrantes.length };
-  }, [hidrantes, ultimoChecklistHidrante]);
+    return { conforme, naoConforme, pendente, total: hidrantesVisiveis.length };
+  }, [hidrantesVisiveis, ultimoChecklistHidrante]);
 
   const extintoresNcMes = useMemo(() => {
-    return extintores
+    return extintoresVisiveis
       .map((e) => ({ e, u: ultimoChecklistExtintor.get(e.id) }))
       .filter((x): x is { e: ExtintorRow; u: ChecklistExtintorMesRow } =>
         Boolean(x.u && extintorNaoConformeNoMes(x.e, x.u)),
       );
-  }, [extintores, ultimoChecklistExtintor]);
+  }, [extintoresVisiveis, ultimoChecklistExtintor]);
 
   const hidrantesNcMes = useMemo(() => {
-    return hidrantes
+    return hidrantesVisiveis
       .map((h) => ({ h, u: ultimoChecklistHidrante.get(h.id) }))
       .filter((x): x is { h: HidranteVencimentoRow; u: ChecklistHidranteMesRow } =>
         Boolean(x.u && hidranteNaoConformeNoMes(x.h, x.u)),
       );
-  }, [hidrantes, ultimoChecklistHidrante]);
+  }, [hidrantesVisiveis, ultimoChecklistHidrante]);
 
   const mesLegenda = useMemo(
     () => new Date(mesAtualRange.startIso).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
@@ -665,6 +677,34 @@ export default function AdminDashboardPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Seletor de empresa (apenas no dashboard) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="pl-5 pr-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+          Empresa
+        </span>
+        {EMPRESA_TABS.map((tab) => {
+          const active = empresaTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setEmpresaTab(tab.id);
+                setManutencaoModal(null);
+              }}
+              aria-pressed={active}
+              className={`rounded-full border px-4 py-2 text-sm font-bold transition-all ${
+                active
+                  ? "border-[#e02020] bg-[#e02020] text-white shadow-sm shadow-red-200"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -736,7 +776,7 @@ export default function AdminDashboardPage() {
         />
       )}
 
-      <HidranteVencimentoSection hidrantes={hidrantes} />
+      <HidranteVencimentoSection hidrantes={hidrantesVisiveis} />
 
       {/* Conferência no mês */}
       <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
