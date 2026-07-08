@@ -171,6 +171,7 @@ const PAVIMENTOS: PavimentoOption[] = [
   { key: "teca", label: "TECA", imageBase: "/maps/teca" },
   { key: "tps_1", label: "TPS 1", imageBase: "/maps/tps_1" },
   { key: "sci", label: "SCI", imageBase: "/maps/sci" },
+  { key: "other_places", label: "Guaritas/Central de resíduos", imageBase: "/maps/other_places" },
 ];
 
 const INITIAL_CHECKLIST: ChecklistState = CHECKLIST_INITIAL;
@@ -368,11 +369,18 @@ function FitBounds({
   boundsPad?: number;
 }) {
   const map = useMap();
-  /** Evita fitBounds a cada resize (ex.: após salvar posição o painel muda de altura e resetava o zoom). */
-  const hasCompletedInitialFitRef = useRef(false);
+  /**
+   * Enquanto o usuário não interagir (arrastar/zoom), mantemos a planta inteira
+   * encaixada na tela. Reajustamos a cada resize do container porque o layout
+   * flex pode só atingir a altura final após a montagem — sem isso, o primeiro
+   * fit usaria um viewport menor e o mapa abriria "com zoom".
+   */
+  const userInteractedRef = useRef(false);
+  /** True durante fitBounds/setZoom programáticos para ignorar seus eventos de zoom. */
+  const programmaticRef = useRef(false);
 
   useEffect(() => {
-    hasCompletedInitialFitRef.current = false;
+    userInteractedRef.current = false;
     const leafletBounds = L.latLngBounds(bounds as LatLngBoundsLiteral);
 
     const tryFullFit = (): boolean => {
@@ -380,6 +388,7 @@ function FitBounds({
       const size = map.getSize();
       if (size.x === 0 || size.y === 0) return false;
 
+      programmaticRef.current = true;
       map.setMaxBounds(leafletBounds.pad(boundsPad));
       map.fitBounds(leafletBounds, {
         paddingTopLeft: [20, 20],
@@ -397,32 +406,40 @@ function FitBounds({
         const z = Math.max(minZoomAbsolute, targetZoom);
         map.setZoom(z, { animate: false });
       }
+      programmaticRef.current = false;
       return true;
+    };
+
+    const onUserInteract = () => {
+      if (programmaticRef.current) return;
+      userInteractedRef.current = true;
     };
 
     const onContainerResize = () => {
       map.invalidateSize({ animate: false });
-      if (!hasCompletedInitialFitRef.current && tryFullFit()) {
-        hasCompletedInitialFitRef.current = true;
-      }
+      // Após o usuário dar zoom/pan, não forçamos mais o fit — respeitamos a
+      // navegação dele; apenas o invalidateSize acima evita tiles cinzas.
+      if (!userInteractedRef.current) tryFullFit();
     };
+
+    // Gestos do usuário (roda do mouse, pinch, arrastar) travam o auto-fit.
+    map.on("dragstart", onUserInteract);
+    map.on("zoomstart", onUserInteract);
 
     const container = map.getContainer();
     const ro = new ResizeObserver(onContainerResize);
     ro.observe(container);
 
-    if (tryFullFit()) {
-      hasCompletedInitialFitRef.current = true;
-    }
+    tryFullFit();
     const id = globalThis.setTimeout(() => {
-      if (!hasCompletedInitialFitRef.current && tryFullFit()) {
-        hasCompletedInitialFitRef.current = true;
-      }
+      if (!userInteractedRef.current) tryFullFit();
     }, 300);
 
     return () => {
       ro.disconnect();
       globalThis.clearTimeout(id);
+      map.off("dragstart", onUserInteract);
+      map.off("zoomstart", onUserInteract);
     };
   }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomAbsolute, boundsPad]);
   return null;
@@ -1291,7 +1308,7 @@ export default function MapView() {
         bounds={mapBounds}
         maxZoomExtra={isMobile ? 36 : 32}
         bottomOffset={0}
-        initialZoomOut={isMobile ? 3 : 0}
+        initialZoomOut={0}
         minZoomAbsolute={isMobile ? -22 : -16}
         boundsPad={isMobile ? 2.8 : 0.15}
       />

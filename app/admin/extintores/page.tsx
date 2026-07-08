@@ -134,6 +134,7 @@ const SETORES = [
   "TECA",
   "TPS 1",
   "SCI",
+  "GUARITAS/CENTRAL DE RESÍDUOS",
 ] as const;
 
 const TIPOS_EXTINTOR = ["ÁGUA", "PQS ABC", "PQS BC", "ESPUMA MECÂNICA", "CO2"] as const;
