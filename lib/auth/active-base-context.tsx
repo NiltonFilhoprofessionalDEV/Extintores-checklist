@@ -36,32 +36,37 @@ export function ActiveBaseProvider({ children }: { children: ReactNode }) {
   const [activeBaseId, setActiveBaseIdState] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const session = await getCurrentSession();
-    if (!session) {
+    try {
+      const session = await getCurrentSession();
+      if (!session) {
+        setProfile(null);
+        setAccessibleBases([]);
+        setActiveBaseIdState(null);
+        return;
+      }
+
+      const nextProfile = await getProfileBySession(session);
+      if (!nextProfile) {
+        setProfile(null);
+        setAccessibleBases([]);
+        setActiveBaseIdState(null);
+        return;
+      }
+
+      const bases = await fetchAccessibleBasesForUser(nextProfile.id, nextProfile.base_id);
+      const resolved = resolveActiveBaseId(bases, nextProfile.base_id, nextProfile.role);
+      if (resolved) storeActiveBaseId(resolved);
+
+      setProfile(nextProfile);
+      setAccessibleBases(bases);
+      setActiveBaseIdState(resolved);
+    } catch {
       setProfile(null);
       setAccessibleBases([]);
       setActiveBaseIdState(null);
+    } finally {
       setReady(true);
-      return;
     }
-
-    const nextProfile = await getProfileBySession(session);
-    if (!nextProfile) {
-      setProfile(null);
-      setAccessibleBases([]);
-      setActiveBaseIdState(null);
-      setReady(true);
-      return;
-    }
-
-    const bases = await fetchAccessibleBasesForUser(nextProfile.id, nextProfile.base_id);
-    const resolved = resolveActiveBaseId(bases, nextProfile.base_id, nextProfile.role);
-    if (resolved) storeActiveBaseId(resolved);
-
-    setProfile(nextProfile);
-    setAccessibleBases(bases);
-    setActiveBaseIdState(resolved);
-    setReady(true);
   }, []);
 
   useEffect(() => {

@@ -135,13 +135,31 @@ export function isLeadershipBlockedAdminPath(pathname: string): boolean {
   );
 }
 
-export function getHomePathForRole(role: UserRole): string {
+/** Normaliza role vinda do banco (espaços / casing) para comparação segura. */
+export function normalizeUserRole(role: unknown): UserRole | null {
+  if (typeof role !== "string") return null;
+  const value = role.trim().toLowerCase();
   if (
-    role === "admin" ||
-    role === "admin_corporativo" ||
-    role === "leadership" ||
-    role === "cliente" ||
-    role === "corporativo"
+    value === "admin" ||
+    value === "admin_corporativo" ||
+    value === "leadership" ||
+    value === "user" ||
+    value === "cliente" ||
+    value === "corporativo"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+export function getHomePathForRole(role: UserRole | string | null | undefined): string {
+  const normalized = normalizeUserRole(role);
+  if (
+    normalized === "admin" ||
+    normalized === "admin_corporativo" ||
+    normalized === "leadership" ||
+    normalized === "cliente" ||
+    normalized === "corporativo"
   ) {
     return "/admin/dashboard";
   }

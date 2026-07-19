@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import { getProfileBySession, type Profile, type UserRole } from "@/lib/auth/profile";
-import { getHomePathForRole } from "@/lib/auth/roles";
+import { getHomePathForRole, normalizeUserRole } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { waitForAuthReady } from "@/lib/auth/session-client";
 
@@ -49,12 +49,13 @@ export default function AuthGuard({
           return;
         }
 
-        if (!allowedRoles.includes(fetchedProfile.role)) {
-          router.replace(getHomePathForRole(fetchedProfile.role));
+        const role = normalizeUserRole(fetchedProfile.role) ?? fetchedProfile.role;
+        if (!allowedRoles.includes(role)) {
+          router.replace(getHomePathForRole(role));
           return;
         }
 
-        setProfile(fetchedProfile);
+        setProfile({ ...fetchedProfile, role });
         setLoadError(null);
       } catch {
         setLoadError("Erro de conexão ao validar seu acesso. Tente novamente.");
