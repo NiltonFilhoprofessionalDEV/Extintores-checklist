@@ -105,6 +105,8 @@ type PavimentoOption = {
   key: string;
   label: string;
   imageBase: string;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 type Extintor = {
@@ -187,6 +189,8 @@ function mapBaseFloorToPavimento(floor: BaseFloor): PavimentoOption {
     key: floor.key,
     label: floor.label,
     imageBase: floor.image_path,
+    imageWidth: floor.image_width,
+    imageHeight: floor.image_height,
   };
 }
 
@@ -529,7 +533,10 @@ export default function MapView() {
   const [pavimento, setPavimento] = useState<PavimentoOption>(FALLBACK_PAVIMENTOS[0]);
   const [extintores, setExtintores] = useState<Extintor[]>([]);
   const [selectedExtintorId, setSelectedExtintorId] = useState<string>("");
-  const [mapImageSize] = useState({ width: FULL_IMAGE_WIDTH, height: FULL_IMAGE_HEIGHT });
+  const [mapImageSize, setMapImageSize] = useState({
+    width: FULL_IMAGE_WIDTH,
+    height: FULL_IMAGE_HEIGHT,
+  });
   const [loading, setLoading] = useState(true);
   const [savingPosition, setSavingPosition] = useState(false);
   const [message, setMessage] = useState("");
@@ -681,10 +688,7 @@ export default function MapView() {
         const floors = await fetchBaseFloors(activeBaseId);
         if (cancelled) return;
         if (floors.length === 0) {
-          setPavimentos(FALLBACK_PAVIMENTOS);
-          setPavimento((prev) =>
-            FALLBACK_PAVIMENTOS.find((item) => item.key === prev.key) ?? FALLBACK_PAVIMENTOS[0],
-          );
+          setPavimentos([]);
           return;
         }
         const mapped = floors.map(mapBaseFloorToPavimento);
@@ -692,10 +696,7 @@ export default function MapView() {
         setPavimento((prev) => mapped.find((item) => item.key === prev.key) ?? mapped[0]);
       } catch {
         if (cancelled) return;
-        setPavimentos(FALLBACK_PAVIMENTOS);
-        setPavimento((prev) =>
-          FALLBACK_PAVIMENTOS.find((item) => item.key === prev.key) ?? FALLBACK_PAVIMENTOS[0],
-        );
+        setPavimentos([]);
       }
     };
 
@@ -704,6 +705,14 @@ export default function MapView() {
       cancelled = true;
     };
   }, [activeBaseId]);
+
+  useEffect(() => {
+    setMapImageSize({
+      width: pavimento.imageWidth && pavimento.imageWidth > 0 ? pavimento.imageWidth : FULL_IMAGE_WIDTH,
+      height:
+        pavimento.imageHeight && pavimento.imageHeight > 0 ? pavimento.imageHeight : FULL_IMAGE_HEIGHT,
+    });
+  }, [pavimento]);
 
   useEffect(() => {
     const channel = supabase

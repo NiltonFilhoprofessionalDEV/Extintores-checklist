@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import {
   CLIENT_ALLOWED_ADMIN_PATHS,
+  isAdminLikeRole,
   isLeadershipBlockedAdminPath,
   isReadOnlyCorporateRole,
 } from "@/lib/auth/roles";
@@ -69,6 +70,16 @@ const NAV_ITEMS = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
       </svg>
     ),
+  },
+  {
+    href: "/admin/mapas-setores",
+    label: "Mapas e Setores",
+    icon: (
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+    adminLikeOnly: true,
   },
   {
     href: "/admin/mapeamento",
@@ -149,7 +160,9 @@ function SidebarContent({
       : actorRole === "leadership"
         ? NAV_ITEMS.filter((item) => !isLeadershipBlockedAdminPath(item.href))
         : NAV_ITEMS
-  ).filter((item) => !("adminCorporativoOnly" in item && item.adminCorporativoOnly) || actorRole === "admin_corporativo");
+  )
+    .filter((item) => !("adminCorporativoOnly" in item && item.adminCorporativoOnly) || actorRole === "admin_corporativo")
+    .filter((item) => !("adminLikeOnly" in item && item.adminLikeOnly) || isAdminLikeRole(actorRole));
 
   async function handleSignOut() {
     await signOutCurrentUser();

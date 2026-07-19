@@ -141,15 +141,19 @@ export async function fetchBaseFloors(baseId: string): Promise<BaseFloor[]> {
   }));
 }
 
-/** Resolve image URL for a floor image_path (static /maps/... or Storage path). */
+/** Resolve image URL for a floor image_path (static /maps/..., URL pública ou path no bucket mapas). */
 export function resolveFloorImageUrl(imagePath: string, preferWebp = true): string {
   if (!imagePath) return "";
   if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
     return imagePath;
   }
   if (imagePath.startsWith("/")) {
+    // Já é arquivo estático completo (.webp/.jpg) ou base sem extensão
+    if (/\.(webp|jpg|jpeg|png)$/i.test(imagePath)) return imagePath;
     return preferWebp ? `${imagePath}.webp` : `${imagePath}.jpg`;
   }
-  // Storage-relative path: callers that use Storage should pass a full public URL.
-  return imagePath;
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  const base = raw.replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/g, "");
+  if (!base) return imagePath;
+  return `${base}/storage/v1/object/public/mapas/${imagePath.replace(/^\/+/, "")}`;
 }
