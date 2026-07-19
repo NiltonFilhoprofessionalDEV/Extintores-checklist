@@ -84,20 +84,7 @@ export async function createBaseWithAdmin(
 
   const baseId = String(base.id);
 
-  // Andar padrão para a base existir no mapa
-  const { error: floorError } = await supabaseAdmin.from("base_floors").insert({
-    base_id: baseId,
-    key: "terreo",
-    label: "Térreo",
-    sort_order: 0,
-    image_path: `/maps/${slug}/terreo`,
-    image_width: 14042,
-    image_height: 9934,
-  });
-  if (floorError) {
-    await supabaseAdmin.from("bases").delete().eq("id", baseId);
-    return { ok: false, error: floorError.message, status: 400 };
-  }
+  // Mapas/setores são cadastrados depois em /admin/mapas-setores (com upload da planta).
 
   // Corporativo criador ganha acesso à nova base
   const { error: membershipSelfError } = await supabaseAdmin.from("base_memberships").upsert(
