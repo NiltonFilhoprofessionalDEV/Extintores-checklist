@@ -60,17 +60,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: membershipError.message }, { status: 400 });
     }
 
+    // Só o Administrador Corporativo lista outros admin_corporativo via memberships.
+    // Admins de base nunca consultam roles corporativos (evita erro de enum e vazamento).
     const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
     let corpUsers: typeof staffUsers = [];
-    if (corpIds.length > 0) {
-      const multiBaseRoles: UserRole[] =
-        manager.role === "admin_corporativo"
-          ? ["corporativo", "admin_corporativo"]
-          : ["corporativo"];
+    if (manager.role === "admin_corporativo" && corpIds.length > 0) {
       const { data: corps, error: corpError } = await supabaseAdmin
         .from("profiles")
         .select("id,nome,role,team,active,base_id,created_at")
-        .in("role", multiBaseRoles)
+        .eq("role", "admin_corporativo")
         .in("id", corpIds)
         .order("created_at", { ascending: false });
       if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });

@@ -161,7 +161,14 @@ export function resolveBaseForWrite(
       return {
         base_id: null,
         membershipBaseIds: [],
-        error: "Apenas Administrador Corporativo pode criar usuários multi-base.",
+        error: "Apenas Administrador Corporativo pode criar este tipo de acesso.",
+      };
+    }
+    if (role !== "admin_corporativo") {
+      return {
+        base_id: null,
+        membershipBaseIds: [],
+        error: "Perfil corporativo de consulta não é utilizado. Use Administrador Corporativo.",
       };
     }
     if (ids.length === 0) {
