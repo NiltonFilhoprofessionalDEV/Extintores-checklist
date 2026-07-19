@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   EQUIPES_CONFERENCIA,
@@ -17,13 +17,7 @@ import {
   resolveHidranteConferenciaExport,
   type ConferenciaExportStatus,
 } from "@/lib/export/conferencia-historico";
-import {
-  COLUNAS_PADRAO,
-  subtituloLocalExtintor,
-  subtituloLocalHidrante,
-  tituloEquipamento,
-  type TipoEquipamento,
-} from "@/lib/inventario/equipamento-padrao";
+import type { TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 import {
   fetchConferenciasHistorico,
@@ -35,25 +29,12 @@ import {
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { baseHasEquipesConferencia } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
-
-type ConferenciaItem = {
-  id: string;
-  tipo: TipoEquipamento;
-  data_conferencia: string;
-  conferente: string;
-  codigo: string;
-  setor: string;
-  local_detalhado: string;
-  tipoEquip?: string;
-  tamanho?: string;
-  pavimento?: string;
-  manutencao_2_nivel: string | null;
-  manutencao_3_nivel: string | null;
-  hidrante: HidranteVencimentoRow | null;
-  checklistRaw: Record<string, unknown>;
-  exportStatus: ConferenciaExportStatus;
-  observacaoExibicao: string;
-};
+import ConferenciaFilterModal from "./ConferenciaFilterModal";
+import {
+  ConferenciaCard,
+  ConferenciaDetailModal,
+  type ConferenciaItem,
+} from "./ConferenciaResults";
 
 function equipeLabelForCodigo(codigo: string, tipo: TipoEquipamento): string {
   for (const eq of EQUIPES_CONFERENCIA) {
@@ -90,22 +71,6 @@ function getDatasPadraoMesVigente(): { inicio: string; fim: string } {
     inicio: formatDateInputLocal(inicioMes),
     fim: formatDateInputLocal(hoje),
   };
-}
-
-function cardClassByStatus(status: ConferenciaExportStatus): string {
-  if (status === "vencido") return "border-red-300 bg-red-100/90";
-  if (status === "alerta") return "border-amber-200 bg-amber-50/90";
-  return "border-slate-100 bg-slate-50/70";
-}
-
-function statusBadge(status: ConferenciaExportStatus): { label: string; className: string } {
-  if (status === "vencido") {
-    return { label: "Vencido", className: "bg-red-100 text-red-800" };
-  }
-  if (status === "alerta") {
-    return { label: "Atenção", className: "bg-amber-100 text-amber-900" };
-  }
-  return { label: "Conforme", className: "bg-green-100 text-green-800" };
 }
 
 type FiltroStatusConferencia = ConferenciaExportStatus | "";
@@ -148,51 +113,11 @@ function IconeBusca() {
   );
 }
 
-function IconeCalendario() {
-  return (
-    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
 function IconeEquipe() {
   return (
     <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
-  );
-}
-
-function IconeStatus() {
-  return (
-    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
-type FiltroCampoProps = {
-  label: string;
-  htmlFor: string;
-  icon?: ReactNode;
-  children: ReactNode;
-  className?: string;
-};
-
-function FiltroCampo({ label, htmlFor, icon, children, className = "" }: FiltroCampoProps) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={htmlFor} className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-        {label}
-      </label>
-      <div className="relative">
-        {icon && (
-          <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2">{icon}</span>
-        )}
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -210,13 +135,11 @@ export default function AdminConferenciasPage() {
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatusConferencia>("");
   const [exportando, setExportando] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ConferenciaItem | null>(null);
   const extintorLookupRef = useRef<Map<string, ExtintorLookupRow>>(new Map());
   const hidranteLookupRef = useRef<Map<string, HidranteLookupRow>>(new Map());
   const datasEditadasPeloUsuarioRef = useRef(false);
-
-  useEffect(() => {
-    if (!showEquipeFilter) setFiltroEquipe("");
-  }, [showEquipeFilter]);
 
   const loadConferencias = useCallback(async () => {
     if (!ready || !activeBaseId) return;
@@ -340,7 +263,11 @@ export default function AdminConferenciasPage() {
     const endIso = endOfDayIso(dataFim);
 
     return rows.filter((item) => {
-      if (filtroEquipe && !codigoPertenceEquipe(item.codigo, filtroEquipe, item.tipo)) {
+      if (
+        showEquipeFilter &&
+        filtroEquipe &&
+        !codigoPertenceEquipe(item.codigo, filtroEquipe, item.tipo)
+      ) {
         return false;
       }
 
@@ -370,7 +297,7 @@ export default function AdminConferenciasPage() {
 
       return text.includes(q);
     });
-  }, [rows, busca, filtroEquipe, filtroStatus, dataInicio, dataFim]);
+  }, [rows, busca, showEquipeFilter, filtroEquipe, filtroStatus, dataInicio, dataFim]);
 
   const filteredExt = useMemo(
     () => filteredBase.filter((r) => r.tipo === "extintor"),
@@ -388,6 +315,11 @@ export default function AdminConferenciasPage() {
   const datasPadraoMes = getDatasPadraoMesVigente();
   const datasPersonalizadas =
     dataInicio !== datasPadraoMes.inicio || dataFim !== datasPadraoMes.fim;
+  const filtrosAvancadosAtivos = [
+    Boolean(showEquipeFilter && filtroEquipe),
+    Boolean(filtroStatus),
+    datasPersonalizadas,
+  ].filter(Boolean).length;
   const temFiltrosAtivos = Boolean(
     (showEquipeFilter && filtroEquipe) || filtroStatus || datasPersonalizadas || busca.trim(),
   );
@@ -472,7 +404,7 @@ export default function AdminConferenciasPage() {
       });
 
       const sufixo = montarSufixoExportacaoArquivo(
-        filtroEquipe,
+        showEquipeFilter ? filtroEquipe : "",
         dataInicio,
         dataFim,
         busca,
@@ -574,82 +506,33 @@ export default function AdminConferenciasPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-12">
-          <FiltroCampo label="Busca" htmlFor="filtro-busca" icon={<IconeBusca />} className="lg:col-span-4">
+        <div className="flex flex-col gap-3 p-5 sm:flex-row">
+          <label className="relative min-w-0 flex-1" htmlFor="filtro-busca">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+              <IconeBusca />
+            </span>
             <input
               id="filtro-busca"
               type="search"
-              placeholder="Código, local, conferente, observação…"
-              className="field-control !pl-10"
+              placeholder="Buscar por código, local, conferente ou observação…"
+              className="field-control !rounded-2xl !py-3 !pl-11"
               value={busca}
               onChange={(event) => setBusca(event.target.value)}
             />
-          </FiltroCampo>
-
-          {showEquipeFilter && (
-            <FiltroCampo label="Equipe" htmlFor="filtro-equipe" icon={<IconeEquipe />} className="lg:col-span-2">
-              <select
-                id="filtro-equipe"
-                className="field-control appearance-none !pl-10"
-                value={filtroEquipe}
-                onChange={(event) => setFiltroEquipe(event.target.value as EquipeConferenciaId | "")}
-              >
-                <option value="">Todas as equipes</option>
-                {EQUIPES_CONFERENCIA.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.label}
-                  </option>
-                ))}
-              </select>
-            </FiltroCampo>
-          )}
-
-          <FiltroCampo
-            label="Status"
-            htmlFor="filtro-status"
-            icon={<IconeStatus />}
-            className={showEquipeFilter ? "lg:col-span-2" : "lg:col-span-4"}
+          </label>
+          <button
+            type="button"
+            onClick={() => setFilterModalOpen(true)}
+            className="relative inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-5 py-3 text-sm font-bold text-[var(--ink)] shadow-sm transition hover:border-[var(--orange)] hover:text-[var(--orange-deep)]"
           >
-            <select
-              id="filtro-status"
-              className="field-control appearance-none !pl-10"
-              value={filtroStatus}
-              onChange={(event) => setFiltroStatus(event.target.value as FiltroStatusConferencia)}
-            >
-              {OPCOES_FILTRO_STATUS.map((op) => (
-                <option key={op.value || "todos"} value={op.value}>
-                  {op.label}
-                </option>
-              ))}
-            </select>
-          </FiltroCampo>
-
-          <FiltroCampo label="Data inicial" htmlFor="filtro-data-inicio" icon={<IconeCalendario />} className="lg:col-span-2">
-            <input
-              id="filtro-data-inicio"
-              type="date"
-              className="field-control !pl-10"
-              value={dataInicio}
-              onChange={(e) => {
-                datasEditadasPeloUsuarioRef.current = true;
-                setDataInicio(e.target.value);
-              }}
-            />
-          </FiltroCampo>
-
-          <FiltroCampo label="Data final" htmlFor="filtro-data-fim" icon={<IconeCalendario />} className="lg:col-span-2">
-            <input
-              id="filtro-data-fim"
-              type="date"
-              className="field-control !pl-10"
-              value={dataFim}
-              onChange={(e) => {
-                datasEditadasPeloUsuarioRef.current = true;
-                setDataFim(e.target.value);
-              }}
-              min={dataInicio || undefined}
-            />
-          </FiltroCampo>
+            <IconeEquipe />
+            Filtros
+            {filtrosAvancadosAtivos > 0 && (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--orange)] px-1 text-[10px] text-white">
+                {filtrosAvancadosAtivos}
+              </span>
+            )}
+          </button>
         </div>
 
         {temFiltrosAtivos && !loading && (
@@ -670,7 +553,7 @@ export default function AdminConferenciasPage() {
                 </button>
               </span>
             )}
-            {filtroEquipe && (
+            {showEquipeFilter && filtroEquipe && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900">
                 {equipeLabelAtiva}
                 <button
@@ -753,64 +636,71 @@ export default function AdminConferenciasPage() {
         )}
       </div>
 
-      <div className="section-card p-5">
+      <div className="professional-card p-5">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <p className="page-eyebrow">Relatórios de inspeção</p>
+            <h2 className="mt-1 text-xl font-extrabold text-[var(--ink)]">
+              {tipoLista === "extintor" ? "Extintores inspecionados" : "Hidrantes inspecionados"}
+            </h2>
+          </div>
+          <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-xs font-bold text-slate-600">
+            {visiveis.length} {visiveis.length === 1 ? "registro" : "registros"}
+          </span>
+        </div>
         {loading ? (
-          <p className="text-sm text-slate-500">Carregando conferências...</p>
+          <div className="flex items-center justify-center gap-3 py-16 text-sm font-semibold text-slate-500">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+            Carregando conferências…
+          </div>
         ) : visiveis.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            Nenhuma conferência de {tipoLista === "extintor" ? "extintores" : "hidrantes"} encontrada.
-          </p>
+          <div className="rounded-2xl bg-[var(--muted)] px-5 py-10 text-center">
+            <p className="font-bold text-[var(--ink)]">Nenhuma inspeção encontrada</p>
+            <p className="mt-1 text-sm text-slate-500">Ajuste a busca ou os filtros para ver outros resultados.</p>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {visiveis.map((item) => {
-              const badge = statusBadge(item.exportStatus);
-              return (
-                <article
-                  key={`${item.tipo}-${item.id}`}
-                  className={`rounded-2xl border px-4 py-4 transition hover:shadow-sm ${cardClassByStatus(item.exportStatus)}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{tituloEquipamento(item.codigo, item.tipo)}</p>
-                    <p className="text-xs text-slate-500">
-                      {item.data_conferencia
-                        ? new Date(item.data_conferencia).toLocaleString("pt-BR")
-                        : "-"}
-                    </p>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-600">
-                    {item.tipo === "extintor"
-                      ? subtituloLocalExtintor(item.setor, item.local_detalhado)
-                      : subtituloLocalHidrante(item.pavimento ?? null, item.local_detalhado)}
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700">
-                      {equipeLabelForCodigo(item.codigo, item.tipo) || "Equipe não definida"}
-                    </span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                    <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-slate-700">
-                      {COLUNAS_PADRAO.conferente}: {item.conferente || "Não informado"}
-                    </span>
-                    {item.tipo === "extintor" && (item.tipoEquip || item.tamanho) && (
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-700">
-                        {[item.tipoEquip, item.tamanho].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-2 text-xs text-slate-700">
-                    <span className="font-semibold">{COLUNAS_PADRAO.observacao}:</span>
-                    <p className="mt-1 whitespace-pre-line leading-relaxed">{item.observacaoExibicao}</p>
-                  </div>
-                </article>
-              );
-            })}
+          <div className="grid gap-3 xl:grid-cols-2">
+            {visiveis.map((item) => (
+              <ConferenciaCard
+                key={`${item.tipo}-${item.id}`}
+                item={item}
+                teamLabel={equipeLabelForCodigo(item.codigo, item.tipo)}
+                onOpen={() => setSelectedItem(item)}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      <ConferenciaFilterModal
+        open={filterModalOpen}
+        showEquipeFilter={showEquipeFilter}
+        filtroEquipe={filtroEquipe}
+        filtroStatus={filtroStatus}
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        resultCount={visiveis.length}
+        onEquipeChange={setFiltroEquipe}
+        onStatusChange={setFiltroStatus}
+        onDataInicioChange={(value) => {
+          datasEditadasPeloUsuarioRef.current = true;
+          setDataInicio(value);
+        }}
+        onDataFimChange={(value) => {
+          datasEditadasPeloUsuarioRef.current = true;
+          setDataFim(value);
+        }}
+        onClear={limparFiltros}
+        onClose={() => setFilterModalOpen(false)}
+      />
+
+      {selectedItem && (
+        <ConferenciaDetailModal
+          item={selectedItem}
+          teamLabel={equipeLabelForCodigo(selectedItem.codigo, selectedItem.tipo)}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </section>
   );
 }

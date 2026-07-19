@@ -727,7 +727,7 @@ export default function MobileConferenciaPage() {
           <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[var(--neon)]/25 blur-2xl" />
           <p className="relative text-[10px] font-black uppercase tracking-[0.24em] text-[var(--neon)]">Operação</p>
           <h2 className="font-display relative mt-1 text-xl font-extrabold tracking-tight">
-            {isAdminLista ? "Inspeções (lista)" : "Inspeções"}
+            {isAdminLista ? "Checklist" : "Inspeções"}
           </h2>
           <p className="relative mt-1 text-xs font-medium text-slate-300">
             {extintores.length} extintores · {hidrantes.length} hidrantes

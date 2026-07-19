@@ -6,6 +6,9 @@ const EXTINTOR_EMBED_FULL =
 const EXTINTOR_EMBED_BASIC = "extintores(codigo,setor,local_detalhado,tipo,tamanho)";
 
 const CHECKLIST_EXT_ATTEMPTS = [
+  `id,extintor_id,data_conferencia,conferente,observacoes,answers_json,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,${EXTINTOR_EMBED_FULL}`,
+  `id,extintor_id,data_conferencia,conferente,observacoes,answers_json,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,${EXTINTOR_EMBED_BASIC}`,
+  `id,extintor_id,data_conferencia,conferente,observacoes,answers_json`,
   `id,extintor_id,data_conferencia,conferente,observacoes,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,${EXTINTOR_EMBED_FULL}`,
   `id,extintor_id,data_conferencia,conferente,observacoes,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,${EXTINTOR_EMBED_BASIC}`,
   `id,extintor_id,data_conferencia,conferente,observacoes,${EXTINTOR_EMBED_BASIC}`,
@@ -17,6 +20,9 @@ const HIDRANTE_EMBED_FULL =
 const HIDRANTE_EMBED_BASIC = "hidrantes(codigo,pavimento,local_detalhado)";
 
 const CHECKLIST_HID_ATTEMPTS = [
+  `id,hidrante_id,data_conferencia,conferente,observacoes,answers_json,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,${HIDRANTE_EMBED_FULL}`,
+  `id,hidrante_id,data_conferencia,conferente,observacoes,answers_json,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,${HIDRANTE_EMBED_BASIC}`,
+  `id,hidrante_id,data_conferencia,conferente,observacoes,answers_json`,
   `id,hidrante_id,data_conferencia,conferente,observacoes,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,${HIDRANTE_EMBED_FULL}`,
   `id,hidrante_id,data_conferencia,conferente,observacoes,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,${HIDRANTE_EMBED_BASIC}`,
   `id,hidrante_id,data_conferencia,conferente,observacoes,${HIDRANTE_EMBED_BASIC}`,
