@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 
 const EXTINTOR_EMBED_FULL =
-  "extintores(codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel,manutencao_3_nivel)";
+  "extintores(codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel)";
 const EXTINTOR_EMBED_BASIC = "extintores(codigo,setor,local_detalhado,tipo,tamanho)";
 
 const CHECKLIST_EXT_ATTEMPTS = [
@@ -36,6 +36,9 @@ export type ExtintorLookupRow = {
   local_detalhado: string;
   tipo: string;
   tamanho: string;
+  num_inmetro: string;
+  capacidade_extintora: string;
+  pavimento: string | null;
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
 };
@@ -99,6 +102,7 @@ async function loadExtintorLookup(
 ): Promise<Map<string, ExtintorLookupRow>> {
   const map = new Map<string, ExtintorLookupRow>();
   const selects = [
+    "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho",
@@ -129,6 +133,9 @@ async function loadExtintorLookup(
         local_detalhado: row.local_detalhado ?? "",
         tipo: row.tipo ?? "",
         tamanho: row.tamanho ?? "",
+        num_inmetro: row.num_inmetro ?? "",
+        capacidade_extintora: row.capacidade_extintora ?? "",
+        pavimento: row.pavimento ?? null,
         manutencao_2_nivel: row.manutencao_2_nivel ?? null,
         manutencao_3_nivel: row.manutencao_3_nivel ?? null,
       });
@@ -203,6 +210,10 @@ export function resolveExtintorFromRow(
       local_detalhado: embedded.local_detalhado ?? fromLookup?.local_detalhado ?? "",
       tipo: embedded.tipo ?? fromLookup?.tipo ?? "",
       tamanho: embedded.tamanho ?? fromLookup?.tamanho ?? "",
+      num_inmetro: embedded.num_inmetro ?? fromLookup?.num_inmetro ?? "",
+      capacidade_extintora:
+        embedded.capacidade_extintora ?? fromLookup?.capacidade_extintora ?? "",
+      pavimento: embedded.pavimento ?? fromLookup?.pavimento ?? null,
       manutencao_2_nivel: embedded.manutencao_2_nivel ?? fromLookup?.manutencao_2_nivel ?? null,
       manutencao_3_nivel: embedded.manutencao_3_nivel ?? fromLookup?.manutencao_3_nivel ?? null,
     };

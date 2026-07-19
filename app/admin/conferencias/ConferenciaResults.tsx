@@ -6,6 +6,8 @@ import {
   HIDRANTE_ITEM_LABELS,
 } from "@/lib/checklist/hidrante-types";
 import { CHECKLIST_ITEM_KEYS } from "@/lib/checklist/types";
+import type { ChecklistQuestion } from "@/lib/checklist/default-questions";
+import { parseChecklistValuesFromObservacoes } from "@/lib/checklist/parse-legacy-observacoes";
 import type { ConferenciaExportStatus } from "@/lib/export/conferencia-historico";
 import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 import {
@@ -25,6 +27,8 @@ export type ConferenciaItem = {
   local_detalhado: string;
   tipoEquip?: string;
   tamanho?: string;
+  numInmetro?: string;
+  capacidadeExtintora?: string;
   pavimento?: string;
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
@@ -89,25 +93,76 @@ function answerLabel(value: unknown): { text: string; className: string } {
   return { text: "Não informado", className: "bg-slate-100 text-slate-500" };
 }
 
-function getAnswerRows(item: ConferenciaItem) {
-  const raw = item.checklistRaw;
-  const keys = item.tipo === "extintor" ? CHECKLIST_ITEM_KEYS : HIDRANTE_ACTIVE_ITEM_KEYS;
-  const labels: Record<string, string> =
-    item.tipo === "extintor" ? CHECKLIST_EXPORT_COLUMN_LABELS : HIDRANTE_ITEM_LABELS;
-  const answers = new Map<string, unknown>();
+const EXTINTOR_SHORT_LABELS: Record<string, string> = {
+  ...CHECKLIST_EXPORT_COLUMN_LABELS,
+};
 
-  for (const key of keys) answers.set(key, raw[key]);
+const HIDRANTE_SHORT_LABELS: Record<string, string> = {
+  identificacao_sinalizacao: "Identificação e sinalização",
+  documentacao_acesso: "Validade dos testes hidrostáticos",
+  mangueira_esguicho: "Mangueiras e acessórios",
+  acesso_desobstruido: "Acesso desobstruído",
+  gabinete_caixa: "Abrigo / gabinete",
+  valvulas_registros: "Válvulas e registros",
+  pressao_abastecimento: "Pressão e abastecimento",
+  hidrante_integridade: "Integridade do hidrante",
+};
 
-  const extras = raw.answers_json;
-  if (extras && typeof extras === "object" && !Array.isArray(extras)) {
-    for (const [key, value] of Object.entries(extras)) answers.set(key, value);
+function configuredLabel(question: ChecklistQuestion, kind: TipoEquipamento): string {
+  const known =
+    kind === "extintor"
+      ? EXTINTOR_SHORT_LABELS[question.item_key]
+      : HIDRANTE_SHORT_LABELS[question.item_key];
+  if (known) return known;
+  const label = question.label.replace(/\?+$/, "").trim();
+  return label.length > 64 ? `${label.slice(0, 61).trimEnd()}…` : label;
+}
+
+function parseAnswersJson(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
   }
+  if (typeof value !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
-  return [...answers.entries()].map(([key, value]) => ({
-    key,
-    label: labels[key] ?? formatKey(key),
-    ...answerLabel(value),
+function getAnswerRows(item: ConferenciaItem, questions: ChecklistQuestion[]) {
+  const raw = item.checklistRaw;
+  const extras = parseAnswersJson(raw.answers_json);
+  const legacy =
+    item.tipo === "extintor"
+      ? parseChecklistValuesFromObservacoes(String(raw.observacoes ?? ""))
+      : {};
+  const fallbackQuestions = (
+    item.tipo === "extintor" ? CHECKLIST_ITEM_KEYS : HIDRANTE_ACTIVE_ITEM_KEYS
+  ).map((key, index) => ({
+    item_key: key,
+    label:
+      item.tipo === "extintor"
+        ? CHECKLIST_EXPORT_COLUMN_LABELS[key as keyof typeof CHECKLIST_EXPORT_COLUMN_LABELS]
+        : HIDRANTE_ITEM_LABELS[key as keyof typeof HIDRANTE_ITEM_LABELS],
+    active: true,
+    sort_order: index,
   }));
+  const visibleQuestions = questions.length > 0 ? questions : fallbackQuestions;
+
+  return visibleQuestions.map((question) => {
+    const key = question.item_key;
+    let value = extras[key] ?? raw[key] ?? legacy[key as keyof typeof legacy];
+    if (value == null && item.exportStatus === "conforme") value = "conforme";
+    return {
+      key,
+      label: configuredLabel(question, item.tipo) || formatKey(key),
+      ...answerLabel(value),
+    };
+  });
 }
 
 function localDescription(item: ConferenciaItem): string {
@@ -182,14 +237,16 @@ function DetailField({ label, value }: { label: string; value: string }) {
 export function ConferenciaDetailModal({
   item,
   teamLabel,
+  questions,
   onClose,
 }: {
   item: ConferenciaItem;
   teamLabel: string;
+  questions: ChecklistQuestion[];
   onClose: () => void;
 }) {
   const status = STATUS_META[item.exportStatus];
-  const answers = getAnswerRows(item);
+  const answers = getAnswerRows(item, questions);
 
   return (
     <div
@@ -231,15 +288,28 @@ export function ConferenciaDetailModal({
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {item.tipo === "extintor" ? (
                 <>
+                  <DetailField label="Código" value={item.codigo} />
+                  <DetailField label="Setor" value={item.setor} />
+                  <DetailField label="Local detalhado" value={item.local_detalhado} />
+                  <DetailField label="Pavimento" value={item.pavimento ?? "Não informado"} />
+                  <DetailField label="Nº INMETRO" value={item.numInmetro ?? "Não informado"} />
                   <DetailField label="Tipo / tamanho" value={[item.tipoEquip, item.tamanho].filter(Boolean).join(" · ")} />
+                  <DetailField label="Capacidade extintora" value={item.capacidadeExtintora ?? "Não informado"} />
                   <DetailField label="Manutenção 2º nível" value={formatDate(item.manutencao_2_nivel)} />
                   <DetailField label="Manutenção 3º nível" value={formatDate(item.manutencao_3_nivel)} />
                 </>
               ) : (
                 <>
+                  <DetailField label="Código" value={item.codigo} />
+                  <DetailField label="Pavimento" value={item.pavimento ?? "Não informado"} />
+                  <DetailField label="Local detalhado" value={item.local_detalhado} />
                   <DetailField label="Mangueiras" value={String(item.hidrante?.quantidade_mangueiras ?? "Não informado")} />
                   <DetailField label="Chaves Storz" value={String(item.hidrante?.quantidade_chaves_storz ?? "Não informado")} />
                   <DetailField label="Esguichos" value={String(item.hidrante?.quantidade_esguichos ?? "Não informado")} />
+                  <DetailField label="Teste hidrostático M-1" value={formatDate(item.hidrante?.teste_hidrostatico_m1)} />
+                  <DetailField label="Teste hidrostático M-2" value={formatDate(item.hidrante?.teste_hidrostatico_m2)} />
+                  <DetailField label="Teste hidrostático M-3" value={formatDate(item.hidrante?.teste_hidrostatico_m3)} />
+                  <DetailField label="Teste hidrostático M-4" value={formatDate(item.hidrante?.teste_hidrostatico_m4)} />
                 </>
               )}
             </div>

@@ -566,6 +566,19 @@ export default function MobileConferenciaPage() {
       finalError?.message?.includes("schema cache") ||
       finalError?.message?.includes("column")
     ) {
+      const payloadCompacto = {
+        extintor_id: selected.id,
+        base_id: activeBaseId,
+        data_conferencia: payloadNovo.data_conferencia,
+        conferente,
+        answers_json: answersJson,
+        observacoes: observacoesFinal || null,
+      };
+      const retryCompacto = await supabase.from("checklists").insert(payloadCompacto);
+      finalError = retryCompacto.error;
+    }
+
+    if (finalError?.message?.includes("answers_json")) {
       const observacoesLegado = buildObservacoesLegadoApenasNaoConformidades(observacoesFinal, checklist);
 
       const payloadLegado = {
@@ -685,6 +698,35 @@ export default function MobileConferenciaPage() {
       finalError = error;
     } else {
       finalError = { message: "offline" };
+    }
+
+    if (finalError?.message?.includes("schema cache") || finalError?.message?.includes("column")) {
+      const payloadCompacto = {
+        hidrante_id: selectedHidrante.id,
+        base_id: activeBaseId,
+        data_conferencia: payload.data_conferencia,
+        conferente,
+        answers_json: answersJson,
+        observacoes: observacoesFinal || null,
+      };
+      const retryCompacto = await supabase
+        .from("checklists_hidrantes")
+        .insert(payloadCompacto);
+      finalError = retryCompacto.error;
+    }
+
+    if (finalError?.message?.includes("answers_json")) {
+      const payloadLegado = {
+        hidrante_id: selectedHidrante.id,
+        base_id: activeBaseId,
+        data_conferencia: payload.data_conferencia,
+        conferente,
+        observacoes: observacoesFinal || null,
+      };
+      const retryLegado = await supabase
+        .from("checklists_hidrantes")
+        .insert(payloadLegado);
+      finalError = retryLegado.error;
     }
 
     setSaving(false);
