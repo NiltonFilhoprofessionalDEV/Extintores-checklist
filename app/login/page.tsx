@@ -76,131 +76,133 @@ export default function LoginPage() {
 
   if (checkingSession) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-medium text-slate-300">
+      <main className="flex min-h-screen items-center justify-center bg-[var(--forest)] text-sm font-medium text-emerald-100/70">
         Verificando sessão…
       </main>
     );
   }
 
   return (
-    <main className="relative flex min-h-screen w-full flex-col overflow-hidden bg-slate-950">
+    <main className="relative flex min-h-screen w-full flex-col overflow-hidden bg-[var(--forest)]">
       <div
-        className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-red-500/25 blur-3xl"
+        className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[var(--neon)]/25 blur-3xl"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute bottom-0 left-10 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl"
+        className="pointer-events-none absolute bottom-0 left-10 h-64 w-64 rounded-full bg-emerald-400/15 blur-3xl"
         aria-hidden
       />
 
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl flex-1 items-center gap-8 px-5 py-10 lg:grid-cols-[minmax(0,560px)_420px] lg:gap-12 lg:px-8">
-        <div className="hidden max-w-2xl lg:block">
-          <div className="mb-6 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.24em] text-red-200 ring-1 ring-white/10">
-            Segurança operacional
+        <div className="hidden max-w-2xl lg:block reveal-up">
+          <div className="mb-6 inline-flex rounded-full bg-[var(--neon)]/15 px-3 py-1 text-xs font-black uppercase tracking-[0.24em] text-[var(--neon)] ring-1 ring-[var(--neon)]/25">
+            FireCheck
           </div>
-          <h1 className="text-5xl font-black tracking-tight text-white">
-            Inspeções e conformidade em uma experiência moderna.
+          <h1 className="font-display text-5xl font-extrabold tracking-tight text-white">
+            Inspeções claras. Conformidade em campo.
           </h1>
-          <p className="mt-5 max-w-xl text-base font-medium leading-relaxed text-slate-300">
-            Controle de extintores, hidrantes, mapa técnico e histórico de conferências em um painel único.
+          <p className="mt-5 max-w-xl text-base font-medium leading-relaxed text-emerald-100/70">
+            Extintores, hidrantes, planta técnica e histórico de conferências — tudo no mesmo fluxo operacional.
           </p>
         </div>
 
-        <div className="flex w-full max-w-md flex-col lg:justify-self-start">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-5 flex justify-center px-6 py-4">
-            <BrandLogo height={56} priority className="object-center drop-shadow-lg" />
-          </div>
-          <p className="max-w-xs text-sm leading-relaxed text-slate-300">
-            Gestão de inspeções e conformidade em um só lugar.
-          </p>
-        </div>
-
-        <div className="rounded-3xl border border-white/70 bg-white p-6 text-center shadow-2xl shadow-slate-950/30">
-          <div className="mx-auto mb-6 max-w-sm text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#b42318]">Login seguro</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950">Acesso</h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">Entre com o e-mail e a senha fornecidos pelo administrador.</p>
+        <div className="flex w-full max-w-md flex-col reveal-up-delay lg:justify-self-start">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <div className="mb-5 flex justify-center px-6 py-4">
+              <BrandLogo height={56} priority className="object-center drop-shadow-lg" />
+            </div>
+            <p className="max-w-xs text-sm leading-relaxed text-emerald-100/65">
+              Entre para continuar as inspeções da sua base.
+            </p>
           </div>
 
-          <form className="mx-auto w-full max-w-sm space-y-5" onSubmit={handleLogin}>
-            <div className="space-y-2.5">
-              <label htmlFor="email" className="block text-center text-sm font-semibold text-slate-700">
-                E-mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                inputMode="email"
-                placeholder="nome@empresa.com"
-                className="field-control rounded-full px-5 py-3 text-center text-base"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+          <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 text-center shadow-2xl shadow-black/30">
+            <div className="mx-auto mb-6 max-w-sm text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest-soft)]">Acesso</p>
+              <h2 className="font-display mt-1 text-xl font-extrabold text-[var(--ink)]">Entrar</h2>
+              <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+                Use o e-mail e a senha fornecidos pelo administrador.
+              </p>
             </div>
 
-            <div className="space-y-2.5">
-              <label htmlFor="password" className="block text-center text-sm font-semibold text-slate-700">
-                Senha
-              </label>
-              <div className="relative">
+            <form className="mx-auto w-full max-w-sm space-y-5" onSubmit={handleLogin}>
+              <div className="space-y-2.5">
+                <label htmlFor="email" className="block text-center text-sm font-semibold text-slate-700">
+                  E-mail
+                </label>
                 <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
+                  id="email"
+                  type="email"
                   required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="field-control rounded-full px-5 py-3 pr-16 text-center text-base"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="nome@empresa.com"
+                  className="field-control rounded-full px-5 py-3 text-center text-base"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
-                <button
-                  type="button"
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                  aria-pressed={showPassword}
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="absolute right-2 top-1/2 inline-flex h-9 w-12 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#e02020]/30"
+              </div>
+
+              <div className="space-y-2.5">
+                <label htmlFor="password" className="block text-center text-sm font-semibold text-slate-700">
+                  Senha
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className="field-control rounded-full px-5 py-3 pr-16 text-center text-base"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute right-2 top-1/2 inline-flex h-9 w-12 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--neon)]/50"
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
+                        <path d="M9.88 5.09A10.73 10.73 0 0112 5c5 0 9 4.5 10 7a13.05 13.05 0 01-3.02 4.35" />
+                        <path d="M6.61 6.61A13.11 13.11 0 002 12c1 2.5 5 7 10 7a10.9 10.9 0 004.39-.91" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {message && (
+                <div
+                  role="alert"
+                  className="flex gap-2 rounded-xl border border-rose-100 bg-rose-50/90 px-4 py-3 text-sm text-rose-800"
                 >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M3 3l18 18" />
-                      <path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
-                      <path d="M9.88 5.09A10.73 10.73 0 0112 5c5 0 9 4.5 10 7a13.05 13.05 0 01-3.02 4.35" />
-                      <path d="M6.61 6.61A13.11 13.11 0 002 12c1 2.5 5 7 10 7a10.9 10.9 0 004.39-.91" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
+                  <span className="shrink-0 font-medium">Erro</span>
+                  <span>{message}</span>
+                </div>
+              )}
 
-            {message && (
-              <div
-                role="alert"
-                className="flex gap-2 rounded-xl border border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-800"
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary flex w-full rounded-full py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="shrink-0 font-medium">Erro</span>
-                <span>{message}</span>
-              </div>
-            )}
+                {loading ? "Entrando…" : "Entrar"}
+              </button>
+            </form>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary flex w-full rounded-full py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Entrando…" : "Entrar"}
-            </button>
-          </form>
-
-          <p className="mt-8 text-center text-xs text-slate-400">Versão 1.0.0</p>
-        </div>
+            <p className="mt-8 text-center text-xs text-slate-400">Versão 1.0.0</p>
+          </div>
         </div>
       </div>
     </main>

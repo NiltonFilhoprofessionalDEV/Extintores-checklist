@@ -185,13 +185,13 @@ function ExtintorManutencaoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30"
+        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -360,7 +360,7 @@ function AlertTable({
     <div className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
       <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderTop: `4px solid ${color}` }}>
         <div>
-          <h3 className="text-base font-black text-slate-950">{title}</h3>
+          <h3 className="text-base font-black text-[var(--ink)]">{title}</h3>
           <p className="text-xs font-medium text-slate-500">{subtitle}</p>
         </div>
         <button
@@ -670,7 +670,7 @@ export default function AdminDashboardPage() {
   if (!ready || !activeBaseId || loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
       </div>
     );
   }
@@ -678,18 +678,18 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="page-hero p-6">
-        <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
+      <div className="page-hero reveal-up p-6 sm:p-7">
+        <div className="page-hero-content flex flex-wrap items-end justify-between gap-5">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Painel operacional</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Painel operacional</p>
+            <h1 className="font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Dashboard</h1>
+            <p className="mt-2 max-w-2xl text-sm font-medium text-emerald-100/70">
               Visão consolidada de extintores, hidrantes, conferências mensais e manutenção programada.
             </p>
-            <p className="mt-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold capitalize text-white ring-1 ring-white/15">
-              Mês de referência: {mesLegenda}
-            </p>
           </div>
+          <p className="inline-flex rounded-full bg-[var(--neon)] px-3.5 py-1.5 text-xs font-extrabold capitalize text-[var(--neon-ink)] shadow-md shadow-black/20">
+            {mesLegenda}
+          </p>
         </div>
       </div>
 
@@ -711,7 +711,7 @@ export default function AdminDashboardPage() {
                 aria-pressed={active}
                 className={`rounded-full border px-4 py-2 text-sm font-bold transition-all ${
                   active
-                    ? "border-[#e02020] bg-[#e02020] text-white shadow-sm shadow-red-200"
+                    ? "border-[var(--neon)] bg-[var(--neon)] text-[var(--neon-ink)] shadow-sm shadow-[var(--neon)]/30"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                 }`}
               >
@@ -724,8 +724,8 @@ export default function AdminDashboardPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#b42318]">Extintores</p>
-          <h2 className="text-xl font-black text-slate-950">Vencimento de manutenção</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Extintores</p>
+          <h2 className="text-xl font-black text-[var(--ink)]">Vencimento de manutenção</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">
           Manutenção de 2º e 3º nível conforme datas cadastradas no extintor.
@@ -797,8 +797,8 @@ export default function AdminDashboardPage() {
       <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#b42318]">Auditoria mensal</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950">Conferência no mês</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Auditoria mensal</p>
+            <h2 className="mt-1 text-xl font-black text-[var(--ink)]">Conferência no mês</h2>
           </div>
           <p className="max-w-xl text-xs font-medium text-slate-500">
             Última conferência registrada no mês. Vencidos (manutenção ou mangueira) entram em não conforme.
@@ -808,7 +808,7 @@ export default function AdminDashboardPage() {
         <div className="grid gap-5 p-5 lg:grid-cols-2">
           <div className="space-y-4 rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-950">Extintores</h3>
+              <h3 className="text-base font-black text-[var(--ink)]">Extintores</h3>
               <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700">
                 {extintorConferenciaMes.total} itens
               </span>
@@ -851,7 +851,7 @@ export default function AdminDashboardPage() {
 
           <div className="space-y-4 rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-950">Hidrantes</h3>
+              <h3 className="text-base font-black text-[var(--ink)]">Hidrantes</h3>
               <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-orange-700">
                 {hidranteConferenciaMes.total} itens
               </span>
@@ -898,8 +898,8 @@ export default function AdminDashboardPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#b42318]">Planejamento</p>
-          <h2 className="text-xl font-black text-slate-950">Manutenção programada</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Planejamento</p>
+          <h2 className="text-xl font-black text-[var(--ink)]">Manutenção programada</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">Extintores por vencimento de manutenção (2º e 3º nível).</p>
       </div>
@@ -909,7 +909,7 @@ export default function AdminDashboardPage() {
         <div className="overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-sm shadow-slate-200/70">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-black text-slate-950">Distribuição de manutenção</p>
+              <p className="text-sm font-black text-[var(--ink)]">Distribuição de manutenção</p>
               <p className="text-xs font-medium text-slate-500">Percentual dos extintores por faixa de vencimento.</p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">

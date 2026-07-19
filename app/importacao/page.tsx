@@ -196,7 +196,7 @@ export default function ImportacaoPage() {
       <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-8">
         <header className="page-hero p-6">
           <div className="page-hero-content">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">RF01 - Importação de Dados</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">RF01 - Importação de Dados</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Importar planilha</h1>
           <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
             <strong>Extintores:</strong> modelo RF01 com colunas de extintores.{" "}
@@ -207,12 +207,12 @@ export default function ImportacaoPage() {
         </header>
 
         <section className="section-card p-6">
-          <p className="mb-2 text-sm font-black text-slate-950">Destino da importação</p>
+          <p className="mb-2 text-sm font-black text-[var(--ink)]">Destino da importação</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                destino === "extintores" ? "brand-gradient text-white shadow-lg shadow-red-100" : "border border-slate-200 bg-slate-50 text-slate-700"
+                destino === "extintores" ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25" : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => {
                 setDestino("extintores");
@@ -227,7 +227,7 @@ export default function ImportacaoPage() {
             <button
               type="button"
               className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                destino === "hidrantes" ? "brand-gradient text-white shadow-lg shadow-red-100" : "border border-slate-200 bg-slate-50 text-slate-700"
+                destino === "hidrantes" ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25" : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => {
                 setDestino("hidrantes");
@@ -243,13 +243,13 @@ export default function ImportacaoPage() {
         </section>
 
         <section className="section-card p-6">
-          <p className="mb-2 text-sm font-black text-slate-950">Modo de importação</p>
+          <p className="mb-2 text-sm font-black text-[var(--ink)]">Modo de importação</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className={`rounded-2xl px-4 py-2 text-sm font-bold ${
                 modo === "cadastro"
-                  ? "brand-gradient text-white shadow-lg shadow-red-100"
+                  ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25"
                   : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => setModo("cadastro")}
@@ -260,7 +260,7 @@ export default function ImportacaoPage() {
               type="button"
               className={`rounded-2xl px-4 py-2 text-sm font-bold ${
                 modo === "atualizacao"
-                  ? "brand-gradient text-white shadow-lg shadow-red-100"
+                  ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25"
                   : "border border-slate-200 bg-slate-50 text-slate-700"
               }`}
               onClick={() => setModo("atualizacao")}
@@ -340,7 +340,7 @@ export default function ImportacaoPage() {
         </section>
 
         <section className="section-card p-6">
-          <h2 className="text-lg font-black text-slate-950">Pré-visualização ({readyCount})</h2>
+          <h2 className="text-lg font-black text-[var(--ink)]">Pré-visualização ({readyCount})</h2>
           <div className="mt-4 overflow-x-auto">
             {destino === "extintores" ? (
               <table className="modern-table min-w-[900px]">

@@ -293,7 +293,7 @@ export default function AdminUsuariosPage() {
     <section className="space-y-5">
       <div className="page-hero p-6">
         <div className="page-hero-content">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Acesso e governança</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Acesso e governança</p>
           <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Usuários e Permissões</h2>
           <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
             {isLeadership
@@ -304,7 +304,7 @@ export default function AdminUsuariosPage() {
       </div>
 
       <form onSubmit={handleCreateUser} className="section-card p-5">
-        <h3 className="mb-3 text-lg font-black text-slate-950">Novo usuário</h3>
+        <h3 className="mb-3 text-lg font-black text-[var(--ink)]">Novo usuário</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <input
             type="text"
@@ -465,7 +465,7 @@ export default function AdminUsuariosPage() {
       )}
 
       <div className="section-card p-5">
-        <h3 className="mb-4 text-lg font-black text-slate-950">Usuários cadastrados</h3>
+        <h3 className="mb-4 text-lg font-black text-[var(--ink)]">Usuários cadastrados</h3>
         {loading ? (
           <p className="text-sm text-slate-500">Carregando...</p>
         ) : users.length === 0 ? (
@@ -480,7 +480,7 @@ export default function AdminUsuariosPage() {
                   className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
                 >
                   <div>
-                    <p className="font-bold text-slate-950">{user.nome}</p>
+                    <p className="font-bold text-[var(--ink)]">{user.nome}</p>
                     <p className="text-xs text-slate-500">
                       {ROLE_LABELS[user.role]}
                       {user.team ? ` · Equipe ${TEAM_LABELS[user.team]}` : " · Sem equipe"}
@@ -528,12 +528,12 @@ export default function AdminUsuariosPage() {
       </div>
 
       {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <form
             onSubmit={handleSaveEdit}
-            className="section-card w-full max-w-md space-y-3 p-5 shadow-2xl shadow-slate-950/30"
+            className="section-card w-full max-w-md space-y-3 p-5 shadow-2xl shadow-[var(--forest)]/30"
           >
-            <h3 className="text-lg font-black text-slate-950">Editar usuário</h3>
+            <h3 className="text-lg font-black text-[var(--ink)]">Editar usuário</h3>
             <input
               type="text"
               required
@@ -710,9 +710,9 @@ export default function AdminUsuariosPage() {
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="section-card w-full max-w-sm space-y-4 p-5 shadow-2xl shadow-slate-950/30">
-            <h3 className="text-lg font-black text-slate-950">Excluir usuário</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="section-card w-full max-w-sm space-y-4 p-5 shadow-2xl shadow-[var(--forest)]/30">
+            <h3 className="text-lg font-black text-[var(--ink)]">Excluir usuário</h3>
             <p className="text-sm text-slate-600">
               Tem certeza que deseja excluir <strong>{deleteTarget.nome}</strong>? Esta ação não
               pode ser desfeita.

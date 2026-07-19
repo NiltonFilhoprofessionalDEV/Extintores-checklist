@@ -101,14 +101,13 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
 
   return (
     <>
-      {/* Top header — escuro, coerente com a tela de login */}
-      <header className="sticky top-0 z-40 flex shrink-0 items-center justify-between bg-slate-950 px-4 py-3 shadow-lg shadow-slate-950/20">
+      <header className="sticky top-0 z-40 flex shrink-0 items-center justify-between bg-[var(--forest)] px-4 py-3 shadow-lg shadow-[var(--forest)]/30">
         <div className="px-2.5 py-1.5">
           <BrandLogo height={26} className="drop-shadow-md" />
         </div>
         <div className="flex items-center gap-2">
           <div
-            className="grid h-9 min-w-9 place-items-center rounded-xl border border-white/10 bg-white/10 px-2 text-xs font-black tracking-tight text-white shadow-inner shadow-black/20"
+            className="grid h-9 min-w-9 place-items-center rounded-full bg-[var(--neon)] px-2 text-xs font-black tracking-tight text-[var(--neon-ink)] shadow-inner"
             aria-label={`Usuário logado: ${userInitials}`}
           >
             {userInitials}
@@ -117,7 +116,7 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
             <button
               type="button"
               onClick={handleBackFromMap}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:border-white/20 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-emerald-50 transition hover:border-white/20 hover:text-white"
             >
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -128,26 +127,21 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
         </div>
       </header>
 
-      {/* Bottom navigation — só aparece fora do mapa */}
       {!isMapaRoute && (
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/70 bg-white/90 backdrop-blur-xl"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", boxShadow: "0 -10px 30px -24px rgb(15 23 42 / 0.45)" }}
-        >
-          <div className="mx-auto flex max-w-lg items-center justify-around px-2">
+        <nav className="mobile-dock" aria-label="Navegação principal">
+          <div className="flex items-center justify-around px-2 py-2">
             {NAV_LINKS.map(({ href, label, icon }) => {
               const active = isActive(href);
               return (
                 <Link
                   key={href}
                   href={href}
-                  className={`relative flex flex-col items-center gap-1 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
-                    active ? "text-[#e02020]" : "text-slate-400"
+                  className={`relative flex min-w-[4.5rem] flex-col items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                    active
+                      ? "bg-[var(--neon)] text-[var(--neon-ink)] shadow-md shadow-black/20"
+                      : "text-emerald-100/55 hover:text-white"
                   }`}
                 >
-                  {active && (
-                    <span className="brand-gradient absolute top-1 left-1/2 h-1 w-8 -translate-x-1/2 rounded-full" />
-                  )}
                   {icon(active)}
                   {label}
                 </Link>
@@ -176,7 +170,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             className={
               isMapaRoute
                 ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
-                : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-24"
+                : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-28"
             }
             style={isMapaRoute ? { flex: "1 1 0", minHeight: 0 } : { flex: "1 1 auto" }}
           >
