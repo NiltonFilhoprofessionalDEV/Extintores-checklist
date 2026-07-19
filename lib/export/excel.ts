@@ -131,7 +131,7 @@ function formatDateTime(value: string | null): string {
 }
 
 /** Ordem crescente por código (ex.: EXT-2 antes de EXT-10). */
-function compareCodigo(a: string, b: string): number {
+export function compareCodigo(a: string, b: string): number {
   return a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
 }
 
@@ -733,7 +733,7 @@ export function exportConferenciasHistorico(
   const extSorted = [...extintores].sort(
     (a, b) =>
       compareCodigo(a.codigo, b.codigo) ||
-      new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+      new Date(a.data_conferencia).getTime() - new Date(b.data_conferencia).getTime(),
   );
   const extStatuses: ConferenciaExportStatus[] = [];
   const extRows = extSorted.map((r) => {
@@ -763,7 +763,7 @@ export function exportConferenciasHistorico(
   const hidSorted = [...hidrantes].sort(
     (a, b) =>
       compareCodigo(a.codigo, b.codigo) ||
-      new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+      new Date(a.data_conferencia).getTime() - new Date(b.data_conferencia).getTime(),
   );
   const hidStatuses: ConferenciaExportStatus[] = [];
   const hidRows = hidSorted.map((r) => {

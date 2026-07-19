@@ -5,6 +5,7 @@ import type {
   HidranteInventarioCompletoRow,
   HidranteVencimentoExportRow,
 } from "@/lib/export/excel";
+import { compareCodigo } from "@/lib/export/excel";
 import {
   resolveExtintorConferenciaExport,
   resolveHidranteConferenciaExport,
@@ -24,6 +25,14 @@ function formatDate(value: string | null | undefined): string {
 function formatDateTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("pt-BR");
+}
+
+function sortConferencias<T extends { codigo: string; data_conferencia: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      compareCodigo(a.codigo, b.codigo) ||
+      new Date(a.data_conferencia).getTime() - new Date(b.data_conferencia).getTime(),
+  );
 }
 
 function extintorInventoryRows(items: ExtintorRow[]): PdfRow[] {
@@ -88,7 +97,7 @@ export function exportAlertasHidrantesPdf(
 }
 
 function conferenciaExtintorRows(items: ConferenciaHistoricoExtintorRow[]): PdfRow[] {
-  return items.map((item) => {
+  return sortConferencias(items).map((item) => {
     const resolved = resolveExtintorConferenciaExport(
       item.checklistRaw,
       item.manutencao_2_nivel,
@@ -110,7 +119,7 @@ function conferenciaExtintorRows(items: ConferenciaHistoricoExtintorRow[]): PdfR
 }
 
 function conferenciaHidranteRows(items: ConferenciaHistoricoHidranteRow[]): PdfRow[] {
-  return items.map((item) => {
+  return sortConferencias(items).map((item) => {
     const resolved = resolveHidranteConferenciaExport(item.checklistRaw, item.hidrante);
     return {
       Código: item.codigo,
