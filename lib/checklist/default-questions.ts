@@ -52,3 +52,30 @@ export function defaultHidranteQuestions(): ChecklistQuestion[] {
 export function defaultQuestionsForKind(kind: ChecklistKind): ChecklistQuestion[] {
   return kind === "extintor" ? defaultExtintorQuestions() : defaultHidranteQuestions();
 }
+
+export function slugifyQuestionKey(label: string): string {
+  const base = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return base || `campo_${Date.now().toString(36)}`;
+}
+
+export function makeUniqueQuestionKey(label: string, existing: Iterable<string>): string {
+  const taken = new Set(existing);
+  let key = slugifyQuestionKey(label);
+  if (!key.startsWith("custom_") && !taken.has(key)) {
+    // Mantém keys nativas se o usuário recriar o padrão; senão prefixa custom_.
+  }
+  if (taken.has(key)) {
+    key = `custom_${key}`;
+  }
+  if (!taken.has(key)) return key;
+  let i = 2;
+  while (taken.has(`${key}_${i}`)) i += 1;
+  return `${key}_${i}`;
+}

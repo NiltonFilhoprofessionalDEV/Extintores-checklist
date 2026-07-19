@@ -49,7 +49,8 @@ export type HidranteChecklistData = {
   hidrante_integridade: ChecklistValue | null;
   documentacao_acesso: ChecklistValue | null;
   observacoes: string;
-  detalhesNaoConformidade: Partial<Record<HidranteItemKey, string>>;
+  detalhesNaoConformidade: Partial<Record<string, string>>;
+  extraAnswers: Record<string, ChecklistValue | null>;
 };
 
 export const HIDRANTE_CHECKLIST_INITIAL: HidranteChecklistData = {
@@ -64,26 +65,55 @@ export const HIDRANTE_CHECKLIST_INITIAL: HidranteChecklistData = {
   documentacao_acesso: null,
   observacoes: "",
   detalhesNaoConformidade: {},
+  extraAnswers: {},
 };
 
-export function mergeHidranteObservacoes(data: HidranteChecklistData): string {
+export function isBuiltinHidranteItemKey(key: string): key is HidranteItemKey {
+  return (HIDRANTE_ITEM_KEYS as readonly string[]).includes(key);
+}
+
+export function getHidranteAnswer(
+  data: HidranteChecklistData,
+  key: string,
+): ChecklistValue | null {
+  if (isBuiltinHidranteItemKey(key)) return data[key];
+  return data.extraAnswers?.[key] ?? null;
+}
+
+export function mergeHidranteObservacoes(
+  data: HidranteChecklistData,
+  fieldLabels?: Record<string, string>,
+): string {
   const blocos: string[] = [];
   if (data.observacoes.trim()) blocos.push(data.observacoes.trim());
 
-  for (const key of HIDRANTE_ACTIVE_ITEM_KEYS) {
-    if (data[key] !== "nao_conforme") continue;
+  const keys = new Set<string>([
+    ...HIDRANTE_ACTIVE_ITEM_KEYS,
+    ...Object.keys(data.extraAnswers ?? {}),
+    ...Object.keys(data.detalhesNaoConformidade ?? {}),
+  ]);
+
+  for (const key of keys) {
+    const value = getHidranteAnswer(data, key);
+    if (value !== "nao_conforme") continue;
     const det = (data.detalhesNaoConformidade[key] ?? "").trim();
-    if (det) blocos.push(`[Não conforme — ${HIDRANTE_ITEM_LABELS[key]}]\n${det}`);
+    if (!det) continue;
+    const label =
+      fieldLabels?.[key] ??
+      (isBuiltinHidranteItemKey(key) ? HIDRANTE_ITEM_LABELS[key] : key);
+    blocos.push(`[Não conforme — ${label}]\n${det}`);
   }
 
   return blocos.join("\n\n---\n\n") || "";
 }
 
-export function isHidranteChecklistValid(d: HidranteChecklistData): boolean {
+export function isHidranteChecklistValid(d: HidranteChecklistData, fieldKeys?: string[]): boolean {
   if (!d.conferente.trim()) return false;
-  for (const key of HIDRANTE_ACTIVE_ITEM_KEYS) {
-    if (d[key] === null) return false;
-    if (d[key] === "nao_conforme") {
+  const keys = fieldKeys?.length ? fieldKeys : [...HIDRANTE_ACTIVE_ITEM_KEYS];
+  for (const key of keys) {
+    const value = getHidranteAnswer(d, key);
+    if (value === null) return false;
+    if (value === "nao_conforme") {
       const det = (d.detalhesNaoConformidade[key] ?? "").trim();
       if (!det) return false;
     }
@@ -91,6 +121,25 @@ export function isHidranteChecklistValid(d: HidranteChecklistData): boolean {
   return true;
 }
 
-export function hidranteChecklistTemNaoConformidade(row: Record<string, string | null>): boolean {
-  return HIDRANTE_ITEM_KEYS.some((k) => row[k] === "nao_conforme");
+export function buildHidranteAnswersJson(
+  data: HidranteChecklistData,
+  fieldKeys?: string[],
+): Record<string, ChecklistValue | null> {
+  const keys = fieldKeys?.length
+    ? fieldKeys
+    : [...HIDRANTE_ACTIVE_ITEM_KEYS, ...Object.keys(data.extraAnswers ?? {})];
+  const out: Record<string, ChecklistValue | null> = {};
+  for (const key of keys) {
+    out[key] = getHidranteAnswer(data, key);
+  }
+  return out;
+}
+
+export function hidranteChecklistTemNaoConformidade(
+  row: Record<string, string | null> & { answers_json?: Record<string, string | null> | null },
+): boolean {
+  if (HIDRANTE_ITEM_KEYS.some((k) => row[k] === "nao_conforme")) return true;
+  const extras = row.answers_json;
+  if (!extras || typeof extras !== "object") return false;
+  return Object.values(extras).some((value) => value === "nao_conforme");
 }

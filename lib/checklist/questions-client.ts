@@ -22,18 +22,14 @@ export async function fetchChecklistQuestionsForBase(
 
   if (error || !data || data.length === 0) return defaults;
 
-  const byKey = new Map(data.map((row) => [String(row.item_key), row]));
-  return defaults
-    .map((fallback, index) => {
-      const row = byKey.get(fallback.item_key);
-      if (!row) return { ...fallback, sort_order: index };
-      return {
-        item_key: fallback.item_key,
-        label: String(row.label || fallback.label),
-        active: row.active !== false,
-        sort_order: Number(row.sort_order ?? index),
-      };
-    })
+  // Base já customizou: a lista do banco é a fonte da verdade (inclui campos novos).
+  return data
+    .map((row, index) => ({
+      item_key: String(row.item_key),
+      label: String(row.label || "").trim() || `Pergunta ${index + 1}`,
+      active: row.active !== false,
+      sort_order: Number(row.sort_order ?? index),
+    }))
     .filter((q) => q.active)
     .sort((a, b) => a.sort_order - b.sort_order);
 }

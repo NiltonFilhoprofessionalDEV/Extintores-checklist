@@ -84,7 +84,7 @@ export async function createBaseWithAdmin(
 
   const baseId = String(base.id);
 
-  // Mapas/setores são cadastrados depois em /admin/mapas-setores (com upload da planta).
+  // Mapas/setores são cadastrados depois em /admin/configuracoes (com upload da planta).
 
   // Corporativo criador ganha acesso à nova base
   const { error: membershipSelfError } = await supabaseAdmin.from("base_memberships").upsert(

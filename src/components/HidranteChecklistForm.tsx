@@ -5,6 +5,8 @@ import type { HidranteChecklistData, HidranteItemKey } from "@/lib/checklist/hid
 import {
   HIDRANTE_ACTIVE_ITEM_KEYS,
   HIDRANTE_ITEM_LABELS,
+  getHidranteAnswer,
+  isBuiltinHidranteItemKey,
   isHidranteChecklistValid,
 } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
@@ -17,12 +19,10 @@ const OPTIONS: OptionDef[] = [
   { value: "nao_aplica", label: "N/A", color: "#4b5563", bg: "#f3f4f6", ring: "#9ca3af" },
 ];
 
-const DEFAULT_FIELDS: { key: HidranteItemKey; label: string }[] = HIDRANTE_ACTIVE_ITEM_KEYS.map(
-  (key) => ({
-    key,
-    label: HIDRANTE_ITEM_LABELS[key],
-  }),
-);
+const DEFAULT_FIELDS: { key: string; label: string }[] = HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => ({
+  key,
+  label: HIDRANTE_ITEM_LABELS[key],
+}));
 
 function ToggleField({
   label,
@@ -144,8 +144,8 @@ type Props = {
   isSaving: boolean;
   /** Dados cadastrais do hidrante (planilha / banco). */
   hidrante: Partial<HidranteImportRow> & { codigo: string };
-  /** Perguntas customizadas por base (labels). */
-  fields?: { key: HidranteItemKey; label: string }[];
+  /** Perguntas da base (podem incluir campos customizados). */
+  fields?: { key: string; label: string }[];
 };
 
 export default function HidranteChecklistForm({
@@ -157,11 +157,20 @@ export default function HidranteChecklistForm({
   hidrante,
   fields = DEFAULT_FIELDS,
 }: Props) {
-  const valid = isHidranteChecklistValid(data);
   const resolvedFields = fields.length > 0 ? fields : DEFAULT_FIELDS;
+  const fieldKeys = resolvedFields.map((field) => field.key);
+  const valid = isHidranteChecklistValid(data, fieldKeys);
 
-  function setField(key: HidranteItemKey, value: ChecklistValue) {
-    const next = { ...data, [key]: value };
+  function setField(key: string, value: ChecklistValue) {
+    let next: HidranteChecklistData;
+    if (isBuiltinHidranteItemKey(key)) {
+      next = { ...data, [key]: value };
+    } else {
+      next = {
+        ...data,
+        extraAnswers: { ...data.extraAnswers, [key]: value },
+      };
+    }
     if (value !== "nao_conforme") {
       const nextNc = { ...next.detalhesNaoConformidade };
       delete nextNc[key];
@@ -170,7 +179,7 @@ export default function HidranteChecklistForm({
     onChange(next);
   }
 
-  function setDetalheNc(key: HidranteItemKey, text: string) {
+  function setDetalheNc(key: string, text: string) {
     onChange({
       ...data,
       detalhesNaoConformidade: { ...data.detalhesNaoConformidade, [key]: text },
@@ -259,7 +268,7 @@ export default function HidranteChecklistForm({
             key={field.key}
             index={i + 1}
             label={field.label}
-            value={data[field.key]}
+            value={getHidranteAnswer(data, field.key)}
             onChange={(v) => setField(field.key, v)}
             detalheNc={data.detalhesNaoConformidade[field.key] ?? ""}
             onDetalheNcChange={(text) => setDetalheNc(field.key, text)}

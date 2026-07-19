@@ -28,7 +28,9 @@ export type ChecklistData = {
   cilindro_status: ChecklistValue | null;
   observacoes: string;
   /** Texto obrigatório quando o item correspondente está "Não conforme" */
-  detalhesNaoConformidade: Partial<Record<ChecklistItemKey, string>>;
+  detalhesNaoConformidade: Partial<Record<string, string>>;
+  /** Respostas de campos customizados (além das colunas fixas). */
+  extraAnswers: Record<string, ChecklistValue | null>;
 };
 
 export const CHECKLIST_INITIAL: ChecklistData = {
@@ -43,7 +45,20 @@ export const CHECKLIST_INITIAL: ChecklistData = {
   cilindro_status: null,
   observacoes: "",
   detalhesNaoConformidade: {},
+  extraAnswers: {},
 };
+
+export function isBuiltinChecklistItemKey(key: string): key is ChecklistItemKey {
+  return (CHECKLIST_ITEM_KEYS as readonly string[]).includes(key);
+}
+
+export function getChecklistAnswer(
+  data: ChecklistData,
+  key: string,
+): ChecklistValue | null {
+  if (isBuiltinChecklistItemKey(key)) return data[key];
+  return data.extraAnswers?.[key] ?? null;
+}
 
 /** Metadados do extintor exibidos no topo do modal de inspeção */
 export type InspecaoExtintorCabecalho = {
@@ -107,38 +122,54 @@ export function isTesteHidrostaticoVencido(ultimaRealizacao: string | null): boo
   return dias !== null && dias < 0;
 }
 
+const DEFAULT_NC_LABELS: Record<ChecklistItemKey, string> = {
+  local_correto: "Localização",
+  dados_corretos: "Identificação e Rotulagem",
+  sinalizacao_correta: "Sinalização",
+  mangueira_status: "Mangueira",
+  bico_difusor_status: "Bico/Difusor",
+  alca_gatilho_status: "Componentes de Acionamento",
+  medidor_pressao_status: "Indicador de Pressão",
+  cilindro_status: "Cilindro",
+};
+
 /** Junta observações gerais com descrições obrigatórias de não conformidade */
-export function mergeObservacoesComNaoConformidades(data: ChecklistData): string {
+export function mergeObservacoesComNaoConformidades(
+  data: ChecklistData,
+  fieldLabels?: Record<string, string>,
+): string {
   const blocos: string[] = [];
   if (data.observacoes.trim()) blocos.push(data.observacoes.trim());
 
-  const rotulos: Record<ChecklistItemKey, string> = {
-    local_correto: "Localização",
-    dados_corretos: "Identificação e Rotulagem",
-    sinalizacao_correta: "Sinalização",
-    mangueira_status: "Mangueira",
-    bico_difusor_status: "Bico/Difusor",
-    alca_gatilho_status: "Componentes de Acionamento",
-    medidor_pressao_status: "Indicador de Pressão",
-    cilindro_status: "Cilindro",
-  };
+  const keys = new Set<string>([
+    ...CHECKLIST_ITEM_KEYS,
+    ...Object.keys(data.extraAnswers ?? {}),
+    ...Object.keys(data.detalhesNaoConformidade ?? {}),
+  ]);
 
-  for (const key of CHECKLIST_ITEM_KEYS) {
-    if (data[key] !== "nao_conforme") continue;
+  for (const key of keys) {
+    const value = getChecklistAnswer(data, key);
+    if (value !== "nao_conforme") continue;
     const det = (data.detalhesNaoConformidade[key] ?? "").trim();
-    if (det) blocos.push(`[Não conforme — ${rotulos[key]}]\n${det}`);
+    if (!det) continue;
+    const label =
+      fieldLabels?.[key] ??
+      (isBuiltinChecklistItemKey(key) ? DEFAULT_NC_LABELS[key] : key);
+    blocos.push(`[Não conforme — ${label}]\n${det}`);
   }
 
   return blocos.join("\n\n---\n\n") || "";
 }
 
 /** Retorna true se todos os itens obrigatórios estão respondidos e NC com texto quando aplicável */
-export function isChecklistValid(d: ChecklistData): boolean {
+export function isChecklistValid(d: ChecklistData, fieldKeys?: string[]): boolean {
   if (!d.conferente.trim()) return false;
 
-  for (const key of CHECKLIST_ITEM_KEYS) {
-    if (d[key] === null) return false;
-    if (d[key] === "nao_conforme") {
+  const keys = fieldKeys?.length ? fieldKeys : [...CHECKLIST_ITEM_KEYS];
+  for (const key of keys) {
+    const value = getChecklistAnswer(d, key);
+    if (value === null) return false;
+    if (value === "nao_conforme") {
       const det = (d.detalhesNaoConformidade[key] ?? "").trim();
       if (!det) return false;
     }
@@ -147,16 +178,29 @@ export function isChecklistValid(d: ChecklistData): boolean {
   return true;
 }
 
+export function buildChecklistAnswersJson(data: ChecklistData, fieldKeys?: string[]): Record<string, ChecklistValue | null> {
+  const keys = fieldKeys?.length ? fieldKeys : [...CHECKLIST_ITEM_KEYS, ...Object.keys(data.extraAnswers ?? {})];
+  const out: Record<string, ChecklistValue | null> = {};
+  for (const key of keys) {
+    out[key] = getChecklistAnswer(data, key);
+  }
+  return out;
+}
+
 /** Último registro de checklist no mês indica se houve algum item não conforme */
 export function checklistTemNaoConformidade(row: {
-  local_correto: string | null;
-  dados_corretos: string | null;
-  sinalizacao_correta: string | null;
-  mangueira_status: string | null;
-  bico_difusor_status: string | null;
-  alca_gatilho_status: string | null;
-  medidor_pressao_status: string | null;
-  cilindro_status: string | null;
+  local_correto?: string | null;
+  dados_corretos?: string | null;
+  sinalizacao_correta?: string | null;
+  mangueira_status?: string | null;
+  bico_difusor_status?: string | null;
+  alca_gatilho_status?: string | null;
+  medidor_pressao_status?: string | null;
+  cilindro_status?: string | null;
+  answers_json?: Record<string, string | null> | null;
 }): boolean {
-  return CHECKLIST_ITEM_KEYS.some((k) => row[k] === "nao_conforme");
+  if (CHECKLIST_ITEM_KEYS.some((k) => row[k] === "nao_conforme")) return true;
+  const extras = row.answers_json;
+  if (!extras || typeof extras !== "object") return false;
+  return Object.values(extras).some((value) => value === "nao_conforme");
 }

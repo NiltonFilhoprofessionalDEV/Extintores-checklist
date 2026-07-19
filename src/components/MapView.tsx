@@ -42,13 +42,13 @@ import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
+  buildChecklistAnswersJson,
   mergeObservacoesComNaoConformidades,
   checklistTemNaoConformidade,
   isDataVencida,
   type ChecklistData,
-  type ChecklistItemKey,
 } from "@/lib/checklist/types";
-import type { HidranteItemKey } from "@/lib/checklist/hidrante-types";
+import { buildHidranteAnswersJson } from "@/lib/checklist/hidrante-types";
 import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
 import {
   HIDRANTE_CHECKLIST_INITIAL,
@@ -235,6 +235,9 @@ function itemMatchesFloor(
 }
 
 function hasMapCoordinates(coord_x: unknown, coord_y: unknown) {
+  // Importante: Number(null) === 0 — não tratar null como coordenada válida.
+  if (coord_x == null || coord_y == null) return false;
+  if (coord_x === "" || coord_y === "") return false;
   const x = Number(coord_x);
   const y = Number(coord_y);
   return Number.isFinite(x) && Number.isFinite(y);
@@ -575,10 +578,10 @@ export default function MapView() {
   const [selectedMarker, setSelectedMarker] = useState<Extintor | null>(null);
   const [checklistForm, setChecklistForm] = useState<ChecklistState>(INITIAL_CHECKLIST);
   const [extintorChecklistFields, setExtintorChecklistFields] = useState<
-    { key: ChecklistItemKey; label: string }[]
+    { key: string; label: string }[]
   >([]);
   const [hidranteChecklistFields, setHidranteChecklistFields] = useState<
-    { key: HidranteItemKey; label: string }[]
+    { key: string; label: string }[]
   >([]);
   const [savingChecklist, setSavingChecklist] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
@@ -754,13 +757,13 @@ export default function MapView() {
       if (cancelled) return;
       setExtintorChecklistFields(
         extRows.map((row) => ({
-          key: row.item_key as ChecklistItemKey,
+          key: row.item_key,
           label: row.label,
         })),
       );
       setHidranteChecklistFields(
         hidRows.map((row) => ({
-          key: row.item_key as HidranteItemKey,
+          key: row.item_key,
           label: row.label,
         })),
       );
@@ -1124,17 +1127,34 @@ export default function MapView() {
     setSavingPosition(true);
     setMessage("");
 
-    const { error } = await supabase
+    let query = supabase
       .from("extintores")
       .update({ coord_x: null, coord_y: null, pavimento: null })
       .eq("id", extintor.id);
+    if (activeBaseId) query = query.eq("base_id", activeBaseId);
+
+    const { data, error } = await query.select("id,coord_x,coord_y").maybeSingle();
 
     if (error) {
       setMessage(`Erro ao remover posição: ${error.message}`);
       setSavingPosition(false);
       return;
     }
+    if (!data || hasMapCoordinates(data.coord_x, data.coord_y)) {
+      setMessage(
+        "Não foi possível remover o marcador (sem permissão ou o registro não foi atualizado).",
+      );
+      setSavingPosition(false);
+      return;
+    }
 
+    setExtintores((prev) =>
+      prev.map((item) =>
+        item.id === extintor.id
+          ? { ...item, coord_x: null, coord_y: null, pavimento: null }
+          : item,
+      ),
+    );
     setMessage(`Marcador de ${extintor.codigo} removido.`);
     await loadExtintores();
     setSavingPosition(false);
@@ -1160,7 +1180,12 @@ export default function MapView() {
       return;
     }
 
-    const observacoesFinal = mergeObservacoesComNaoConformidades(checklistForm);
+    const fieldKeys = extintorChecklistFields.map((field) => field.key);
+    const fieldLabels = Object.fromEntries(
+      extintorChecklistFields.map((field) => [field.key, field.label]),
+    );
+    const observacoesFinal = mergeObservacoesComNaoConformidades(checklistForm, fieldLabels);
+    const answersJson = buildChecklistAnswersJson(checklistForm, fieldKeys);
 
     const payloadNovo = {
       extintor_id: selectedMarker.id,
@@ -1176,13 +1201,22 @@ export default function MapView() {
       alca_gatilho_status: checklistForm.alca_gatilho_status,
       medidor_pressao_status: checklistForm.medidor_pressao_status,
       cilindro_status: checklistForm.cilindro_status,
+      answers_json: answersJson,
       observacoes: observacoesFinal || null,
       ...(activeBaseId ? { base_id: activeBaseId } : {}),
     };
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("checklists")
       .insert(payloadNovo as unknown as Record<string, unknown>);
+
+    if (error?.message?.includes("answers_json")) {
+      const { answers_json: _ignored, ...withoutJson } = payloadNovo;
+      const retryJson = await supabase
+        .from("checklists")
+        .insert(withoutJson as unknown as Record<string, unknown>);
+      error = retryJson.error;
+    }
 
     let finalError = error;
 
@@ -1267,7 +1301,12 @@ export default function MapView() {
       return;
     }
 
-    const observacoesFinal = mergeHidranteObservacoes(hidranteChecklistForm);
+    const hidFieldKeys = hidranteChecklistFields.map((field) => field.key);
+    const hidFieldLabels = Object.fromEntries(
+      hidranteChecklistFields.map((field) => [field.key, field.label]),
+    );
+    const observacoesFinal = mergeHidranteObservacoes(hidranteChecklistForm, hidFieldLabels);
+    const answersJson = buildHidranteAnswersJson(hidranteChecklistForm, hidFieldKeys);
 
     const payload = {
       hidrante_id: selectedHidrante.id,
@@ -1281,11 +1320,19 @@ export default function MapView() {
       gabinete_caixa: hidranteChecklistForm.gabinete_caixa,
       hidrante_integridade: hidranteChecklistForm.hidrante_integridade,
       documentacao_acesso: hidranteChecklistForm.documentacao_acesso,
+      answers_json: answersJson,
       observacoes: observacoesFinal || null,
       ...(activeBaseId ? { base_id: activeBaseId } : {}),
     };
 
-    const { error } = await supabase.from("checklists_hidrantes").insert(payload as Record<string, unknown>);
+    let { error } = await supabase.from("checklists_hidrantes").insert(payload as Record<string, unknown>);
+    if (error?.message?.includes("answers_json") || error?.message?.includes("schema cache")) {
+      const { answers_json: _ignored, ...withoutJson } = payload;
+      const retry = await supabase
+        .from("checklists_hidrantes")
+        .insert(withoutJson as Record<string, unknown>);
+      error = retry.error;
+    }
 
     if (error) {
       setMessage(`Erro ao salvar inspeção do hidrante: ${error.message}`);
@@ -1435,15 +1482,35 @@ export default function MapView() {
   async function removerHidranteDoMapa(h: HidranteRow) {
     setInfoHidrante(null);
     setSavingPosition(true);
-    const { error } = await supabase
+    let query = supabase
       .from("hidrantes")
       .update({ coord_x: null, coord_y: null, pavimento: null })
       .eq("id", h.id);
-    if (error) setMessage(error.message);
-    else {
-      await loadHidrantesEMarcadores();
-      setMessage(`Marcador de ${h.codigo} removido.`);
+    if (activeBaseId) query = query.eq("base_id", activeBaseId);
+
+    const { data, error } = await query.select("id,coord_x,coord_y").maybeSingle();
+    if (error) {
+      setMessage(error.message);
+      setSavingPosition(false);
+      return;
     }
+    if (!data || hasMapCoordinates(data.coord_x, data.coord_y)) {
+      setMessage(
+        "Não foi possível remover o hidrante do mapa (sem permissão ou o registro não foi atualizado).",
+      );
+      setSavingPosition(false);
+      return;
+    }
+
+    setHidrantes((prev) =>
+      prev.map((item) =>
+        item.id === h.id
+          ? { ...item, coord_x: null, coord_y: null, pavimento: null }
+          : item,
+      ),
+    );
+    setMessage(`Marcador de ${h.codigo} removido.`);
+    await loadHidrantesEMarcadores();
     setSavingPosition(false);
   }
 

@@ -1,5 +1,12 @@
-import type { ChecklistData, ChecklistItemKey, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
-import { CHECKLIST_ITEM_KEYS, isChecklistValid, isDataVencida } from "@/lib/checklist/types";
+import type { ChecklistData, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
+import {
+  CHECKLIST_ITEM_KEYS,
+  getChecklistAnswer,
+  isBuiltinChecklistItemKey,
+  isChecklistValid,
+  isDataVencida,
+  type ChecklistItemKey,
+} from "@/lib/checklist/types";
 import { DEFAULT_EXTINTOR_QUESTION_LABELS } from "@/lib/checklist/default-questions";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
 
@@ -29,7 +36,7 @@ const OPTIONS: OptionDef[] = [
   },
 ];
 
-const DEFAULT_FIELDS: { key: ChecklistItemKey; label: string }[] = CHECKLIST_ITEM_KEYS.map((key) => ({
+const DEFAULT_FIELDS: { key: string; label: string }[] = CHECKLIST_ITEM_KEYS.map((key) => ({
   key,
   label: DEFAULT_EXTINTOR_QUESTION_LABELS[key],
 }));
@@ -158,8 +165,8 @@ type Props = {
   onCancel: () => void;
   isSaving: boolean;
   cabecalho?: InspecaoExtintorCabecalho;
-  /** Perguntas customizadas por base (labels). Ordem = ordem de exibição. */
-  fields?: { key: ChecklistItemKey; label: string }[];
+  /** Perguntas da base (podem incluir campos customizados). */
+  fields?: { key: string; label: string }[];
   /** @deprecated use cabecalho */
   extintor?: {
     codigo: string;
@@ -180,11 +187,20 @@ export default function ChecklistForm({
   fields = DEFAULT_FIELDS,
   extintor,
 }: Props) {
-  const valid = isChecklistValid(data);
   const resolvedFields = fields.length > 0 ? fields : DEFAULT_FIELDS;
+  const fieldKeys = resolvedFields.map((field) => field.key);
+  const valid = isChecklistValid(data, fieldKeys);
 
-  function setField(key: ChecklistItemKey, value: ChecklistValue) {
-    const next = { ...data, [key]: value };
+  function setField(key: string, value: ChecklistValue) {
+    let next: ChecklistData;
+    if (isBuiltinChecklistItemKey(key)) {
+      next = { ...data, [key]: value };
+    } else {
+      next = {
+        ...data,
+        extraAnswers: { ...data.extraAnswers, [key]: value },
+      };
+    }
     if (value !== "nao_conforme") {
       const nextNc = { ...next.detalhesNaoConformidade };
       delete nextNc[key];
@@ -193,7 +209,7 @@ export default function ChecklistForm({
     onChange(next);
   }
 
-  function setDetalheNc(key: ChecklistItemKey, text: string) {
+  function setDetalheNc(key: string, text: string) {
     onChange({
       ...data,
       detalhesNaoConformidade: { ...data.detalhesNaoConformidade, [key]: text },
@@ -240,7 +256,7 @@ export default function ChecklistForm({
             key={field.key}
             index={i + 1}
             label={field.label}
-            value={data[field.key]}
+            value={getChecklistAnswer(data, field.key)}
             onChange={(v) => setField(field.key, v)}
             detalheNc={data.detalhesNaoConformidade[field.key] ?? ""}
             onDetalheNcChange={(text) => setDetalheNc(field.key, text)}
@@ -269,11 +285,7 @@ export default function ChecklistForm({
         >
           {isSaving ? "Salvando..." : "Confirmar Inspeção"}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-secondary py-3.5"
-        >
+        <button type="button" onClick={onCancel} className="btn-secondary py-3.5">
           Cancelar
         </button>
       </div>
@@ -286,3 +298,5 @@ export default function ChecklistForm({
     </form>
   );
 }
+
+export type { ChecklistItemKey };
