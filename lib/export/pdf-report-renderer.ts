@@ -73,7 +73,8 @@ function cover(doc: jsPDF, title: string, sections: PdfSection[]) {
     doc.setFillColor(index === 0 ? 247 : 255, index === 0 ? 248 : 247, index === 0 ? 249 : 237);
     doc.roundedRect(x, 104, 54, 38, 4, 4, "F");
     doc.setFontSize(24);
-    index === 0 ? color(doc, GRAPHITE) : doc.setTextColor(...ORANGE);
+    if (index === 0) color(doc, GRAPHITE);
+    else doc.setTextColor(...ORANGE);
     doc.text(String("count" in summary ? summary.count : summary.rows.length), x + 6, 123);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
