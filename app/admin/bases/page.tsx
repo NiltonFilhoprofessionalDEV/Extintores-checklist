@@ -137,7 +137,7 @@ export default function AdminBasesPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Bases</h2>
+        <h2 className="text-2xl font-black tracking-tight text-[var(--ink)]">Bases</h2>
         <p className="mt-1 text-sm text-slate-500">
           Crie uma nova base (aeroporto/empresa) e defina o administrador que fará a gestão completa
           dela.
@@ -145,7 +145,7 @@ export default function AdminBasesPage() {
       </div>
 
       <form onSubmit={handleCreate} className="section-card space-y-4 p-5">
-        <h3 className="text-lg font-black text-slate-950">Nova base</h3>
+        <h3 className="text-lg font-black text-[var(--ink)]">Nova base</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <input
             className="field-control"
@@ -269,7 +269,7 @@ export default function AdminBasesPage() {
       )}
 
       <div className="section-card p-5">
-        <h3 className="mb-4 text-lg font-black text-slate-950">Bases acessíveis</h3>
+        <h3 className="mb-4 text-lg font-black text-[var(--ink)]">Bases acessíveis</h3>
         {loading ? (
           <p className="text-sm text-slate-500">Carregando...</p>
         ) : bases.length === 0 ? (
@@ -282,7 +282,7 @@ export default function AdminBasesPage() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
               >
                 <div>
-                  <p className="font-bold text-slate-950">{base.nome}</p>
+                  <p className="font-bold text-[var(--ink)]">{base.nome}</p>
                   <p className="text-xs text-slate-500">{base.slug}</p>
                 </div>
                 <span

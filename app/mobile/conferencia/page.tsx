@@ -74,7 +74,7 @@ function isVencido(dateStr: string | null): boolean {
 function HidranteIcon({ variant }: { variant: "ok" | "pendente" | "alerta" }) {
   const palette =
     variant === "alerta"
-      ? { bg: "#fee2e2", fg: "#E02020" }
+      ? { bg: "#fee2e2", fg: "var(--forest)" }
       : variant === "pendente"
         ? { bg: "#fef3c7", fg: "#d97706" }
         : { bg: "#dcfce7", fg: "#16a34a" };
@@ -127,7 +127,7 @@ function InspecaoListaItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-3xl border border-white/70 bg-white px-4 py-3.5 text-left shadow-sm shadow-slate-200/70 transition-transform active:scale-[0.98]"
+      className="pressable flex w-full items-center gap-3 rounded-[1.35rem] border border-white/80 bg-white px-4 py-3.5 text-left shadow-[var(--shadow-soft)]"
     >
       <div className="flex w-9 shrink-0 flex-col items-center justify-center">
         <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Nº</span>
@@ -163,7 +163,7 @@ function InspecaoListaItem({
 function ExtintorIcon({ variant }: { variant: "ok" | "pendente" | "alerta" }) {
   const palette =
     variant === "alerta"
-      ? { bg: "#fee2e2", fg: "#E02020", top: "#B51313" }
+      ? { bg: "#fee2e2", fg: "#e11d48", top: "#be123c" }
       : variant === "pendente"
         ? { bg: "#fef3c7", fg: "#d97706", top: "#b45309" }
         : { bg: "#dcfce7", fg: "#16a34a", top: "#15803d" };
@@ -722,11 +722,14 @@ export default function MobileConferenciaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-3xl bg-white shadow-sm shadow-slate-200/70">
-        <div className="bg-slate-950 px-4 py-4 text-white">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-200">Operação</p>
-          <h2 className="mt-1 text-xl font-black">{isAdminLista ? "Inspeções (lista)" : "Inspeções"}</h2>
-          <p className="text-xs font-medium text-white/70">
+      <div className="reveal-up overflow-hidden rounded-[1.75rem] bg-white shadow-[var(--shadow-soft)]">
+        <div className="relative overflow-hidden bg-[var(--forest)] px-4 py-5 text-white">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[var(--neon)]/25 blur-2xl" />
+          <p className="relative text-[10px] font-black uppercase tracking-[0.24em] text-[var(--neon)]">Operação</p>
+          <h2 className="font-display relative mt-1 text-xl font-extrabold tracking-tight">
+            {isAdminLista ? "Inspeções (lista)" : "Inspeções"}
+          </h2>
+          <p className="relative mt-1 text-xs font-medium text-emerald-100/70">
             {extintores.length} extintores · {hidrantes.length} hidrantes
           </p>
         </div>
@@ -739,8 +742,8 @@ export default function MobileConferenciaPage() {
           />
         </div>
         <div className="px-4 py-3">
-          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
+          <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--muted)] px-4 py-2.5">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#8a9a91" strokeWidth={2}>
               <circle cx="11" cy="11" r="8" />
               <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
             </svg>
@@ -751,7 +754,7 @@ export default function MobileConferenciaPage() {
                   ? "Buscar por código, setor ou local..."
                   : "Buscar hidrante por código, pavimento ou local..."
               }
-              className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--muted-foreground)] focus:outline-none"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
@@ -765,8 +768,8 @@ export default function MobileConferenciaPage() {
               onClick={() => setTab(t)}
               className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors"
               style={{
-                color: tab === t ? "#B42318" : "#667085",
-                borderBottom: tab === t ? "2px solid #B42318" : "2px solid transparent",
+                color: tab === t ? "var(--forest)" : "#667085",
+                borderBottom: tab === t ? "2px solid var(--forest)" : "2px solid transparent",
               }}
             >
               {t === "todas" ? "Todas" : t === "pendentes" ? "Pendentes" : "Concluídas"}
@@ -867,9 +870,9 @@ export default function MobileConferenciaPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
           <div
-            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-slate-950/30"
+            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
             style={{ maxHeight: "95vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />
@@ -897,9 +900,9 @@ export default function MobileConferenciaPage() {
       )}
 
       {selectedHidrante && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
           <div
-            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-slate-950/30"
+            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
             style={{ maxHeight: "95vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />

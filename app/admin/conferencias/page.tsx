@@ -489,7 +489,7 @@ export default function AdminConferenciasPage() {
       <div className="page-hero p-6">
         <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Histórico</p>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Histórico</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Conferências realizadas</h2>
             <p className="mt-2 text-sm font-medium text-slate-300">
               Consulte extintores e hidrantes separadamente. O Excel sempre traz as duas planilhas (Extintores
@@ -508,7 +508,7 @@ export default function AdminConferenciasPage() {
               type="button"
               onClick={handleExport}
               disabled={exportando || totalExportacao === 0}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100 disabled:opacity-50"
               title={
                 totalExportacao === 0
                   ? "Nenhum registro com os filtros atuais"
@@ -540,8 +540,8 @@ export default function AdminConferenciasPage() {
         <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50 via-white to-red-50/50 px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E02020]/10 ring-1 ring-[#E02020]/15">
-                <svg className="h-5 w-5 text-[#E02020]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--forest)]/10 ring-1 ring-[var(--forest)]/15">
+                <svg className="h-5 w-5 text-[var(--forest)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"

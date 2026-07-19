@@ -577,7 +577,7 @@ export default function AdminExtintoresPage() {
       <div className="page-hero p-6">
         <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Inventário</p>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Inventário</p>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Extintores e Hidrantes</h1>
             <p className="mt-2 text-sm font-medium text-slate-300">
               {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} e {hidrantes.length} hidrante
@@ -604,7 +604,7 @@ export default function AdminExtintoresPage() {
               <button
                 type="button"
                 onClick={openCreate}
-                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100"
+                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -616,7 +616,7 @@ export default function AdminExtintoresPage() {
               <button
                 type="button"
                 onClick={openCreateHidrante}
-                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:bg-slate-100"
+                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -659,7 +659,7 @@ export default function AdminExtintoresPage() {
       <div className="section-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-16 text-center text-sm text-slate-400">
@@ -770,7 +770,7 @@ export default function AdminExtintoresPage() {
       <div className="section-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
           </div>
         ) : filteredHidrantes.length === 0 ? (
           <div className="px-6 py-16 text-center text-sm text-slate-400">
@@ -850,11 +850,11 @@ export default function AdminExtintoresPage() {
 
       {/* Create / Edit Modal */}
       {modalMode && modalEntity === "extintor" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
             {/* Modal header */}
             <div
-              className="flex items-center justify-between bg-slate-950 px-6 py-4 text-white"
+              className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white"
             >
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
@@ -1029,9 +1029,9 @@ export default function AdminExtintoresPage() {
       )}
 
       {modalMode && modalEntity === "hidrante" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30">
-            <div className="flex items-center justify-between bg-slate-950 px-6 py-4 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
+            <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
                   {modalMode === "create" ? "Cadastro Manual" : "Editar Hidrante"}
@@ -1186,9 +1186,9 @@ export default function AdminExtintoresPage() {
       )}
 
       {detalheView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30">
-            <div className="flex items-center justify-between bg-slate-950 px-6 py-4 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
+            <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
                   Detalhes do equipamento
@@ -1289,10 +1289,10 @@ export default function AdminExtintoresPage() {
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-slate-950/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#E02020" strokeWidth={2}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
@@ -1325,10 +1325,10 @@ export default function AdminExtintoresPage() {
       )}
 
       {deleteTargetHidrante && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-slate-950/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#E02020" strokeWidth={2}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>

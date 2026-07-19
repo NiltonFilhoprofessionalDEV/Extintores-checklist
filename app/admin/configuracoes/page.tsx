@@ -293,7 +293,7 @@ export default function AdminConfiguracoesPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Configurações da Base</h2>
+        <h2 className="text-2xl font-black tracking-tight text-[var(--ink)]">Configurações da Base</h2>
         <p className="mt-1 text-sm text-slate-500">
           Base ativa: <strong>{activeBase?.nome ?? "—"}</strong>. Aqui o administrador define setores/mapas
           e as perguntas dos checklists usadas nas inspeções desta base.
@@ -301,7 +301,7 @@ export default function AdminConfiguracoesPage() {
       </div>
 
       <div className="section-card space-y-3 p-5">
-        <h3 className="text-lg font-black text-slate-950">Checklists de inspeção</h3>
+        <h3 className="text-lg font-black text-[var(--ink)]">Checklists de inspeção</h3>
         <p className="text-sm text-slate-500">
           Edite as perguntas de extintor e hidrante. As mudanças valem apenas para esta base.
         </p>
@@ -324,7 +324,7 @@ export default function AdminConfiguracoesPage() {
       </div>
 
       <form onSubmit={handleCreate} className="section-card space-y-3 p-5">
-        <h3 className="text-lg font-black text-slate-950">Novo setor / mapa</h3>
+        <h3 className="text-lg font-black text-[var(--ink)]">Novo setor / mapa</h3>
         <input
           className="field-control"
           required
@@ -352,7 +352,7 @@ export default function AdminConfiguracoesPage() {
       )}
 
       <div className="section-card p-5">
-        <h3 className="mb-4 text-lg font-black text-slate-950">Setores e mapas cadastrados</h3>
+        <h3 className="mb-4 text-lg font-black text-[var(--ink)]">Setores e mapas cadastrados</h3>
         {loading ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : floors.length === 0 ? (
@@ -409,7 +409,7 @@ export default function AdminConfiguracoesPage() {
                         </form>
                       ) : (
                         <>
-                          <p className="font-bold text-slate-950">{floor.label}</p>
+                          <p className="font-bold text-[var(--ink)]">{floor.label}</p>
                           <p className="text-xs text-slate-500">
                             Ordem {floor.sort_order} · {floor.image_width}×{floor.image_height}
                           </p>
@@ -446,7 +446,7 @@ export default function AdminConfiguracoesPage() {
 
       {checklistModalOpen && (
         <div
-          className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[1200] flex items-end justify-center bg-[var(--forest)]/55 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => !savingQuestions && setChecklistModalOpen(false)}
@@ -458,7 +458,7 @@ export default function AdminConfiguracoesPage() {
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
               <div>
-                <h3 className="text-lg font-black text-slate-950">
+                <h3 className="text-lg font-black text-[var(--ink)]">
                   Editar checklist — {checklistKind === "extintor" ? "Extintor" : "Hidrante"}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -488,7 +488,7 @@ export default function AdminConfiguracoesPage() {
                     type="button"
                     className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
                       checklistKind === kind
-                        ? "brand-gradient text-white"
+                        ? "brand-gradient text-[var(--neon-ink)]"
                         : "border border-slate-200 bg-white text-slate-700"
                     }`}
                     onClick={() => setChecklistKind(kind)}

@@ -1645,7 +1645,7 @@ export default function MapView() {
                     <button
                       type="button"
                       className="mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-white"
-                      style={{ background: "#E02020" }}
+                      style={{ background: "var(--forest)" }}
                       onClick={() => openChecklistModal(item)}
                     >
                       Realizar Conferência
@@ -1747,7 +1747,7 @@ export default function MapView() {
               <button
                 type="button"
                 className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
-                  mode === "edicao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                  mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("edicao")}
               >
@@ -1758,7 +1758,7 @@ export default function MapView() {
               <button
                 type="button"
                 className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
-                  mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                  mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("inspecao")}
               >
@@ -1798,7 +1798,7 @@ export default function MapView() {
                 type="button"
                 onClick={() => setShowLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
                 className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
-                  showLayers[key] ? "brand-gradient text-white" : "bg-slate-100 text-slate-600"
+                  showLayers[key] ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {label}
@@ -2009,7 +2009,7 @@ export default function MapView() {
                   <button
                     type="button"
                     className="w-full rounded-xl py-3 text-sm font-bold text-white"
-                    style={{ background: "linear-gradient(90deg,#E02020,#B51313)" }}
+                    style={{ background: "linear-gradient(90deg,var(--forest),#B51313)" }}
                     onClick={() => {
                       setInfoMarker(null);
                       openChecklistModal(infoMarker);
@@ -2211,7 +2211,7 @@ export default function MapView() {
               <button
                 type="button"
                 className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
-                  mode === "edicao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                  mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("edicao")}
               >
@@ -2222,7 +2222,7 @@ export default function MapView() {
               <button
                 type="button"
                 className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
-                  mode === "inspecao" ? "brand-gradient text-white" : "bg-slate-100 text-slate-700"
+                  mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("inspecao")}
               >
@@ -2349,7 +2349,7 @@ export default function MapView() {
                 <button
                   type="button"
                   className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === null ? "bg-[#b42318] text-white" : "bg-slate-100 text-slate-700"
+                    placementExtra === null ? "bg-[var(--forest)] text-white" : "bg-slate-100 text-slate-700"
                   }`}
                   onClick={() => {
                     setPlacementExtra(null);
@@ -2361,7 +2361,7 @@ export default function MapView() {
                 <button
                   type="button"
                   className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === "hidrante" ? "bg-[#b42318] text-white" : "bg-slate-100 text-slate-700"
+                    placementExtra === "hidrante" ? "bg-[var(--forest)] text-white" : "bg-slate-100 text-slate-700"
                   }`}
                   onClick={() => {
                     setPlacementExtra("hidrante");
@@ -2385,7 +2385,7 @@ export default function MapView() {
                           type="button"
                           className={`w-full rounded-lg border p-2 text-left text-sm ${
                             selectedExtintorId === item.id
-                              ? "border-[#b42318] bg-[#b42318] text-white"
+                              ? "border-[var(--neon)] bg-[var(--neon)] text-[var(--neon-ink)]"
                               : "border-slate-200 bg-white text-slate-700"
                           }`}
                           onClick={() => {

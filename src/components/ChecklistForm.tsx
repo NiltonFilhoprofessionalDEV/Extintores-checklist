@@ -113,7 +113,7 @@ function ToggleField({
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3.5">
       <p className="mb-2.5 text-xs font-semibold leading-snug text-gray-700">
-        <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#E02020] text-[10px] font-bold text-white">
+        <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--forest)] text-[10px] font-bold text-white">
           {index}
         </span>
         {label}

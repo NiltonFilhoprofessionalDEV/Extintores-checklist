@@ -73,7 +73,7 @@ export default function MobilePerfilPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
       </div>
     );
   }
@@ -112,11 +112,11 @@ export default function MobilePerfilPage() {
   return (
     <div className="space-y-4">
       {/* Avatar + name card */}
-      <div className="overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl shadow-slate-300/60">
-        <div className="px-5 py-6 flex flex-col items-center gap-3">
-          {/* Avatar circle with initials */}
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 ring-4 ring-white/20">
-            <span className="text-3xl font-extrabold text-white">
+      <div className="reveal-up overflow-hidden rounded-[1.75rem] bg-[var(--forest)] text-white shadow-[var(--shadow-lift)]">
+        <div className="relative px-5 py-6 flex flex-col items-center gap-3">
+          <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[var(--neon)]/20 blur-3xl" />
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[var(--neon)] ring-4 ring-white/15">
+            <span className="text-3xl font-extrabold text-[var(--neon-ink)]">
               {(profile?.nome ?? email).charAt(0).toUpperCase()}
             </span>
           </div>
@@ -233,13 +233,13 @@ export default function MobilePerfilPage() {
 
       {/* Confirm sign out modal */}
       {showConfirmSignOut && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/60 backdrop-blur-sm">
-          <div className="w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-slate-950/30">
+        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
+          <div className="w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-[var(--forest)]/30">
             <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200" />
 
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#E02020" strokeWidth={2}>
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </div>

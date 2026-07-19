@@ -100,13 +100,13 @@ function HidranteManutencaoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30"
+        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -223,7 +223,7 @@ function HidranteAlertTable({
     <div className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
       <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderTop: `4px solid ${color}` }}>
         <div>
-          <h3 className="text-base font-black text-slate-950">{title}</h3>
+          <h3 className="text-base font-black text-[var(--ink)]">{title}</h3>
           <p className="text-xs font-medium text-slate-500">{subtitle}</p>
         </div>
         <button
@@ -316,7 +316,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="pl-5">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-600">Hidrantes</p>
-          <h2 className="text-xl font-black text-slate-950">Vencimento das mangueiras</h2>
+          <h2 className="text-xl font-black text-[var(--ink)]">Vencimento das mangueiras</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">
           Teste hidrostático: validade de 1 ano a partir da última realização (M-1 a M-4).
@@ -381,7 +381,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="pl-5">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-600">Planejamento</p>
-          <h2 className="text-xl font-black text-slate-950">Testes hidrostáticos programados</h2>
+          <h2 className="text-xl font-black text-[var(--ink)]">Testes hidrostáticos programados</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">Hidrantes organizados por vencimento das mangueiras.</p>
       </div>
@@ -390,7 +390,7 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         <div className="overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-sm shadow-slate-200/70">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-black text-slate-950">Distribuição de vencimento</p>
+              <p className="text-sm font-black text-[var(--ink)]">Distribuição de vencimento</p>
               <p className="text-xs font-medium text-slate-500">Percentual dos hidrantes por faixa de vencimento.</p>
             </div>
             <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-800">

@@ -20,11 +20,11 @@ export default function BaseSwitcher({ compact = false }: { compact?: boolean })
           const next = event.target.value;
           if (next) ctx.setActiveBaseId(next);
         }}
-        className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none transition hover:border-white/25 focus:border-[#e02020]/60"
+        className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none transition hover:border-white/25 focus:border-[var(--neon)]/70"
         aria-label="Selecionar base"
       >
         {ctx.accessibleBases.map((base) => (
-          <option key={base.id} value={base.id} className="bg-slate-900 text-white">
+          <option key={base.id} value={base.id} className="bg-[var(--forest)] text-white">
             {base.nome}
           </option>
         ))}

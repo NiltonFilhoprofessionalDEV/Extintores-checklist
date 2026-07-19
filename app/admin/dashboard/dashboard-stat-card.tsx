@@ -109,28 +109,28 @@ export function DashboardStatCard({
   icon: React.ReactNode;
   onClick?: () => void;
 }) {
-  const className = `group relative flex w-full overflow-hidden rounded-2xl border border-white/70 bg-white p-5 text-left shadow-sm shadow-slate-200/70 transition-all ${
+  const className = `group relative flex w-full overflow-hidden rounded-[1.5rem] border border-white/80 bg-white p-5 text-left shadow-[var(--shadow-soft)] transition-all ${
     onClick
-      ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-300/50 focus:outline-none focus:ring-2 focus:ring-[#e02020]/25"
+      ? "pressable cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)] focus:outline-none focus:ring-2 focus:ring-[var(--neon)]/45"
       : ""
   }`;
 
   const content = (
     <>
-      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-10" style={{ background: color }} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1" style={{ background: color }} />
+      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-15" style={{ background: color }} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5" style={{ background: color }} />
       <div className="relative flex flex-col">
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md ring-1 ring-inset ring-white/25"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md ring-1 ring-inset ring-white/25"
           style={{ background: color }}
         >
           {icon}
         </div>
         <div className="mt-4 min-w-0">
-          <p className="text-3xl font-black tracking-tight text-slate-950">{value}</p>
-          <p className="mt-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="font-display text-3xl font-extrabold tracking-tight text-[var(--ink)]">{value}</p>
+          <p className="mt-0.5 text-xs font-bold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</p>
           {onClick && (
-            <p className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-[#b42318] transition-colors group-hover:bg-red-50">
+            <p className="mt-2 inline-flex items-center rounded-full bg-[var(--forest)]/5 px-2 py-0.5 text-[10px] font-bold text-[var(--forest)] transition-colors group-hover:bg-[var(--neon)]/35">
               Ver detalhes
             </p>
           )}

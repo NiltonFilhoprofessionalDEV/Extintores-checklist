@@ -19,7 +19,7 @@ export default function InventarioTipoTabs({
 }: InventarioTipoTabsProps) {
   return (
     <div
-      className={`flex rounded-2xl border border-slate-200 bg-slate-50 p-1 ${className}`}
+      className={`flex rounded-full border border-[var(--border)] bg-[var(--muted)] p-1 ${className}`}
       role="tablist"
       aria-label="Tipo de equipamento"
     >
@@ -28,24 +28,32 @@ export default function InventarioTipoTabs({
         role="tab"
         aria-selected={value === "extintor"}
         onClick={() => onChange("extintor")}
-        className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-          value === "extintor" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+        className={`flex-1 rounded-full px-4 py-2.5 text-sm font-bold transition ${
+          value === "extintor"
+            ? "bg-[var(--forest)] text-[var(--neon)] shadow-sm"
+            : "text-[var(--muted-foreground)] hover:text-[var(--ink)]"
         }`}
       >
         Extintores
-        <span className="ml-1.5 text-xs font-semibold text-slate-400">({extintoresCount})</span>
+        <span className={`ml-1.5 text-xs font-semibold ${value === "extintor" ? "text-[var(--neon)]/70" : "text-slate-400"}`}>
+          ({extintoresCount})
+        </span>
       </button>
       <button
         type="button"
         role="tab"
         aria-selected={value === "hidrante"}
         onClick={() => onChange("hidrante")}
-        className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-          value === "hidrante" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+        className={`flex-1 rounded-full px-4 py-2.5 text-sm font-bold transition ${
+          value === "hidrante"
+            ? "bg-[var(--forest)] text-[var(--neon)] shadow-sm"
+            : "text-[var(--muted-foreground)] hover:text-[var(--ink)]"
         }`}
       >
         Hidrantes
-        <span className="ml-1.5 text-xs font-semibold text-slate-400">({hidrantesCount})</span>
+        <span className={`ml-1.5 text-xs font-semibold ${value === "hidrante" ? "text-[var(--neon)]/70" : "text-slate-400"}`}>
+          ({hidrantesCount})
+        </span>
       </button>
     </div>
   );

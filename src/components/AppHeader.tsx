@@ -20,11 +20,11 @@ export default function AppHeader({ title, links }: AppHeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-white/90 backdrop-blur-xl shadow-sm">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3">
           <BrandLogo height={36} />
-          <p className="text-[10px] font-medium text-slate-500">{title}</p>
+          <p className="text-[10px] font-medium text-[var(--muted-foreground)]">{title}</p>
         </div>
 
         <nav className="flex flex-wrap items-center gap-1.5">
@@ -34,11 +34,11 @@ export default function AppHeader({ title, links }: AppHeaderProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
                 style={{
-                  background: active ? "#fef2f2" : "transparent",
-                  color: active ? "#B42318" : "#475467",
-                  border: active ? "1px solid #fecdca" : "1px solid transparent",
+                  background: active ? "var(--neon)" : "transparent",
+                  color: active ? "var(--neon-ink)" : "#4b5c54",
+                  border: active ? "1px solid transparent" : "1px solid transparent",
                 }}
               >
                 {link.label}
@@ -48,7 +48,7 @@ export default function AppHeader({ title, links }: AppHeaderProps) {
           <button
             type="button"
             onClick={handleSignOut}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--muted)]"
           >
             Sair
           </button>

@@ -151,7 +151,7 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
 
       <div className="page-hero p-6">
         <div className="page-hero-content">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-red-200">Conta</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Conta</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Configurações</h1>
           <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">
             Atualize seu nome e senha. E-mail e função são gerenciados pelo administrador.
@@ -196,7 +196,7 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
       <form className="section-card space-y-4 p-6" onSubmit={handleSavePerfil}>
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dados pessoais</p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Informações do perfil</h2>
+          <h2 className="mt-1 text-lg font-black text-[var(--ink)]">Informações do perfil</h2>
         </div>
 
         <div className="space-y-1.5">
@@ -257,7 +257,7 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
       <form className="section-card space-y-4 p-6" onSubmit={handleChangePassword}>
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Segurança</p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Alterar senha</h2>
+          <h2 className="mt-1 text-lg font-black text-[var(--ink)]">Alterar senha</h2>
           <p className="mt-1 text-sm text-slate-500">
             Por segurança, confirme sua senha atual antes de definir uma nova.
           </p>
