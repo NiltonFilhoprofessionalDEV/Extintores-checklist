@@ -45,8 +45,9 @@
   --radius-md: 0.875rem;
   --shadow-soft: 0 12px 34px -24px rgb(28 31 35 / 0.35), 0 1px 3px rgb(28 31 35 / 0.05);
   --shadow-lift: 0 24px 48px -30px rgb(28 31 35 / 0.38);
-  --z-dock: 1000;
-  --z-modal: 2100;
+  --z-dock: 3000;
+  --z-modal: 5000;
+  --admin-dock-clearance: calc(6.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 @theme inline {
@@ -369,21 +370,37 @@ h3,
 }
 
 .admin-dock__item.is-map {
-  align-self: stretch;
-  background: var(--graphite);
+  position: relative;
+  height: 4.5rem;
+  min-width: 4.5rem;
+  max-width: 4.5rem;
+  flex: 0 0 4.5rem;
+  align-self: center;
+  border: 5px solid #fff;
+  border-radius: 9999px;
+  background: var(--orange);
   color: #fff;
-  transform: translateY(-0.55rem);
-  box-shadow: 0 14px 28px -16px rgb(28 31 35 / 0.75);
+  transform: translateY(-1rem);
+  box-shadow: 0 16px 28px -14px rgb(249 115 22 / 0.8);
 }
 
 .admin-dock__item.is-map:hover {
-  background: var(--graphite-soft);
+  background: var(--orange-deep);
   color: #fff;
 }
 
 .admin-dock__item.is-map.is-active {
-  background: var(--orange);
-  box-shadow: 0 14px 28px -14px rgb(249 115 22 / 0.85);
+  background: var(--orange-deep);
+  box-shadow: 0 0 0 3px rgb(249 115 22 / 0.2), 0 16px 28px -14px rgb(249 115 22 / 0.85);
+}
+
+.admin-dock__item.is-map span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .admin-dock__item:active {
@@ -391,7 +408,12 @@ h3,
 }
 
 .admin-dock__item.is-map:active {
-  transform: translateY(-0.55rem) scale(0.98);
+  transform: translateY(-1rem) scale(0.96);
+}
+
+.admin-menu-layer {
+  bottom: var(--admin-dock-clearance);
+  z-index: calc(var(--z-dock) - 1);
 }
 
 .page-heading {
@@ -425,6 +447,10 @@ h3,
     padding: 0.35rem;
   }
 
+  :root {
+    --admin-dock-clearance: calc(5.9rem + env(safe-area-inset-bottom, 0px));
+  }
+
   .admin-dock__item {
     min-width: 0;
     flex-direction: column;
@@ -432,6 +458,18 @@ h3,
     border-radius: 1rem;
     font-size: 0.625rem;
     padding: 0.55rem 0.25rem;
+  }
+
+  .admin-dock__item.is-map {
+    height: 4.1rem;
+    min-width: 4.1rem;
+    max-width: 4.1rem;
+    flex-basis: 4.1rem;
+    transform: translateY(-0.85rem);
+  }
+
+  .admin-dock__item.is-map:active {
+    transform: translateY(-0.85rem) scale(0.96);
   }
 }
 
