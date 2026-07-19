@@ -53,7 +53,8 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
         }
 
         if (
-          pathname?.startsWith("/admin/mapas-setores") &&
+          (pathname?.startsWith("/admin/mapas-setores") ||
+            pathname?.startsWith("/admin/configuracoes")) &&
           profile.role !== "admin" &&
           profile.role !== "admin_corporativo"
         ) {

@@ -11,19 +11,19 @@ import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
+  buildChecklistAnswersJson,
   checklistTemNaoConformidade,
   isDataVencida,
   mergeObservacoesComNaoConformidades,
   type ChecklistData,
-  type ChecklistItemKey,
 } from "@/lib/checklist/types";
 import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
 import {
   HIDRANTE_CHECKLIST_INITIAL,
+  buildHidranteAnswersJson,
   hidranteChecklistTemNaoConformidade,
   mergeHidranteObservacoes,
   type HidranteChecklistData,
-  type HidranteItemKey,
 } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { hidranteTemMangueiraVencida } from "@/lib/hidrantes/vencimento-mangueiras";
@@ -235,10 +235,10 @@ export default function MobileConferenciaPage() {
   >(new Map());
   const [conferenteNome, setConferenteNome] = useState("");
   const [extintorChecklistFields, setExtintorChecklistFields] = useState<
-    { key: ChecklistItemKey; label: string }[]
+    { key: string; label: string }[]
   >([]);
   const [hidranteChecklistFields, setHidranteChecklistFields] = useState<
-    { key: HidranteItemKey; label: string }[]
+    { key: string; label: string }[]
   >([]);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -251,12 +251,8 @@ export default function MobileConferenciaPage() {
         fetchChecklistQuestionsForBase(activeBaseId, "hidrante"),
       ]);
       if (cancelled) return;
-      setExtintorChecklistFields(
-        extRows.map((row) => ({ key: row.item_key as ChecklistItemKey, label: row.label })),
-      );
-      setHidranteChecklistFields(
-        hidRows.map((row) => ({ key: row.item_key as HidranteItemKey, label: row.label })),
-      );
+      setExtintorChecklistFields(extRows.map((row) => ({ key: row.item_key, label: row.label })));
+      setHidranteChecklistFields(hidRows.map((row) => ({ key: row.item_key, label: row.label })));
     };
     void loadQuestions();
     return () => {
@@ -522,7 +518,12 @@ export default function MobileConferenciaPage() {
     if (!selected || !activeBaseId) return;
     setSaving(true);
 
-    const observacoesFinal = mergeObservacoesComNaoConformidades(checklist);
+    const fieldKeys = extintorChecklistFields.map((field) => field.key);
+    const fieldLabels = Object.fromEntries(
+      extintorChecklistFields.map((field) => [field.key, field.label]),
+    );
+    const observacoesFinal = mergeObservacoesComNaoConformidades(checklist, fieldLabels);
+    const answersJson = buildChecklistAnswersJson(checklist, fieldKeys);
 
     const session = await getCurrentSession();
     const profile = session ? await getProfileBySession(session) : null;
@@ -548,6 +549,7 @@ export default function MobileConferenciaPage() {
       alca_gatilho_status: checklist.alca_gatilho_status,
       medidor_pressao_status: checklist.medidor_pressao_status,
       cilindro_status: checklist.cilindro_status,
+      answers_json: answersJson,
       observacoes: observacoesFinal || null,
     } as unknown as Record<string, unknown>;
 
@@ -644,7 +646,12 @@ export default function MobileConferenciaPage() {
     if (!selectedHidrante || !activeBaseId) return;
     setSaving(true);
 
-    const observacoesFinal = mergeHidranteObservacoes(hidranteChecklist);
+    const hidFieldKeys = hidranteChecklistFields.map((field) => field.key);
+    const hidFieldLabels = Object.fromEntries(
+      hidranteChecklistFields.map((field) => [field.key, field.label]),
+    );
+    const observacoesFinal = mergeHidranteObservacoes(hidranteChecklist, hidFieldLabels);
+    const answersJson = buildHidranteAnswersJson(hidranteChecklist, hidFieldKeys);
     const session = await getCurrentSession();
     const profile = session ? await getProfileBySession(session) : null;
     const conferente =
@@ -667,6 +674,7 @@ export default function MobileConferenciaPage() {
       gabinete_caixa: hidranteChecklist.gabinete_caixa,
       hidrante_integridade: hidranteChecklist.hidrante_integridade,
       documentacao_acesso: hidranteChecklist.documentacao_acesso,
+      answers_json: answersJson,
       observacoes: observacoesFinal || null,
     } as Record<string, unknown>;
 

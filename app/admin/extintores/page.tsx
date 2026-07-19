@@ -447,7 +447,7 @@ export default function AdminExtintoresPage() {
       capacidade_extintora: form.capacidade_extintora.trim(),
       manutencao_2_nivel: form.manutencao_2_nivel?.trim() || null,
       manutencao_3_nivel: form.manutencao_3_nivel?.trim() || null,
-      // Alinha com o pavimento do mapa (mesmo nome do setor em Mapas e Setores)
+      // Alinha com o pavimento do mapa (mesmo nome do setor em Configurações da Base)
       pavimento: form.pavimento?.trim() || setorLabel || null,
     };
 
