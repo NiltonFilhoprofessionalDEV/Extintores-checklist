@@ -1,27 +1,10 @@
 -- Multi-tenant: bases (aeroportos) isoladas
--- Execute no SQL Editor do Supabase após o schema base e migrations anteriores.
+-- Passo 2/2 — execute DEPOIS de docs/migration_multi_base_enum.sql
+-- (o valor de enum "corporativo" precisa estar commitado antes deste script).
 -- Idempotente onde possível.
 
 -- ---------------------------------------------------------------------------
--- 1) Role corporativo
--- ---------------------------------------------------------------------------
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_enum e
-    join pg_type t on t.oid = e.enumtypid
-    join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public'
-      and t.typname = 'user_role'
-      and e.enumlabel = 'corporativo'
-  ) then
-    alter type public.user_role add value 'corporativo';
-  end if;
-end $$;
-
--- ---------------------------------------------------------------------------
--- 2) Tabelas de base / floors / memberships
+-- 1) Tabelas de base / floors / memberships
 -- ---------------------------------------------------------------------------
 create table if not exists public.bases (
   id uuid primary key default gen_random_uuid(),
@@ -71,7 +54,7 @@ for each row
 execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- 3) Seed base Santa Genoveva
+-- 2) Seed base Santa Genoveva
 -- ---------------------------------------------------------------------------
 insert into public.bases (id, slug, nome, active, config)
 values (
@@ -116,7 +99,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 4) Colunas base_id
+-- 3) Colunas base_id
 -- ---------------------------------------------------------------------------
 alter table public.extintores add column if not exists base_id uuid references public.bases(id);
 alter table public.hidrantes add column if not exists base_id uuid references public.bases(id);
@@ -176,10 +159,11 @@ alter table public.profiles
   check (role::text = 'corporativo' or base_id is not null);
 
 -- Team constraint: admin/cliente/corporativo podem sem team
+-- Usa ::text para não depender de literal de enum na mesma sessão de migração.
 alter table public.profiles drop constraint if exists profiles_team_required_for_non_admin;
 alter table public.profiles
   add constraint profiles_team_required_for_non_admin
-  check (role in ('admin', 'cliente', 'corporativo') or team is not null);
+  check (role::text in ('admin', 'cliente', 'corporativo') or team is not null);
 
 -- Uniques por base
 drop index if exists public.idx_hidrantes_codigo_unique;
@@ -198,7 +182,7 @@ create index if not exists idx_inspecoes_marcadores_base_id on public.inspecoes_
 create index if not exists idx_profiles_base_id on public.profiles (base_id);
 
 -- ---------------------------------------------------------------------------
--- 5) Helpers RLS multi-base
+-- 4) Helpers RLS multi-base
 -- ---------------------------------------------------------------------------
 create or replace function public.user_base_ids()
 returns uuid[]
@@ -242,7 +226,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_role() = 'corporativo', false);
+  select coalesce(public.current_role()::text = 'corporativo', false);
 $$;
 
 create or replace function public.is_admin_of_base(target_base_id uuid)
@@ -256,7 +240,7 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- 6) RLS bases / floors / memberships
+-- 5) RLS bases / floors / memberships
 -- ---------------------------------------------------------------------------
 alter table public.bases enable row level security;
 alter table public.base_floors enable row level security;
@@ -300,7 +284,7 @@ using (public.is_admin())
 with check (public.is_admin());
 
 -- ---------------------------------------------------------------------------
--- 7) RLS inventário escopado por base
+-- 6) RLS inventário escopado por base
 -- ---------------------------------------------------------------------------
 drop policy if exists extintores_select_authenticated on public.extintores;
 create policy extintores_select_authenticated
