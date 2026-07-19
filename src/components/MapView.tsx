@@ -1248,6 +1248,21 @@ export default function MapView() {
     let finalError = error;
 
     if (error?.message?.includes("schema cache") || error?.message?.includes("column")) {
+      const payloadCompacto = {
+        extintor_id: selectedMarker.id,
+        data_conferencia: payloadNovo.data_conferencia,
+        conferente,
+        answers_json: answersJson,
+        observacoes: observacoesFinal || null,
+        ...(activeBaseId ? { base_id: activeBaseId } : {}),
+      };
+      const retryCompacto = await supabase
+        .from("checklists")
+        .insert(payloadCompacto as Record<string, unknown>);
+      finalError = retryCompacto.error;
+    }
+
+    if (finalError?.message?.includes("answers_json")) {
       const observacoesLegado = buildObservacoesLegadoApenasNaoConformidades(
         observacoesFinal,
         checklistForm,
@@ -1353,6 +1368,24 @@ export default function MapView() {
     };
 
     let { error } = await supabase.from("checklists_hidrantes").insert(payload as Record<string, unknown>);
+    if (
+      error &&
+      !error.message.includes("answers_json") &&
+      (error.message.includes("schema cache") || error.message.includes("column"))
+    ) {
+      const payloadCompacto = {
+        hidrante_id: selectedHidrante.id,
+        data_conferencia: payload.data_conferencia,
+        conferente,
+        answers_json: answersJson,
+        observacoes: observacoesFinal || null,
+        ...(activeBaseId ? { base_id: activeBaseId } : {}),
+      };
+      const retryCompacto = await supabase
+        .from("checklists_hidrantes")
+        .insert(payloadCompacto as Record<string, unknown>);
+      error = retryCompacto.error;
+    }
     if (error?.message?.includes("answers_json") || error?.message?.includes("schema cache")) {
       const { answers_json: _ignored, ...withoutJson } = payload;
       const retry = await supabase

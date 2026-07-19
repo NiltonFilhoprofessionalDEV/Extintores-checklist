@@ -116,7 +116,7 @@ function statusColor(status: string): readonly [number, number, number] {
   return [22, 163, 74];
 }
 
-function recordHeading(doc: jsPDF, row: PdfRow, index: number, y: number) {
+function recordHeading(doc: jsPDF, row: PdfRow, index: number, y: number, itemName: string) {
   const code = row.Código ?? row["Código do Extintor"] ?? row["Código do hidrante"];
   doc.setFillColor(...SURFACE);
   doc.roundedRect(PAGE.margin, y, CONTENT_WIDTH, 10, 2.5, 2.5, "F");
@@ -125,7 +125,7 @@ function recordHeading(doc: jsPDF, row: PdfRow, index: number, y: number) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   color(doc, GRAPHITE);
-  doc.text(code ? `Registro ${index + 1} · ${text(code)}` : `Registro ${index + 1}`, PAGE.margin + 7, y + 6.8);
+  doc.text(code ? `${itemName} ${text(code)}` : `${itemName} ${index + 1}`, PAGE.margin + 7, y + 6.8);
   if (row.Status) {
     doc.setFontSize(7);
     color(doc, statusColor(text(row.Status)));
@@ -183,9 +183,16 @@ function drawLongField(doc: jsPDF, label: string, value: PdfCell, startY: number
   return y + 2.5;
 }
 
-function record(doc: jsPDF, row: PdfRow, index: number, startY: number, title: string): number {
+function record(
+  doc: jsPDF,
+  row: PdfRow,
+  index: number,
+  startY: number,
+  title: string,
+  itemName: string,
+): number {
   let y = ensure(doc, startY, 15, title);
-  recordHeading(doc, row, index, y);
+  recordHeading(doc, row, index, y, itemName);
   y += 13;
   const ignored = new Set(["Código", "Código do Extintor", "Código do hidrante", "Status"]);
   const entries = Object.entries(row).filter(([key]) => !ignored.has(key));
@@ -210,8 +217,11 @@ function section(doc: jsPDF, value: PdfSection, title: string) {
   doc.setFillColor(...ORANGE);
   doc.rect(PAGE.margin, 39, 24, 1.5, "F");
   let y = 47;
+  const itemName = value.title.toLocaleLowerCase("pt-BR").includes("hidrante")
+    ? "Hidrante"
+    : "Extintor";
   if (value.rows.length === 0) doc.text("Nenhum registro encontrado.", PAGE.margin, y);
-  value.rows.forEach((row, index) => { y = record(doc, row, index, y, title); });
+  value.rows.forEach((row, index) => { y = record(doc, row, index, y, title, itemName); });
 }
 
 function footers(doc: jsPDF) {

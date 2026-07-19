@@ -29,6 +29,8 @@ import {
 } from "@/lib/supabase/conferencias-historico-fetch";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { baseHasEquipesConferencia } from "@/lib/auth/bases";
+import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
+import type { ChecklistQuestion } from "@/lib/checklist/default-questions";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 import ExportActions from "@/src/components/ExportActions";
 import ConferenciaFilterModal from "./ConferenciaFilterModal";
@@ -139,6 +141,8 @@ export default function AdminConferenciasPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ConferenciaItem | null>(null);
+  const [extintorQuestions, setExtintorQuestions] = useState<ChecklistQuestion[]>([]);
+  const [hidranteQuestions, setHidranteQuestions] = useState<ChecklistQuestion[]>([]);
   const extintorLookupRef = useRef<Map<string, ExtintorLookupRow>>(new Map());
   const hidranteLookupRef = useRef<Map<string, HidranteLookupRow>>(new Map());
   const datasEditadasPeloUsuarioRef = useRef(false);
@@ -148,8 +152,14 @@ export default function AdminConferenciasPage() {
     setLoading(true);
     setLoadError(null);
 
-    const { extintorRows, hidranteRows, extintorLookup, hidranteLookup, errors } =
-      await fetchConferenciasHistorico(supabase, activeBaseId);
+    const [history, extQuestions, hidQuestions] = await Promise.all([
+      fetchConferenciasHistorico(supabase, activeBaseId),
+      fetchChecklistQuestionsForBase(activeBaseId, "extintor"),
+      fetchChecklistQuestionsForBase(activeBaseId, "hidrante"),
+    ]);
+    const { extintorRows, hidranteRows, extintorLookup, hidranteLookup, errors } = history;
+    setExtintorQuestions(extQuestions);
+    setHidranteQuestions(hidQuestions);
 
     extintorLookupRef.current = extintorLookup;
     hidranteLookupRef.current = hidranteLookup;
@@ -176,6 +186,9 @@ export default function AdminConferenciasPage() {
         local_detalhado: ext?.local_detalhado ?? "",
         tipoEquip: ext?.tipo ?? "",
         tamanho: ext?.tamanho ?? "",
+        numInmetro: ext?.num_inmetro ?? "",
+        capacidadeExtintora: ext?.capacidade_extintora ?? "",
+        pavimento: ext?.pavimento ?? "",
         manutencao_2_nivel,
         manutencao_3_nivel: ext?.manutencao_3_nivel ?? null,
         hidrante: null,
@@ -655,6 +668,7 @@ export default function AdminConferenciasPage() {
         <ConferenciaDetailModal
           item={selectedItem}
           teamLabel={equipeLabelForCodigo(selectedItem.codigo, selectedItem.tipo)}
+          questions={selectedItem.tipo === "extintor" ? extintorQuestions : hidranteQuestions}
           onClose={() => setSelectedItem(null)}
         />
       )}
