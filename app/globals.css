@@ -296,7 +296,7 @@ h3,
 .mobile-dock {
   position: fixed;
   left: 50%;
-  bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
   z-index: 40;
   width: min(22rem, calc(100% - 1.5rem));
   transform: translateX(-50%);
@@ -441,14 +441,14 @@ h3,
 
 @media (max-width: 640px) {
   .admin-dock {
-    bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
     gap: 0;
     border-radius: 1.35rem;
     padding: 0.35rem;
   }
 
   :root {
-    --admin-dock-clearance: calc(5.9rem + env(safe-area-inset-bottom, 0px));
+    --admin-dock-clearance: calc(6.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   .admin-dock__item {
