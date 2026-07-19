@@ -21,22 +21,36 @@ function withInspecaoDefaults<T extends Record<string, unknown>>(rows: T[]) {
  * Carrega marcadores de emergência para o mapa. Se as colunas de inspeção ainda não existirem no banco,
  * repete o select sem elas (evita sumir todos os pontos após deploy antes da migração SQL).
  */
-export async function fetchMarcadoresEmergenciaForMap(supabase: SupabaseClient) {
-  const full = await supabase.from("marcadores_emergencia").select(MAP_FULL);
+export async function fetchMarcadoresEmergenciaForMap(
+  supabase: SupabaseClient,
+  baseId?: string | null,
+) {
+  let fullQuery = supabase.from("marcadores_emergencia").select(MAP_FULL);
+  if (baseId) fullQuery = fullQuery.eq("base_id", baseId);
+  const full = await fullQuery;
   if (!full.error) return withInspecaoDefaults((full.data ?? []) as Record<string, unknown>[]);
 
-  const legacy = await supabase.from("marcadores_emergencia").select(MAP_LEGACY);
+  let legacyQuery = supabase.from("marcadores_emergencia").select(MAP_LEGACY);
+  if (baseId) legacyQuery = legacyQuery.eq("base_id", baseId);
+  const legacy = await legacyQuery;
   if (!legacy.error) return withInspecaoDefaults((legacy.data ?? []) as Record<string, unknown>[]);
 
   return [];
 }
 
 /** Mesma tolerância à ausência de colunas, para o dashboard admin. */
-export async function fetchMarcadoresEmergenciaForDashboard(supabase: SupabaseClient) {
-  const full = await supabase.from("marcadores_emergencia").select(DASH_FULL);
+export async function fetchMarcadoresEmergenciaForDashboard(
+  supabase: SupabaseClient,
+  baseId?: string | null,
+) {
+  let fullQuery = supabase.from("marcadores_emergencia").select(DASH_FULL);
+  if (baseId) fullQuery = fullQuery.eq("base_id", baseId);
+  const full = await fullQuery;
   if (!full.error) return withInspecaoDefaults((full.data ?? []) as Record<string, unknown>[]);
 
-  const legacy = await supabase.from("marcadores_emergencia").select(DASH_LEGACY);
+  let legacyQuery = supabase.from("marcadores_emergencia").select(DASH_LEGACY);
+  if (baseId) legacyQuery = legacyQuery.eq("base_id", baseId);
+  const legacy = await legacyQuery;
   if (!legacy.error) return withInspecaoDefaults((legacy.data ?? []) as Record<string, unknown>[]);
 
   return [];

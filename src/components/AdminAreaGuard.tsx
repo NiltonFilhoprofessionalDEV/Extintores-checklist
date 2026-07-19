@@ -39,11 +39,11 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
         }
 
         if (
-          profile.role === "cliente" &&
+          (profile.role === "cliente" || profile.role === "corporativo") &&
           pathname &&
           isClientBlockedAdminPath(pathname)
         ) {
-          router.replace(getHomePathForRole("cliente"));
+          router.replace(getHomePathForRole(profile.role));
           return;
         }
       } finally {

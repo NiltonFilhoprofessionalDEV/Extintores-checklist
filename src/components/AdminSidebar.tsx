@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { CLIENT_ALLOWED_ADMIN_PATHS, isLeadershipBlockedAdminPath } from "@/lib/auth/roles";
+import { CLIENT_ALLOWED_ADMIN_PATHS, isLeadershipBlockedAdminPath, isReadOnlyCorporateRole } from "@/lib/auth/roles";
 import { signOutCurrentUser } from "@/lib/auth/session-client";
 import BrandLogo from "./BrandLogo";
+import BaseSwitcher from "./BaseSwitcher";
 
 const NAV_ITEMS = [
   {
@@ -125,7 +126,7 @@ function SidebarContent({
   const router = useRouter();
 
   const navItems =
-    actorRole === "cliente"
+    isReadOnlyCorporateRole(actorRole)
       ? NAV_ITEMS.filter((item) =>
           CLIENT_ALLOWED_ADMIN_PATHS.some(
             (allowed) => item.href === allowed || item.href.startsWith(`${allowed}/`),
@@ -158,6 +159,10 @@ function SidebarContent({
       </div>
 
       <div className="mx-5 border-t border-white/10" />
+
+      <div className="relative mt-4 px-3">
+        <BaseSwitcher />
+      </div>
 
       {/* Label */}
       <p className="relative mt-5 px-5 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
@@ -214,7 +219,7 @@ function SidebarContent({
           </div>
 
           <div className="grid grid-cols-2 gap-2 border-t border-white/10 bg-black/20 p-2">
-            {actorRole !== "cliente" && (
+            {!isReadOnlyCorporateRole(actorRole) && (
               <Link
                 href="/admin/configuracoes"
                 onClick={onClose}
@@ -231,7 +236,7 @@ function SidebarContent({
               type="button"
               onClick={handleSignOut}
               className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border border-transparent bg-white/5 px-2 py-2.5 text-slate-400 transition-all hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-200 ${
-                actorRole === "cliente" ? "col-span-2" : ""
+                isReadOnlyCorporateRole(actorRole) ? "col-span-2" : ""
               }`}
             >
               <LogoutIcon size={17} />

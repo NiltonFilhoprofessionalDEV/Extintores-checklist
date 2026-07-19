@@ -3,6 +3,7 @@ import type { UserRole, UserTeam } from "@/lib/auth/roles";
 import {
   canAssignRole,
   canManageTarget,
+  isBaseRequiredForRole,
   isTeamRequiredForRole,
   isUserManager,
   normalizeUserTeam,
@@ -12,6 +13,7 @@ export type UserManager = {
   id: string;
   role: UserRole;
   team: UserTeam | null;
+  base_id: string | null;
 };
 
 export type ManagedProfile = {
@@ -20,6 +22,7 @@ export type ManagedProfile = {
   role: UserRole;
   team: UserTeam | null;
   active: boolean;
+  base_id: string | null;
 };
 
 export async function getUserManagerFromRequest(request: Request): Promise<UserManager | null> {
@@ -35,22 +38,23 @@ export async function getUserManagerFromRequest(request: Request): Promise<UserM
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("role,team,active")
+    .select("role,team,active,base_id")
     .eq("id", authData.user.id)
-    .maybeSingle<{ role: UserRole; team: string | null; active: boolean }>();
+    .maybeSingle<{ role: UserRole; team: string | null; active: boolean; base_id: string | null }>();
 
   if (profileError || !profile || !profile.active || !isUserManager(profile.role)) return null;
   const team = normalizeUserTeam(profile.team);
   if (profile.role === "leadership" && !team) return null;
+  if (profile.role !== "admin" && !profile.base_id) return null;
 
-  return { id: authData.user.id, role: profile.role, team };
+  return { id: authData.user.id, role: profile.role, team, base_id: profile.base_id };
 }
 
 export async function getTargetProfile(userId: string) {
   const supabaseAdmin = getSupabaseAdminClient();
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("id,nome,role,team,active")
+    .select("id,nome,role,team,active,base_id")
     .eq("id", userId)
     .maybeSingle<ManagedProfile>();
 
@@ -61,6 +65,23 @@ export async function getTargetProfile(userId: string) {
 export function assertCanManageTarget(manager: UserManager, target: ManagedProfile): string | null {
   if (!canManageTarget(manager.role, target.role, manager.team, target.team)) {
     return "Sem permissão para gerenciar este usuário.";
+  }
+  if (
+    manager.role === "admin" &&
+    manager.base_id &&
+    target.role !== "corporativo" &&
+    target.base_id &&
+    target.base_id !== manager.base_id
+  ) {
+    return "Sem permissão para gerenciar usuários de outra base.";
+  }
+  if (
+    manager.role === "leadership" &&
+    manager.base_id &&
+    target.base_id &&
+    target.base_id !== manager.base_id
+  ) {
+    return "Sem permissão para gerenciar usuários de outra base.";
   }
   return null;
 }
@@ -103,4 +124,49 @@ export function resolveTeamForWrite(
   }
 
   return { team, error: null };
+}
+
+export function resolveBaseForWrite(
+  manager: UserManager,
+  role: UserRole,
+  requestedBaseIds: unknown,
+): { base_id: string | null; membershipBaseIds: string[]; error: string | null } {
+  if (role === "corporativo") {
+    if (manager.role !== "admin") {
+      return { base_id: null, membershipBaseIds: [], error: "Apenas administradores podem criar usuários corporativos." };
+    }
+    const ids = Array.isArray(requestedBaseIds)
+      ? requestedBaseIds.map((id) => String(id)).filter(Boolean)
+      : [];
+    if (ids.length === 0) {
+      return { base_id: null, membershipBaseIds: [], error: "Informe ao menos uma base para o usuário corporativo." };
+    }
+    return { base_id: null, membershipBaseIds: ids, error: null };
+  }
+
+  if (!isBaseRequiredForRole(role)) {
+    return { base_id: null, membershipBaseIds: [], error: null };
+  }
+
+  if (!manager.base_id) {
+    return { base_id: null, membershipBaseIds: [], error: "Administrador sem base definida." };
+  }
+
+  return { base_id: manager.base_id, membershipBaseIds: [], error: null };
+}
+
+export async function replaceBaseMemberships(userId: string, baseIds: string[]): Promise<void> {
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { error: deleteError } = await supabaseAdmin
+    .from("base_memberships")
+    .delete()
+    .eq("user_id", userId);
+  if (deleteError) throw deleteError;
+
+  if (baseIds.length === 0) return;
+
+  const { error: insertError } = await supabaseAdmin.from("base_memberships").insert(
+    baseIds.map((base_id) => ({ user_id: userId, base_id })),
+  );
+  if (insertError) throw insertError;
 }

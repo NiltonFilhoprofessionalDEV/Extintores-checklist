@@ -15,6 +15,8 @@ import {
   syncHidrantes,
   type ImportMode,
 } from "@/lib/import/spreadsheet-sync";
+import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
+import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import AuthGuard from "@/src/components/AuthGuard";
 
 const ACCEPTED_FILES = ".xlsx,.csv";
@@ -36,6 +38,7 @@ function isSchemaError(message: string): boolean {
 }
 
 export default function ImportacaoPage() {
+  const activeBaseCtx = useOptionalActiveBase();
   const [destino, setDestino] = useState<DestinoImport>("extintores");
   const [modo, setModo] = useState<ImportMode>("cadastro");
   const [status, setStatus] = useState<ImportStatus>("idle");
@@ -49,6 +52,14 @@ export default function ImportacaoPage() {
 
   const previewExtintores = useMemo(() => rowsExtintor.slice(0, 8), [rowsExtintor]);
   const previewHidrantes = useMemo(() => rowsHidrante.slice(0, 8), [rowsHidrante]);
+
+  async function resolveBaseId(): Promise<string | null> {
+    if (activeBaseCtx?.activeBaseId) return activeBaseCtx.activeBaseId;
+    const session = await getCurrentSession();
+    if (!session) return null;
+    const profile = await getProfileBySession(session);
+    return profile?.base_id ?? null;
+  }
 
   function resetRows() {
     setRowsExtintor([]);
@@ -117,13 +128,19 @@ export default function ImportacaoPage() {
 
   async function handleImport() {
     const supabase = getSupabaseClient();
+    const baseId = await resolveBaseId();
+    if (!baseId) {
+      setStatus("error");
+      setMessage("Base ativa não definida. Selecione uma base antes de importar.");
+      return;
+    }
 
     if (destino === "extintores") {
       if (rowsExtintor.length === 0) return;
       setStatus("uploading");
       setMessage("");
 
-      const result = await syncExtintores(supabase, rowsExtintor, modo);
+      const result = await syncExtintores(supabase, rowsExtintor, modo, baseId);
 
       if (result.error) {
         setStatus("error");
@@ -148,7 +165,7 @@ export default function ImportacaoPage() {
     setStatus("uploading");
     setMessage("");
 
-    const result = await syncHidrantes(supabase, rowsHidrante, modo);
+    const result = await syncHidrantes(supabase, rowsHidrante, modo, baseId);
 
     if (result.error) {
       setStatus("error");

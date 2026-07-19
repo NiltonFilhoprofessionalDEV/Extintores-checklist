@@ -68,16 +68,27 @@ function padHidranteMesRow(row: Record<string, unknown>): ChecklistHidranteMesRo
  * Checklists de extintores no intervalo do mês. Várias tentativas de `select` se o banco ainda
  * não tiver todas as colunas de inspeção (evita falha total). `ok === false` só se todas falharem.
  */
+function applyBaseFilter<T extends { eq: (column: string, value: string) => T }>(
+  query: T,
+  baseId?: string | null,
+): T {
+  return baseId ? query.eq("base_id", baseId) : query;
+}
+
 export async function fetchChecklistsExtintoresDoMes(
   supabase: SupabaseClient,
   startIso: string,
   endInclusiveIso: string,
+  baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistExtintorMesRow[] }> {
-  const q1 = await supabase
-    .from("checklists")
-    .select(EXT_SELECT_FULL)
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q1 = await applyBaseFilter(
+    supabase
+      .from("checklists")
+      .select(EXT_SELECT_FULL)
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q1.error) {
     return {
@@ -86,11 +97,14 @@ export async function fetchChecklistsExtintoresDoMes(
     };
   }
 
-  const q2 = await supabase
-    .from("checklists")
-    .select("extintor_id,data_conferencia,observacoes")
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q2 = await applyBaseFilter(
+    supabase
+      .from("checklists")
+      .select("extintor_id,data_conferencia,observacoes")
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q2.error) {
     return {
@@ -105,11 +119,14 @@ export async function fetchChecklistsExtintoresDoMes(
     };
   }
 
-  const q3 = await supabase
-    .from("checklists")
-    .select("extintor_id,data_conferencia")
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q3 = await applyBaseFilter(
+    supabase
+      .from("checklists")
+      .select("extintor_id,data_conferencia")
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q3.error) {
     return {
@@ -126,12 +143,16 @@ export async function fetchChecklistsHidrantesDoMes(
   supabase: SupabaseClient,
   startIso: string,
   endInclusiveIso: string,
+  baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistHidranteMesRow[] }> {
-  const q1 = await supabase
-    .from("checklists_hidrantes")
-    .select(HID_SELECT_FULL)
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q1 = await applyBaseFilter(
+    supabase
+      .from("checklists_hidrantes")
+      .select(HID_SELECT_FULL)
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q1.error) {
     return {
@@ -140,11 +161,14 @@ export async function fetchChecklistsHidrantesDoMes(
     };
   }
 
-  const q2 = await supabase
-    .from("checklists_hidrantes")
-    .select("hidrante_id,data_conferencia,observacoes")
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q2 = await applyBaseFilter(
+    supabase
+      .from("checklists_hidrantes")
+      .select("hidrante_id,data_conferencia,observacoes")
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q2.error) {
     return {
@@ -159,11 +183,14 @@ export async function fetchChecklistsHidrantesDoMes(
     };
   }
 
-  const q3 = await supabase
-    .from("checklists_hidrantes")
-    .select("hidrante_id,data_conferencia")
-    .gte("data_conferencia", startIso)
-    .lte("data_conferencia", endInclusiveIso);
+  const q3 = await applyBaseFilter(
+    supabase
+      .from("checklists_hidrantes")
+      .select("hidrante_id,data_conferencia")
+      .gte("data_conferencia", startIso)
+      .lte("data_conferencia", endInclusiveIso),
+    baseId,
+  );
 
   if (!q3.error) {
     return {

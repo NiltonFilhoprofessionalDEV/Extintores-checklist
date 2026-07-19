@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "leadership" | "user" | "cliente";
+export type UserRole = "admin" | "leadership" | "user" | "cliente" | "corporativo";
 export type UserTeam = "ALFA" | "BRAVO" | "CHARLIE" | "DELTA";
 
 export const USER_TEAMS: UserTeam[] = ["ALFA", "BRAVO", "CHARLIE", "DELTA"];
@@ -8,6 +8,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   leadership: "Liderança",
   user: "Bombeiro",
   cliente: "Cliente",
+  corporativo: "Corporativo",
 };
 
 export const TEAM_LABELS: Record<UserTeam, string> = {
@@ -21,6 +22,10 @@ export const MANAGER_ROLES: UserRole[] = ["admin", "leadership"];
 
 export function isUserManager(role: UserRole): boolean {
   return MANAGER_ROLES.includes(role);
+}
+
+export function isReadOnlyCorporateRole(role: UserRole): boolean {
+  return role === "cliente" || role === "corporativo";
 }
 
 /** Quem pode acessar a gestão de usuários (criar/editar/excluir conforme regras abaixo). */
@@ -45,13 +50,17 @@ export function canAssignRole(actorRole: UserRole, newRole: UserRole): boolean {
 }
 
 export function assignableRoles(actorRole: UserRole): UserRole[] {
-  if (actorRole === "admin") return ["admin", "leadership", "user", "cliente"];
+  if (actorRole === "admin") return ["admin", "leadership", "user", "cliente", "corporativo"];
   if (actorRole === "leadership") return ["user"];
   return [];
 }
 
 export function isTeamRequiredForRole(role: UserRole): boolean {
   return role === "leadership" || role === "user";
+}
+
+export function isBaseRequiredForRole(role: UserRole): boolean {
+  return role !== "corporativo";
 }
 
 export function isValidUserTeam(value: unknown): value is UserTeam {
@@ -62,7 +71,7 @@ export function normalizeUserTeam(value: unknown): UserTeam | null {
   return isValidUserTeam(value) ? value : null;
 }
 
-/** Rotas do painel admin permitidas ao perfil cliente (somente consulta). */
+/** Rotas do painel admin permitidas ao perfil cliente/corporativo (somente consulta). */
 export const CLIENT_ALLOWED_ADMIN_PATHS = [
   "/admin/dashboard",
   "/admin/extintores",
@@ -88,7 +97,7 @@ export function canUseMapInspection(role: UserRole): boolean {
 }
 
 export function isInventoryReadOnlyRole(role: UserRole): boolean {
-  return role === "cliente";
+  return role === "cliente" || role === "corporativo";
 }
 
 /** Rotas do painel admin bloqueadas para o perfil liderança. */
@@ -101,6 +110,8 @@ export function isLeadershipBlockedAdminPath(pathname: string): boolean {
 }
 
 export function getHomePathForRole(role: UserRole): string {
-  if (role === "admin" || role === "leadership" || role === "cliente") return "/admin/dashboard";
+  if (role === "admin" || role === "leadership" || role === "cliente" || role === "corporativo") {
+    return "/admin/dashboard";
+  }
   return "/mobile/conferencia";
 }

@@ -32,6 +32,8 @@ import {
   type ExtintorLookupRow,
   type HidranteLookupRow,
 } from "@/lib/supabase/conferencias-historico-fetch";
+import { useActiveBase } from "@/lib/auth/active-base-context";
+import { baseHasEquipesConferencia } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 
 type ConferenciaItem = {
@@ -195,6 +197,8 @@ function FiltroCampo({ label, htmlFor, icon, children, className = "" }: FiltroC
 }
 
 export default function AdminConferenciasPage() {
+  const { ready, activeBaseId, activeBase } = useActiveBase();
+  const showEquipeFilter = baseHasEquipesConferencia(activeBase);
   const supabase = useMemo(() => getSupabaseClient(), []);
   const [rows, setRows] = useState<ConferenciaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,12 +214,17 @@ export default function AdminConferenciasPage() {
   const hidranteLookupRef = useRef<Map<string, HidranteLookupRow>>(new Map());
   const datasEditadasPeloUsuarioRef = useRef(false);
 
+  useEffect(() => {
+    if (!showEquipeFilter) setFiltroEquipe("");
+  }, [showEquipeFilter]);
+
   const loadConferencias = useCallback(async () => {
+    if (!ready || !activeBaseId) return;
     setLoading(true);
     setLoadError(null);
 
     const { extintorRows, hidranteRows, extintorLookup, hidranteLookup, errors } =
-      await fetchConferenciasHistorico(supabase);
+      await fetchConferenciasHistorico(supabase, activeBaseId);
 
     extintorLookupRef.current = extintorLookup;
     hidranteLookupRef.current = hidranteLookup;
@@ -298,14 +307,15 @@ export default function AdminConferenciasPage() {
       setLoadError(errors.join(" "));
     }
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, ready, activeBaseId]);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
     const timer = window.setTimeout(() => {
       void loadConferencias();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadConferencias]);
+  }, [loadConferencias, ready, activeBaseId]);
 
   useEffect(() => {
     function sincronizarDatasMesVigente() {
@@ -379,7 +389,7 @@ export default function AdminConferenciasPage() {
   const datasPersonalizadas =
     dataInicio !== datasPadraoMes.inicio || dataFim !== datasPadraoMes.fim;
   const temFiltrosAtivos = Boolean(
-    filtroEquipe || filtroStatus || datasPersonalizadas || busca.trim(),
+    (showEquipeFilter && filtroEquipe) || filtroStatus || datasPersonalizadas || busca.trim(),
   );
   const totalTipoAtual =
     tipoLista === "extintor"
@@ -576,23 +586,30 @@ export default function AdminConferenciasPage() {
             />
           </FiltroCampo>
 
-          <FiltroCampo label="Equipe" htmlFor="filtro-equipe" icon={<IconeEquipe />} className="lg:col-span-2">
-            <select
-              id="filtro-equipe"
-              className="field-control appearance-none !pl-10"
-              value={filtroEquipe}
-              onChange={(event) => setFiltroEquipe(event.target.value as EquipeConferenciaId | "")}
-            >
-              <option value="">Todas as equipes</option>
-              {EQUIPES_CONFERENCIA.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.label}
-                </option>
-              ))}
-            </select>
-          </FiltroCampo>
+          {showEquipeFilter && (
+            <FiltroCampo label="Equipe" htmlFor="filtro-equipe" icon={<IconeEquipe />} className="lg:col-span-2">
+              <select
+                id="filtro-equipe"
+                className="field-control appearance-none !pl-10"
+                value={filtroEquipe}
+                onChange={(event) => setFiltroEquipe(event.target.value as EquipeConferenciaId | "")}
+              >
+                <option value="">Todas as equipes</option>
+                {EQUIPES_CONFERENCIA.map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {eq.label}
+                  </option>
+                ))}
+              </select>
+            </FiltroCampo>
+          )}
 
-          <FiltroCampo label="Status" htmlFor="filtro-status" icon={<IconeStatus />} className="lg:col-span-2">
+          <FiltroCampo
+            label="Status"
+            htmlFor="filtro-status"
+            icon={<IconeStatus />}
+            className={showEquipeFilter ? "lg:col-span-2" : "lg:col-span-4"}
+          >
             <select
               id="filtro-status"
               className="field-control appearance-none !pl-10"

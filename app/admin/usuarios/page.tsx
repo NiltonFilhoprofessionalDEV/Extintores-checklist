@@ -10,6 +10,7 @@ import {
   type UserRole,
   type UserTeam,
 } from "@/lib/auth/roles";
+import { useActiveBase } from "@/lib/auth/active-base-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type UserItem = {
@@ -27,6 +28,7 @@ type FormState = {
   nome: string;
   role: UserRole;
   team: UserTeam | "";
+  base_ids: string[];
 };
 
 type EditState = {
@@ -36,6 +38,7 @@ type EditState = {
   team: UserTeam | null;
   active: boolean;
   password: string;
+  base_ids: string[];
 };
 
 const INITIAL_FORM: FormState = {
@@ -44,6 +47,7 @@ const INITIAL_FORM: FormState = {
   nome: "",
   role: "user",
   team: "",
+  base_ids: [],
 };
 
 function isTeamRequired(role: UserRole): boolean {
@@ -51,6 +55,7 @@ function isTeamRequired(role: UserRole): boolean {
 }
 
 export default function AdminUsuariosPage() {
+  const { activeBaseId, accessibleBases } = useActiveBase();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [managerRole, setManagerRole] = useState<UserRole>("admin");
   const [managerTeam, setManagerTeam] = useState<UserTeam | null>(null);
@@ -72,6 +77,12 @@ export default function AdminUsuariosPage() {
       : isTeamRequired(selectedFormRole)
         ? form.team || USER_TEAMS[0]
         : form.team || null;
+  const defaultBaseIds = useMemo(() => {
+    if (activeBaseId) return [activeBaseId];
+    return accessibleBases[0]?.id ? [accessibleBases[0].id] : [];
+  }, [activeBaseId, accessibleBases]);
+  const formBaseIds =
+    form.base_ids.length > 0 ? form.base_ids : selectedFormRole === "corporativo" ? defaultBaseIds : [];
 
   const callAdminApi = useCallback(async <T,>(url: string, init?: RequestInit) => {
     const {
@@ -146,12 +157,29 @@ export default function AdminUsuariosPage() {
     event.preventDefault();
     setMessage("");
 
+    const base_ids =
+      selectedFormRole === "corporativo"
+        ? formBaseIds.length > 0
+          ? formBaseIds
+          : defaultBaseIds
+        : undefined;
+
+    if (selectedFormRole === "corporativo" && (!base_ids || base_ids.length === 0)) {
+      setMessage("Selecione ao menos uma base para o usuário corporativo.");
+      return;
+    }
+
     try {
       await callAdminApi("/api/admin/usuarios", {
         method: "POST",
-        body: JSON.stringify({ ...form, role: selectedFormRole, team: selectedFormTeam }),
+        body: JSON.stringify({
+          ...form,
+          role: selectedFormRole,
+          team: selectedFormTeam,
+          ...(base_ids ? { base_ids } : {}),
+        }),
       });
-      setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user" });
+      setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user", base_ids: [] });
       setMessage("Usuário criado com sucesso.");
       await loadUsers();
     } catch (error) {
@@ -167,6 +195,7 @@ export default function AdminUsuariosPage() {
       team: user.team,
       active: user.active,
       password: "",
+      base_ids: user.role === "corporativo" ? defaultBaseIds : [],
     });
   }
 
@@ -174,6 +203,18 @@ export default function AdminUsuariosPage() {
     event.preventDefault();
     if (!editUser) return;
     setMessage("");
+
+    const base_ids =
+      editUser.role === "corporativo"
+        ? editUser.base_ids.length > 0
+          ? editUser.base_ids
+          : defaultBaseIds
+        : undefined;
+
+    if (editUser.role === "corporativo" && (!base_ids || base_ids.length === 0)) {
+      setMessage("Selecione ao menos uma base para o usuário corporativo.");
+      return;
+    }
 
     try {
       await callAdminApi("/api/admin/usuarios", {
@@ -190,6 +231,7 @@ export default function AdminUsuariosPage() {
                 : editUser.team,
           active: editUser.active,
           ...(editUser.password ? { password: editUser.password } : {}),
+          ...(base_ids ? { base_ids } : {}),
         }),
       });
       setEditUser(null);
@@ -272,6 +314,7 @@ export default function AdminUsuariosPage() {
                     ...prev,
                     role: nextRole,
                     team: isTeamRequired(nextRole) ? prev.team || USER_TEAMS[0] : "",
+                    base_ids: nextRole === "corporativo" ? (prev.base_ids.length ? prev.base_ids : defaultBaseIds) : [],
                   };
                 })
               }
@@ -290,6 +333,37 @@ export default function AdminUsuariosPage() {
           {managerRole === "leadership" ? (
             <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
               Equipe: {managerTeam ?? "—"}
+            </div>
+          ) : selectedFormRole === "corporativo" ? (
+            <div className="sm:col-span-2 lg:col-span-1">
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Bases</p>
+              <div className="max-h-28 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-2">
+                {accessibleBases.length === 0 ? (
+                  <p className="text-xs text-slate-500">Nenhuma base acessível.</p>
+                ) : (
+                  accessibleBases.map((base) => {
+                    const checked = formBaseIds.includes(base.id);
+                    return (
+                      <label key={base.id} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setForm((prev) => {
+                              const current = prev.base_ids.length > 0 ? prev.base_ids : defaultBaseIds;
+                              const next = checked
+                                ? current.filter((id) => id !== base.id)
+                                : [...current, base.id];
+                              return { ...prev, base_ids: next };
+                            })
+                          }
+                        />
+                        {base.nome}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
           ) : (
             <select
@@ -417,6 +491,12 @@ export default function AdminUsuariosPage() {
                       ...prev,
                       role: nextRole,
                       team: isTeamRequired(nextRole) ? prev.team ?? USER_TEAMS[0] : null,
+                      base_ids:
+                        nextRole === "corporativo"
+                          ? prev.base_ids.length > 0
+                            ? prev.base_ids
+                            : defaultBaseIds
+                          : [],
                     };
                   })
                 }
@@ -432,6 +512,40 @@ export default function AdminUsuariosPage() {
             )}
             {managerRole === "leadership" ? (
               <p className="text-sm text-slate-600">Equipe: {managerTeam ?? "—"}</p>
+            ) : editUser.role === "corporativo" ? (
+              <div>
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Bases</p>
+                <div className="max-h-28 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  {accessibleBases.length === 0 ? (
+                    <p className="text-xs text-slate-500">Nenhuma base acessível.</p>
+                  ) : (
+                    accessibleBases.map((base) => {
+                      const selectedIds =
+                        editUser.base_ids.length > 0 ? editUser.base_ids : defaultBaseIds;
+                      const checked = selectedIds.includes(base.id);
+                      return (
+                        <label key={base.id} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setEditUser((prev) => {
+                                if (!prev) return prev;
+                                const current = prev.base_ids.length > 0 ? prev.base_ids : defaultBaseIds;
+                                const next = checked
+                                  ? current.filter((id) => id !== base.id)
+                                  : [...current, base.id];
+                                return { ...prev, base_ids: next };
+                              })
+                            }
+                          />
+                          {base.nome}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             ) : (
               <select
                 className="field-control"

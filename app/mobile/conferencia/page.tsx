@@ -34,6 +34,7 @@ import {
   type ChecklistExtintorMesRow as ChecklistMesRow,
   type ChecklistHidranteMesRow,
 } from "@/lib/supabase/checklists-do-mes";
+import { useActiveBase } from "@/lib/auth/active-base-context";
 
 type ExtintorMobile = Pick<
   ExtintorImportRecord,
@@ -211,6 +212,7 @@ function buildUltimoChecklistPorHidrante(rows: ChecklistHidranteMesRow[]): Map<s
 export default function MobileConferenciaPage() {
   const pathname = usePathname();
   const isAdminLista = pathname?.includes("/admin/inspecoes-lista") ?? false;
+  const { ready, activeBaseId } = useActiveBase();
   const [tipoAtivo, setTipoAtivo] = useState<TipoEquipamento>("extintor");
   const [extintores, setExtintores] = useState<ExtintorMobile[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteMobile[]>([]);
@@ -250,6 +252,8 @@ export default function MobileConferenciaPage() {
   }, [extintoresOrdenados, hidrantesOrdenados, tipoAtivo]);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
+
     const load = async () => {
       await getCurrentSession();
       const { data, error } = await supabase
@@ -257,6 +261,7 @@ export default function MobileConferenciaPage() {
         .select(
           "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,pavimento,manutencao_2_nivel,manutencao_3_nivel,capacidade_extintora",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true });
 
       if (!error) {
@@ -278,11 +283,13 @@ export default function MobileConferenciaPage() {
           supabase,
           currentMonthRange.startIso,
           currentMonthRange.endInclusiveIso,
+          activeBaseId,
         ),
         fetchChecklistsHidrantesDoMes(
           supabase,
           currentMonthRange.startIso,
           currentMonthRange.endInclusiveIso,
+          activeBaseId,
         ),
       ]);
       if (extCh.ok) {
@@ -299,6 +306,7 @@ export default function MobileConferenciaPage() {
         .select(
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true });
 
       if (!hidError) {
@@ -313,7 +321,7 @@ export default function MobileConferenciaPage() {
       }
     };
     void load();
-  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso]);
+  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, ready, activeBaseId]);
 
   async function flushPendingChecklists() {
     if (typeof window === "undefined") return;
@@ -374,6 +382,7 @@ export default function MobileConferenciaPage() {
   }, []);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
     const channel = supabase
       .channel("mobile-conferencia-realtime")
       .on(
@@ -384,6 +393,7 @@ export default function MobileConferenciaPage() {
             supabase,
             currentMonthRange.startIso,
             currentMonthRange.endInclusiveIso,
+            activeBaseId,
           ).then(({ ok, rows }) => {
             if (!ok) return;
             setConferidosNoMesIds(new Set(rows.map((r) => r.extintor_id).filter(Boolean)));
@@ -396,9 +406,10 @@ export default function MobileConferenciaPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentMonthRange.endInclusiveIso, currentMonthRange.startIso, supabase]);
+  }, [currentMonthRange.endInclusiveIso, currentMonthRange.startIso, supabase, ready, activeBaseId]);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
     const channel = supabase
       .channel("mobile-conferencia-hidrantes-realtime")
       .on(
@@ -409,6 +420,7 @@ export default function MobileConferenciaPage() {
             supabase,
             currentMonthRange.startIso,
             currentMonthRange.endInclusiveIso,
+            activeBaseId,
           ).then(({ ok, rows }) => {
             if (!ok) return;
             setConferidosHidranteMesIds(new Set(rows.map((r) => r.hidrante_id).filter(Boolean)));
@@ -421,7 +433,7 @@ export default function MobileConferenciaPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentMonthRange.endInclusiveIso, currentMonthRange.startIso, supabase]);
+  }, [currentMonthRange.endInclusiveIso, currentMonthRange.startIso, supabase, ready, activeBaseId]);
 
   useEffect(() => {
     const loadConferente = async () => {
@@ -477,7 +489,7 @@ export default function MobileConferenciaPage() {
 
   async function submitChecklist(event: React.FormEvent) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || !activeBaseId) return;
     setSaving(true);
 
     const observacoesFinal = mergeObservacoesComNaoConformidades(checklist);
@@ -493,6 +505,7 @@ export default function MobileConferenciaPage() {
 
     const payloadNovo = {
       extintor_id: selected.id,
+      base_id: activeBaseId,
       data_conferencia: new Date().toISOString(),
       conferente,
       status_lacre: checklist.alca_gatilho_status === "conforme",
@@ -524,6 +537,7 @@ export default function MobileConferenciaPage() {
 
       const payloadLegado = {
         extintor_id: selected.id,
+        base_id: activeBaseId,
         data_conferencia: new Date().toISOString(),
         conferente,
         status_lacre: checklist.alca_gatilho_status === "conforme",
@@ -597,7 +611,7 @@ export default function MobileConferenciaPage() {
 
   async function submitHidranteChecklist(event: React.FormEvent) {
     event.preventDefault();
-    if (!selectedHidrante) return;
+    if (!selectedHidrante || !activeBaseId) return;
     setSaving(true);
 
     const observacoesFinal = mergeHidranteObservacoes(hidranteChecklist);
@@ -612,6 +626,7 @@ export default function MobileConferenciaPage() {
 
     const payload = {
       hidrante_id: selectedHidrante.id,
+      base_id: activeBaseId,
       data_conferencia: new Date().toISOString(),
       conferente,
       acesso_desobstruido: hidranteChecklist.acesso_desobstruido,

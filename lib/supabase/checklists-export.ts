@@ -80,20 +80,23 @@ function rowToExportItem(
 export async function fetchChecklistsExtintoresForExport(
   supabase: SupabaseClient,
   extintorById: Map<string, { codigo: string; setor: string; local_detalhado: string }>,
+  baseId?: string | null,
 ): Promise<{ items: ExtintorChecklistExportItem[]; error: string | null }> {
   let lastError: string | null = null;
 
   for (const select of CHECKLIST_SELECT_ATTEMPTS) {
-    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      supabase
+    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) => {
+      let query = supabase
         .from("checklists")
         .select(select)
         .order("data_conferencia", { ascending: false })
-        .range(from, to) as unknown as Promise<{
+        .range(from, to);
+      if (baseId) query = query.eq("base_id", baseId);
+      return query as unknown as Promise<{
         data: Record<string, unknown>[] | null;
         error: { message: string } | null;
-      }>,
-    );
+      }>;
+    });
 
     if (error) {
       lastError = error;
@@ -114,16 +117,18 @@ export async function fetchChecklistsExtintoresForExport(
   ];
 
   for (const select of minimalSelects) {
-    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      supabase
+    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) => {
+      let query = supabase
         .from("checklists")
         .select(select)
         .order("data_conferencia", { ascending: false })
-        .range(from, to) as unknown as Promise<{
+        .range(from, to);
+      if (baseId) query = query.eq("base_id", baseId);
+      return query as unknown as Promise<{
         data: Record<string, unknown>[] | null;
         error: { message: string } | null;
-      }>,
-    );
+      }>;
+    });
 
     if (error) {
       lastError = error;

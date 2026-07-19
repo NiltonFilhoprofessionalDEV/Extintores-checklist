@@ -5,6 +5,8 @@ import {
   assertCanManageTarget,
   getTargetProfile,
   getUserManagerFromRequest,
+  replaceBaseMemberships,
+  resolveBaseForWrite,
   resolveTeamForWrite,
 } from "@/lib/auth/user-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
@@ -15,22 +17,70 @@ export async function GET(request: Request) {
     if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
     const supabaseAdmin = getSupabaseAdminClient();
-    let query = supabaseAdmin
-      .from("profiles")
-      .select("id,nome,role,team,active,created_at")
-      .order("created_at", { ascending: false });
 
     if (manager.role === "leadership") {
-      if (!manager.team) {
-        return NextResponse.json({ error: "Líder sem equipe definida." }, { status: 403 });
+      if (!manager.team || !manager.base_id) {
+        return NextResponse.json({ error: "Líder sem equipe/base definida." }, { status: 403 });
       }
-      query = query.eq("role", "user").eq("team", manager.team);
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id,nome,role,team,active,base_id,created_at")
+        .eq("role", "user")
+        .eq("team", manager.team)
+        .eq("base_id", manager.base_id)
+        .order("created_at", { ascending: false });
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({
+        users: data ?? [],
+        managerRole: manager.role,
+        managerTeam: manager.team,
+        managerBaseId: manager.base_id,
+      });
     }
 
-    const { data, error } = await query;
+    if (!manager.base_id) {
+      return NextResponse.json({ error: "Administrador sem base definida." }, { status: 403 });
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ users: data ?? [], managerRole: manager.role, managerTeam: manager.team });
+    const { data: staffUsers, error: staffError } = await supabaseAdmin
+      .from("profiles")
+      .select("id,nome,role,team,active,base_id,created_at")
+      .eq("base_id", manager.base_id)
+      .order("created_at", { ascending: false });
+    if (staffError) return NextResponse.json({ error: staffError.message }, { status: 400 });
+
+    const { data: membershipUserIds, error: membershipError } = await supabaseAdmin
+      .from("base_memberships")
+      .select("user_id")
+      .eq("base_id", manager.base_id);
+    if (membershipError) {
+      return NextResponse.json({ error: membershipError.message }, { status: 400 });
+    }
+
+    const corpIds = (membershipUserIds ?? []).map((row) => String(row.user_id));
+    let corpUsers: typeof staffUsers = [];
+    if (corpIds.length > 0) {
+      const { data: corps, error: corpError } = await supabaseAdmin
+        .from("profiles")
+        .select("id,nome,role,team,active,base_id,created_at")
+        .eq("role", "corporativo")
+        .in("id", corpIds)
+        .order("created_at", { ascending: false });
+      if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });
+      corpUsers = corps ?? [];
+    }
+
+    const byId = new Map<string, (typeof staffUsers)[number]>();
+    for (const user of [...(staffUsers ?? []), ...corpUsers]) {
+      byId.set(String(user.id), user);
+    }
+
+    return NextResponse.json({
+      users: Array.from(byId.values()),
+      managerRole: manager.role,
+      managerTeam: manager.team,
+      managerBaseId: manager.base_id,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro interno no carregamento de usuários." },
@@ -50,6 +100,7 @@ export async function POST(request: Request) {
       nome: string;
       role: UserRole;
       team?: string | null;
+      base_ids?: string[];
     };
 
     const role = body.role ?? "user";
@@ -58,6 +109,13 @@ export async function POST(request: Request) {
 
     const { team, error: teamError } = resolveTeamForWrite(manager, role, body.team);
     if (teamError) return NextResponse.json({ error: teamError }, { status: 400 });
+
+    const { base_id, membershipBaseIds, error: baseError } = resolveBaseForWrite(
+      manager,
+      role,
+      body.base_ids,
+    );
+    if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
 
     const supabaseAdmin = getSupabaseAdminClient();
     const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -75,12 +133,30 @@ export async function POST(request: Request) {
       nome: body.nome,
       role,
       team,
+      base_id,
       active: true,
     });
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(createdUser.user.id);
       return NextResponse.json({ error: profileError.message }, { status: 400 });
+    }
+
+    if (role === "corporativo") {
+      try {
+        await replaceBaseMemberships(createdUser.user.id, membershipBaseIds);
+      } catch (membershipError) {
+        await supabaseAdmin.auth.admin.deleteUser(createdUser.user.id);
+        return NextResponse.json(
+          {
+            error:
+              membershipError instanceof Error
+                ? membershipError.message
+                : "Falha ao vincular bases do corporativo.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     return NextResponse.json({ ok: true });
@@ -104,6 +180,7 @@ export async function PATCH(request: Request) {
       team?: string | null;
       active: boolean;
       password?: string;
+      base_ids?: string[];
     };
 
     const target = await getTargetProfile(body.id);
@@ -118,13 +195,26 @@ export async function PATCH(request: Request) {
     const { team, error: teamError } = resolveTeamForWrite(manager, body.role, body.team);
     if (teamError) return NextResponse.json({ error: teamError }, { status: 400 });
 
+    const { base_id, membershipBaseIds, error: baseError } = resolveBaseForWrite(
+      manager,
+      body.role,
+      body.base_ids,
+    );
+    if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
+
     const supabaseAdmin = getSupabaseAdminClient();
     const { error } = await supabaseAdmin
       .from("profiles")
-      .update({ nome: body.nome, role: body.role, team, active: body.active })
+      .update({ nome: body.nome, role: body.role, team, base_id, active: body.active })
       .eq("id", body.id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (body.role === "corporativo") {
+      await replaceBaseMemberships(body.id, membershipBaseIds);
+    } else {
+      await replaceBaseMemberships(body.id, []);
+    }
 
     if (body.password && body.password.length >= 6) {
       const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(body.id, {

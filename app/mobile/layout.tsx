@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
+import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
 import BrandLogo from "@/src/components/BrandLogo";
 
 const NAV_LINKS = [
@@ -165,22 +166,24 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
   return (
     <AuthGuard allowedRoles={["user", "admin", "leadership"]}>
-      <div
-        className="app-shell-bg flex flex-col"
-        style={{ height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
-      >
-        <MobileNav isMapaRoute={isMapaRoute} />
-        <main
-          className={
-            isMapaRoute
-              ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
-              : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-24"
-          }
-          style={isMapaRoute ? { flex: "1 1 0", minHeight: 0 } : { flex: "1 1 auto" }}
+      <ActiveBaseProvider>
+        <div
+          className="app-shell-bg flex flex-col"
+          style={{ height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
         >
-          {children}
-        </main>
-      </div>
+          <MobileNav isMapaRoute={isMapaRoute} />
+          <main
+            className={
+              isMapaRoute
+                ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+                : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-24"
+            }
+            style={isMapaRoute ? { flex: "1 1 0", minHeight: 0 } : { flex: "1 1 auto" }}
+          >
+            {children}
+          </main>
+        </div>
+      </ActiveBaseProvider>
     </AuthGuard>
   );
 }
