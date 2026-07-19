@@ -653,8 +653,8 @@ export default function MapView() {
     }));
   }, [pavimentos, supportsWebp]);
 
-  const loadExtintores = useCallback(async () => {
-    setLoading(true);
+  const loadExtintores = useCallback(async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true);
     let query = supabase
       .from("extintores")
       .select(
@@ -667,12 +667,12 @@ export default function MapView() {
 
     if (error) {
       setMessage(`Erro ao carregar extintores: ${error.message}`);
-      setLoading(false);
+      if (!opts?.quiet) setLoading(false);
       return;
     }
 
     setExtintores((data ?? []) as Extintor[]);
-    setLoading(false);
+    if (!opts?.quiet) setLoading(false);
   }, [supabase, activeBaseId]);
 
   const loadConferenciasDoMes = useCallback(async () => {
@@ -1049,24 +1049,40 @@ export default function MapView() {
       setSavingPosition(true);
       setMessage("");
       const placedId = selectedHidranteId;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("hidrantes")
         .update({ coord_x: lng, coord_y: lat, pavimento: pavimento.label })
-        .eq("id", placedId);
+        .eq("id", placedId)
+        .select("id,coord_x,coord_y,pavimento")
+        .maybeSingle();
       if (error) {
         setMessage(`Erro ao salvar hidrante: ${error.message}`);
-      } else {
-        setHidrantes((prev) =>
-          prev.map((item) =>
-            item.id === placedId
-              ? { ...item, coord_x: lng, coord_y: lat, pavimento: pavimento.label }
-              : item,
-          ),
-        );
-        setSelectedHidranteId("");
-        setMessage("Posição do hidrante salva.");
-        await loadHidrantesEMarcadores();
+        setSavingPosition(false);
+        return;
       }
+      if (!data || !hasMapCoordinates(data.coord_x, data.coord_y)) {
+        setMessage(
+          "Não foi possível salvar a posição do hidrante (sem permissão ou o registro não foi atualizado).",
+        );
+        setSavingPosition(false);
+        return;
+      }
+
+      setHidrantes((prev) =>
+        prev.map((item) =>
+          item.id === placedId
+            ? {
+                ...item,
+                coord_x: Number(data.coord_x),
+                coord_y: Number(data.coord_y),
+                pavimento: String(data.pavimento ?? pavimento.label),
+              }
+            : item,
+        ),
+      );
+      setSelectedHidranteId("");
+      setMessage("Posição do hidrante salva.");
+      await loadHidrantesEMarcadores();
       setSavingPosition(false);
       return;
     }
@@ -1077,18 +1093,28 @@ export default function MapView() {
     setMessage("");
 
     const placedId = selectedExtintorId;
-    const { error } = await supabase
+    // Não sobrescrever `setor` (cadastro). Só posição + pavimento do mapa.
+    // Filtrar só por id: RLS já escopa a base; `.eq("base_id")` falha se base_id estiver null.
+    const { data, error } = await supabase
       .from("extintores")
       .update({
         coord_x: lng,
         coord_y: lat,
         pavimento: pavimento.label,
-        setor: pavimento.label,
       })
-      .eq("id", placedId);
+      .eq("id", placedId)
+      .select("id,coord_x,coord_y,pavimento,setor")
+      .maybeSingle();
 
     if (error) {
       setMessage(`Erro ao salvar posição: ${error.message}`);
+      setSavingPosition(false);
+      return;
+    }
+    if (!data || !hasMapCoordinates(data.coord_x, data.coord_y)) {
+      setMessage(
+        "Não foi possível salvar a posição (sem permissão ou o registro não foi atualizado). Se você é Administrador Corporativo, rode a migration de RLS de coordenadas.",
+      );
       setSavingPosition(false);
       return;
     }
@@ -1098,17 +1124,18 @@ export default function MapView() {
         item.id === placedId
           ? {
               ...item,
-              coord_x: lng,
-              coord_y: lat,
-              pavimento: pavimento.label,
-              setor: pavimento.label,
+              coord_x: Number(data.coord_x),
+              coord_y: Number(data.coord_y),
+              pavimento: String(data.pavimento ?? pavimento.label),
+              setor: String(data.setor ?? item.setor),
             }
           : item,
       ),
     );
     setSelectedExtintorId("");
     setMessage("Posição salva com sucesso.");
-    await loadExtintores();
+    // Reload silencioso: não pisca loading e confirma o que veio do banco.
+    await loadExtintores({ quiet: true });
     setSavingPosition(false);
   }
 
@@ -1127,13 +1154,12 @@ export default function MapView() {
     setSavingPosition(true);
     setMessage("");
 
-    let query = supabase
+    const { data, error } = await supabase
       .from("extintores")
       .update({ coord_x: null, coord_y: null, pavimento: null })
-      .eq("id", extintor.id);
-    if (activeBaseId) query = query.eq("base_id", activeBaseId);
-
-    const { data, error } = await query.select("id,coord_x,coord_y").maybeSingle();
+      .eq("id", extintor.id)
+      .select("id,coord_x,coord_y")
+      .maybeSingle();
 
     if (error) {
       setMessage(`Erro ao remover posição: ${error.message}`);
@@ -1482,13 +1508,12 @@ export default function MapView() {
   async function removerHidranteDoMapa(h: HidranteRow) {
     setInfoHidrante(null);
     setSavingPosition(true);
-    let query = supabase
+    const { data, error } = await supabase
       .from("hidrantes")
       .update({ coord_x: null, coord_y: null, pavimento: null })
-      .eq("id", h.id);
-    if (activeBaseId) query = query.eq("base_id", activeBaseId);
-
-    const { data, error } = await query.select("id,coord_x,coord_y").maybeSingle();
+      .eq("id", h.id)
+      .select("id,coord_x,coord_y")
+      .maybeSingle();
     if (error) {
       setMessage(error.message);
       setSavingPosition(false);
