@@ -14,16 +14,8 @@ import {
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
-
-type UserItem = {
-  id: string;
-  nome: string;
-  role: UserRole;
-  team: UserTeam | null;
-  active: boolean;
-  base_id: string | null;
-  created_at: string;
-};
+import UserList from "./UserList";
+import type { UserItem } from "./user-types";
 
 type FormState = {
   email: string;
@@ -66,6 +58,7 @@ export default function AdminUsuariosPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [editUser, setEditUser] = useState<EditState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -191,6 +184,7 @@ export default function AdminUsuariosPage() {
         }),
       });
       setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user", base_ids: [] });
+      setCreateModalOpen(false);
       setMessage("Usuário criado com sucesso.");
       await loadUsers();
     } catch (error) {
@@ -293,20 +287,58 @@ export default function AdminUsuariosPage() {
   return (
     <section className="space-y-5">
       <div className="page-hero p-6">
-        <div className="page-hero-content">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Acesso e governança</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Usuários e Permissões</h2>
-          <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
-            {isLeadership
-              ? `Cadastre, edite ou exclua usuários comuns da equipe ${managerTeam ?? "não definida"}.`
-              : "Gerencie todos os perfis: Administrador, Liderança e Usuário comum, organizados por equipe."}
-          </p>
+        <div className="page-hero-content flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Acesso e governança</p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Usuários e permissões</h2>
+            <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
+              {isLeadership
+                ? `Gerencie usuários da equipe ${managerTeam ?? "não definida"}.`
+                : "Gerencie perfis, equipes e acessos às bases do FireCheck."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user", base_ids: [] });
+              setMessage("");
+              setCreateModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-[var(--ink)] shadow-lg transition hover:bg-orange-50"
+          >
+            Novo usuário
+            <span className="text-lg leading-none text-[var(--orange)]">＋</span>
+          </button>
         </div>
       </div>
 
-      <form onSubmit={handleCreateUser} className="section-card p-5">
-        <h3 className="mb-3 text-lg font-black text-[var(--ink)]">Novo usuário</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {createModalOpen && (
+        <div
+          className="modal-layer fixed inset-0 flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-user-title"
+          onClick={() => setCreateModalOpen(false)}
+        >
+          <form
+            onSubmit={handleCreateUser}
+            className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.75rem] bg-white shadow-2xl sm:rounded-[1.75rem]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-5 sm:px-6">
+              <div>
+                <p className="page-eyebrow">Acesso e permissões</p>
+                <h3 id="new-user-title" className="mt-1 text-2xl font-extrabold text-[var(--ink)]">
+                  Novo usuário
+                </h3>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  Preencha os dados para criar um novo acesso.
+                </p>
+              </div>
+              <ModalCloseButton onClick={() => setCreateModalOpen(false)} />
+            </div>
+
+            <div className="grid gap-4 overflow-y-auto px-5 py-5 sm:grid-cols-2 sm:px-6">
           <input
             type="text"
             required
@@ -324,7 +356,7 @@ export default function AdminUsuariosPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
           />
           <input
-            type="text"
+            type="password"
             required
             minLength={6}
             placeholder="Senha inicial"
@@ -451,80 +483,57 @@ export default function AdminUsuariosPage() {
               )}
             </>
           )}
-        </div>
+              {message && (
+                <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                  {message}
+                </p>
+              )}
+            </div>
 
-        <button
-          type="submit"
-          className="btn-primary mt-4"
-        >
-          Criar usuário
-        </button>
-      </form>
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] p-4">
+              <button type="button" className="btn-secondary" onClick={() => setCreateModalOpen(false)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-primary">
+                Criar usuário
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {message && (
         <p className="surface-muted rounded-2xl p-3 text-sm font-medium text-slate-700">{message}</p>
       )}
 
-      <div className="section-card p-5">
-        <h3 className="mb-4 text-lg font-black text-[var(--ink)]">Usuários cadastrados</h3>
-        {loading ? (
-          <p className="text-sm text-slate-500">Carregando...</p>
-        ) : users.length === 0 ? (
-          <p className="text-sm text-slate-500">Nenhum usuário cadastrado.</p>
-        ) : (
-          <div className="space-y-2">
-            {users.map((user) => {
-              const manageable = canActOn(user);
-              return (
-                <div
-                  key={user.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
-                >
-                  <div>
-                    <p className="font-bold text-[var(--ink)]">{user.nome}</p>
-                    <p className="text-xs text-slate-500">
-                      {ROLE_LABELS[user.role]}
-                      {user.team ? ` · Equipe ${TEAM_LABELS[user.team]}` : " · Sem equipe"}
-                      {!user.active && " · Inativo"}
-                      {user.id === currentUserId && " · Você"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
-                        user.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {user.active ? "Ativo" : "Inativo"}
-                    </span>
-                    <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                      {user.team ? `Equipe ${TEAM_LABELS[user.team]}` : "Sem equipe"}
-                    </span>
-                    {manageable ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void openEdit(user)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(user)}
-                          className="rounded-xl bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
-                        >
-                          Excluir
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-slate-400">Sem permissão</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+      <div className="professional-card p-5">
+        <div className="mb-5 flex items-end justify-between gap-3">
+          <div>
+            <p className="page-eyebrow">Equipe e acessos</p>
+            <h3 className="mt-1 text-xl font-extrabold text-[var(--ink)]">Usuários cadastrados</h3>
           </div>
+          <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-xs font-bold text-slate-600">
+            {users.length} {users.length === 1 ? "usuário" : "usuários"}
+          </span>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-sm font-semibold text-slate-500">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+            Carregando usuários…
+          </div>
+        ) : users.length === 0 ? (
+          <div className="rounded-2xl bg-[var(--muted)] px-5 py-12 text-center">
+            <p className="font-bold text-[var(--ink)]">Nenhum usuário cadastrado</p>
+            <p className="mt-1 text-sm text-slate-500">Use “Novo usuário” para criar o primeiro acesso.</p>
+          </div>
+        ) : (
+          <UserList
+            users={users}
+            currentUserId={currentUserId}
+            canActOn={canActOn}
+            onEdit={(user) => void openEdit(user)}
+            onDelete={setDeleteTarget}
+          />
         )}
       </div>
 
@@ -685,7 +694,7 @@ export default function AdminUsuariosPage() {
               Usuário ativo
             </label>
             <input
-              type="text"
+              type="password"
               minLength={6}
               placeholder="Nova senha (opcional)"
               className="field-control"
