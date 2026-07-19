@@ -40,39 +40,56 @@ export async function GET(request: Request) {
       });
     }
 
-    const accessibleBaseIds = await getManagerAccessibleBaseIds(manager);
-    if (accessibleBaseIds.length === 0) {
+    // Isolamento estrito: só a base ativa (admin_corporativo) ou a home base (admin).
+    // Nunca misturar usuários de Santa Genoveva com Curitiba (ou qualquer outra base).
+    let scopeBaseId: string | null = null;
+    if (manager.role === "admin") {
+      scopeBaseId = manager.base_id;
+    } else if (manager.role === "admin_corporativo") {
+      const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
+      if (!activeBaseId) {
+        return NextResponse.json({ error: "Base ativa obrigatória para listar usuários." }, { status: 400 });
+      }
+      const accessibleBaseIds = await getManagerAccessibleBaseIds(manager);
+      if (!accessibleBaseIds.includes(activeBaseId)) {
+        return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+      }
+      scopeBaseId = activeBaseId;
+    }
+
+    if (!scopeBaseId) {
       return NextResponse.json({ error: "Nenhuma base acessível para listar usuários." }, { status: 403 });
     }
 
     const { data: staffUsers, error: staffError } = await supabaseAdmin
       .from("profiles")
       .select("id,nome,role,team,active,base_id,created_at")
-      .in("base_id", accessibleBaseIds)
+      .eq("base_id", scopeBaseId)
+      .in("role", ["admin", "leadership", "user", "cliente"])
       .order("created_at", { ascending: false });
     if (staffError) return NextResponse.json({ error: staffError.message }, { status: 400 });
 
-    const { data: membershipUserIds, error: membershipError } = await supabaseAdmin
-      .from("base_memberships")
-      .select("user_id")
-      .in("base_id", accessibleBaseIds);
-    if (membershipError) {
-      return NextResponse.json({ error: membershipError.message }, { status: 400 });
-    }
-
-    // Só o Administrador Corporativo lista outros admin_corporativo via memberships.
-    // Admins de base nunca consultam roles corporativos (evita erro de enum e vazamento).
-    const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
+    // Admin corporativo: também lista outros admin_corporativo com membership NESTA base.
     let corpUsers: typeof staffUsers = [];
-    if (manager.role === "admin_corporativo" && corpIds.length > 0) {
-      const { data: corps, error: corpError } = await supabaseAdmin
-        .from("profiles")
-        .select("id,nome,role,team,active,base_id,created_at")
-        .eq("role", "admin_corporativo")
-        .in("id", corpIds)
-        .order("created_at", { ascending: false });
-      if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });
-      corpUsers = corps ?? [];
+    if (manager.role === "admin_corporativo") {
+      const { data: membershipUserIds, error: membershipError } = await supabaseAdmin
+        .from("base_memberships")
+        .select("user_id")
+        .eq("base_id", scopeBaseId);
+      if (membershipError) {
+        return NextResponse.json({ error: membershipError.message }, { status: 400 });
+      }
+      const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
+      if (corpIds.length > 0) {
+        const { data: corps, error: corpError } = await supabaseAdmin
+          .from("profiles")
+          .select("id,nome,role,team,active,base_id,created_at")
+          .eq("role", "admin_corporativo")
+          .in("id", corpIds)
+          .order("created_at", { ascending: false });
+        if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });
+        corpUsers = corps ?? [];
+      }
     }
 
     const byId = new Map<string, (typeof staffUsers)[number]>();
@@ -84,8 +101,8 @@ export async function GET(request: Request) {
       users: Array.from(byId.values()),
       managerRole: manager.role,
       managerTeam: manager.team,
-      managerBaseId: manager.base_id,
-      managerAccessibleBaseIds: accessibleBaseIds,
+      managerBaseId: scopeBaseId,
+      managerAccessibleBaseIds: [scopeBaseId],
     });
   } catch (error) {
     return NextResponse.json(
@@ -123,11 +140,27 @@ export async function POST(request: Request) {
     );
     if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
 
-    if (manager.role === "admin_corporativo" && (isMultiBaseRole(role) || base_id)) {
+    if (manager.role === "admin_corporativo") {
       const accessible = await getManagerAccessibleBaseIds(manager);
+      const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
       const requested = isMultiBaseRole(role) ? membershipBaseIds : base_id ? [base_id] : [];
       if (requested.some((id) => !accessible.includes(id))) {
         return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+      }
+      // Staff single-base: obrigatório na base ativa (isolamento entre aeroportos).
+      if (!isMultiBaseRole(role)) {
+        if (!activeBaseId) {
+          return NextResponse.json({ error: "Base ativa obrigatória para criar usuários." }, { status: 400 });
+        }
+        if (!accessible.includes(activeBaseId)) {
+          return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+        }
+        if (base_id !== activeBaseId) {
+          return NextResponse.json(
+            { error: "Usuários desta base só podem ser criados com a base ativa correspondente." },
+            { status: 403 },
+          );
+        }
       }
     }
 
@@ -200,7 +233,8 @@ export async function PATCH(request: Request) {
     const target = await getTargetProfile(body.id);
     if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
-    const manageError = assertCanManageTarget(manager, target);
+    const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
+    const manageError = assertCanManageTarget(manager, target, activeBaseId);
     if (manageError) return NextResponse.json({ error: manageError }, { status: 403 });
 
     const assignError = assertCanAssignRole(manager, body.role);
@@ -216,11 +250,22 @@ export async function PATCH(request: Request) {
     );
     if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
 
-    if (manager.role === "admin_corporativo" && (isMultiBaseRole(body.role) || base_id)) {
+    if (manager.role === "admin_corporativo") {
       const accessible = await getManagerAccessibleBaseIds(manager);
       const requested = isMultiBaseRole(body.role) ? membershipBaseIds : base_id ? [base_id] : [];
       if (requested.some((id) => !accessible.includes(id))) {
         return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+      }
+      if (!isMultiBaseRole(body.role)) {
+        if (!activeBaseId || !accessible.includes(activeBaseId)) {
+          return NextResponse.json({ error: "Base ativa obrigatória para editar usuários." }, { status: 400 });
+        }
+        if (base_id !== activeBaseId) {
+          return NextResponse.json(
+            { error: "Não é permitido mover usuário para outra base por esta tela." },
+            { status: 403 },
+          );
+        }
       }
     }
 
@@ -270,7 +315,8 @@ export async function DELETE(request: Request) {
     const target = await getTargetProfile(body.id);
     if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
-    const manageError = assertCanManageTarget(manager, target);
+    const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
+    const manageError = assertCanManageTarget(manager, target, activeBaseId);
     if (manageError) return NextResponse.json({ error: manageError }, { status: 403 });
 
     const supabaseAdmin = getSupabaseAdminClient();

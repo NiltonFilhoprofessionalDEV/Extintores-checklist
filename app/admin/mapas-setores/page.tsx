@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { resolveFloorImageUrl } from "@/lib/auth/bases";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import type { ChecklistKind, ChecklistQuestion } from "@/lib/checklist/default-questions";
 
 type FloorItem = {
   id: string;
@@ -47,6 +48,11 @@ export default function AdminMapasSetoresPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editFile, setEditFile] = useState<File | null>(null);
+
+  const [checklistKind, setChecklistKind] = useState<ChecklistKind>("extintor");
+  const [questions, setQuestions] = useState<ChecklistQuestion[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [savingQuestions, setSavingQuestions] = useState(false);
 
   const callApi = useCallback(
     async <T,>(url: string, init?: RequestInit) => {
@@ -95,10 +101,30 @@ export default function AdminMapasSetoresPage() {
     }
   }, [callApi, ready, activeBaseId]);
 
+  const loadQuestions = useCallback(async () => {
+    if (!ready || !activeBaseId) return;
+    setLoadingQuestions(true);
+    try {
+      const payload = await callApi<{ questions: ChecklistQuestion[] }>(
+        `/api/admin/checklist-questions?kind=${checklistKind}`,
+      );
+      setQuestions(payload.questions);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha ao carregar perguntas do checklist.");
+    } finally {
+      setLoadingQuestions(false);
+    }
+  }, [callApi, ready, activeBaseId, checklistKind]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadQuestions();
+  }, [loadQuestions]);
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -174,6 +200,33 @@ export default function AdminMapasSetoresPage() {
     }
   }
 
+  async function handleSaveQuestions(event: React.FormEvent) {
+    event.preventDefault();
+    setSavingQuestions(true);
+    setMessage("");
+    try {
+      await callApi("/api/admin/checklist-questions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: checklistKind, questions }),
+      });
+      setMessage(
+        `Perguntas do checklist de ${checklistKind === "extintor" ? "extintor" : "hidrante"} salvas só nesta base.`,
+      );
+      await loadQuestions();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha ao salvar perguntas.");
+    } finally {
+      setSavingQuestions(false);
+    }
+  }
+
+  function updateQuestion(index: number, patch: Partial<ChecklistQuestion>) {
+    setQuestions((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  }
+
   if (!ready) {
     return <p className="text-sm text-slate-500">Carregando base…</p>;
   }
@@ -193,6 +246,7 @@ export default function AdminMapasSetoresPage() {
         <p className="mt-1 text-sm text-slate-500">
           Base ativa: <strong>{activeBase?.nome ?? "—"}</strong>. Cada item vira um mapa no
           Mapeamento e uma opção no menu <strong>Setor</strong> ao cadastrar extintores/hidrantes.
+          Apenas administradores da base podem alterar estas configurações.
         </p>
       </div>
 
@@ -316,6 +370,78 @@ export default function AdminMapasSetoresPage() {
           </div>
         )}
       </div>
+
+      <form onSubmit={handleSaveQuestions} className="section-card space-y-4 p-5">
+        <div>
+          <h3 className="text-lg font-black text-slate-950">Perguntas do checklist</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Edite os textos das inspeções de extintor e hidrante. As alterações valem
+            apenas para <strong>{activeBase?.nome ?? "esta base"}</strong> — outras bases
+            não são afetadas.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["extintor", "Extintor"],
+              ["hidrante", "Hidrante"],
+            ] as const
+          ).map(([kind, labelKind]) => (
+            <button
+              key={kind}
+              type="button"
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+                checklistKind === kind
+                  ? "brand-gradient text-white"
+                  : "border border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => setChecklistKind(kind)}
+            >
+              {labelKind}
+            </button>
+          ))}
+        </div>
+
+        {loadingQuestions ? (
+          <p className="text-sm text-slate-500">Carregando perguntas…</p>
+        ) : (
+          <div className="space-y-3">
+            {questions.map((question, index) => (
+              <div
+                key={question.item_key}
+                className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Item {index + 1} · {question.item_key}
+                  </p>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={question.active}
+                      onChange={(event) =>
+                        updateQuestion(index, { active: event.target.checked })
+                      }
+                    />
+                    Ativa na inspeção
+                  </label>
+                </div>
+                <textarea
+                  className="field-control min-h-[88px]"
+                  required
+                  value={question.label}
+                  onChange={(event) => updateQuestion(index, { label: event.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button type="submit" className="btn-primary" disabled={savingQuestions || loadingQuestions}>
+          {savingQuestions ? "Salvando…" : "Salvar perguntas desta base"}
+        </button>
+      </form>
     </section>
   );
 }

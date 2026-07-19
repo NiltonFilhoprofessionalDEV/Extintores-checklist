@@ -17,10 +17,12 @@ const OPTIONS: OptionDef[] = [
   { value: "nao_aplica", label: "N/A", color: "#4b5563", bg: "#f3f4f6", ring: "#9ca3af" },
 ];
 
-const FIELDS: { key: HidranteItemKey; label: string }[] = HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => ({
-  key,
-  label: HIDRANTE_ITEM_LABELS[key],
-}));
+const DEFAULT_FIELDS: { key: HidranteItemKey; label: string }[] = HIDRANTE_ACTIVE_ITEM_KEYS.map(
+  (key) => ({
+    key,
+    label: HIDRANTE_ITEM_LABELS[key],
+  }),
+);
 
 function ToggleField({
   label,
@@ -142,10 +144,21 @@ type Props = {
   isSaving: boolean;
   /** Dados cadastrais do hidrante (planilha / banco). */
   hidrante: Partial<HidranteImportRow> & { codigo: string };
+  /** Perguntas customizadas por base (labels). */
+  fields?: { key: HidranteItemKey; label: string }[];
 };
 
-export default function HidranteChecklistForm({ data, onChange, onSubmit, onCancel, isSaving, hidrante }: Props) {
+export default function HidranteChecklistForm({
+  data,
+  onChange,
+  onSubmit,
+  onCancel,
+  isSaving,
+  hidrante,
+  fields = DEFAULT_FIELDS,
+}: Props) {
   const valid = isHidranteChecklistValid(data);
+  const resolvedFields = fields.length > 0 ? fields : DEFAULT_FIELDS;
 
   function setField(key: HidranteItemKey, value: ChecklistValue) {
     const next = { ...data, [key]: value };
@@ -241,7 +254,7 @@ export default function HidranteChecklistForm({ data, onChange, onSubmit, onCanc
           />
         </div>
 
-        {FIELDS.map((field, i) => (
+        {resolvedFields.map((field, i) => (
           <ToggleField
             key={field.key}
             index={i + 1}

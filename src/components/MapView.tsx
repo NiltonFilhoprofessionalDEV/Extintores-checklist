@@ -39,13 +39,16 @@ import {
 import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
+import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
   mergeObservacoesComNaoConformidades,
   checklistTemNaoConformidade,
   isDataVencida,
   type ChecklistData,
+  type ChecklistItemKey,
 } from "@/lib/checklist/types";
+import type { HidranteItemKey } from "@/lib/checklist/hidrante-types";
 import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
 import {
   HIDRANTE_CHECKLIST_INITIAL,
@@ -213,19 +216,37 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function isSameFloor(extintorFloor: string | null, selectedFloor: string) {
-  if (!extintorFloor) return true;
+  if (!extintorFloor?.trim()) return true;
   return normalizeText(extintorFloor) === normalizeText(selectedFloor);
+}
+
+/** Casa pavimento/setor do item com label ou key do mapa (acentos/caixa ignorados). */
+function itemMatchesFloor(
+  item: { pavimento?: string | null; setor?: string | null },
+  floor: { key: string; label: string },
+) {
+  const tokens = [item.pavimento, item.setor]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  if (tokens.length === 0) return true;
+  return tokens.some(
+    (token) => isSameFloor(token, floor.label) || isSameFloor(token, floor.key),
+  );
+}
+
+function hasMapCoordinates(coord_x: unknown, coord_y: unknown) {
+  const x = Number(coord_x);
+  const y = Number(coord_y);
+  return Number.isFinite(x) && Number.isFinite(y);
 }
 
 /** Extintor pendente de posição neste pavimento (usa pavimento ou setor). */
 function isUnplacedOnFloor(
   item: { coord_x: number | null; coord_y: number | null; pavimento: string | null; setor?: string },
-  selectedFloor: string,
+  floor: { key: string; label: string },
 ) {
-  if (item.coord_x != null || item.coord_y != null) return false;
-  if (item.pavimento) return isSameFloor(item.pavimento, selectedFloor);
-  if (item.setor) return isSameFloor(item.setor, selectedFloor);
-  return true;
+  if (hasMapCoordinates(item.coord_x, item.coord_y)) return false;
+  return itemMatchesFloor(item, floor);
 }
 
 function getMaintenanceStatus(extintor: Extintor) {
@@ -553,6 +574,12 @@ export default function MapView() {
   const [message, setMessage] = useState("");
   const [selectedMarker, setSelectedMarker] = useState<Extintor | null>(null);
   const [checklistForm, setChecklistForm] = useState<ChecklistState>(INITIAL_CHECKLIST);
+  const [extintorChecklistFields, setExtintorChecklistFields] = useState<
+    { key: ChecklistItemKey; label: string }[]
+  >([]);
+  const [hidranteChecklistFields, setHidranteChecklistFields] = useState<
+    { key: HidranteItemKey; label: string }[]
+  >([]);
   const [savingChecklist, setSavingChecklist] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined"
@@ -718,6 +745,33 @@ export default function MapView() {
   }, [activeBaseId]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadQuestions = async () => {
+      const [extRows, hidRows] = await Promise.all([
+        fetchChecklistQuestionsForBase(activeBaseId, "extintor"),
+        fetchChecklistQuestionsForBase(activeBaseId, "hidrante"),
+      ]);
+      if (cancelled) return;
+      setExtintorChecklistFields(
+        extRows.map((row) => ({
+          key: row.item_key as ChecklistItemKey,
+          label: row.label,
+        })),
+      );
+      setHidranteChecklistFields(
+        hidRows.map((row) => ({
+          key: row.item_key as HidranteItemKey,
+          label: row.label,
+        })),
+      );
+    };
+    void loadQuestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBaseId]);
+
+  useEffect(() => {
     setMapImageSize({
       width: pavimento.imageWidth && pavimento.imageWidth > 0 ? pavimento.imageWidth : FULL_IMAGE_WIDTH,
       height:
@@ -863,41 +917,33 @@ export default function MapView() {
   }, [isMobile, orderedMapImagePaths, pavimento.key]);
 
   const extintoresSemPosicao = useMemo(() => {
-    const list = extintores.filter((item) => isUnplacedOnFloor(item, pavimento.label));
+    const list = extintores.filter((item) => isUnplacedOnFloor(item, pavimento));
     return [...list].sort(compareExtintorCodigoAsc);
-  }, [extintores, pavimento.label]);
+  }, [extintores, pavimento]);
 
   const markersDoPavimento = useMemo(() => {
     const list = extintores.filter(
-      (item) =>
-        item.coord_x != null &&
-        item.coord_y != null &&
-        isSameFloor(item.pavimento, pavimento.label),
+      (item) => hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
     );
     const sorted = [...list].sort(compareExtintorCodigoAsc);
     return filtrarPorEquipe(sorted, filtroEquipe, "extintor");
-  }, [extintores, pavimento.label, filtroEquipe]);
+  }, [extintores, pavimento, filtroEquipe]);
 
   const hidrantesSemPosicao = useMemo(
     () =>
       hidrantes.filter(
         (item) =>
-          item.coord_x == null &&
-          item.coord_y == null &&
-          isSameFloor(item.pavimento, pavimento.label),
+          !hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
       ),
-    [hidrantes, pavimento.label],
+    [hidrantes, pavimento],
   );
 
   const hidrantesDoPavimento = useMemo(() => {
     const list = hidrantes.filter(
-      (item) =>
-        item.coord_x != null &&
-        item.coord_y != null &&
-        isSameFloor(item.pavimento, pavimento.label),
+      (item) => hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
     );
     return filtrarPorEquipe(list, filtroEquipe, "hidrante");
-  }, [hidrantes, pavimento.label, filtroEquipe]);
+  }, [hidrantes, pavimento, filtroEquipe]);
 
   const mostrarFiltroEquipe =
     mode === "inspecao" && canInspect && baseHasEquipesConferencia(activeBase);
@@ -999,13 +1045,21 @@ export default function MapView() {
     if (placementExtra === "hidrante" && selectedHidranteId) {
       setSavingPosition(true);
       setMessage("");
+      const placedId = selectedHidranteId;
       const { error } = await supabase
         .from("hidrantes")
         .update({ coord_x: lng, coord_y: lat, pavimento: pavimento.label })
-        .eq("id", selectedHidranteId);
+        .eq("id", placedId);
       if (error) {
         setMessage(`Erro ao salvar hidrante: ${error.message}`);
       } else {
+        setHidrantes((prev) =>
+          prev.map((item) =>
+            item.id === placedId
+              ? { ...item, coord_x: lng, coord_y: lat, pavimento: pavimento.label }
+              : item,
+          ),
+        );
         setSelectedHidranteId("");
         setMessage("Posição do hidrante salva.");
         await loadHidrantesEMarcadores();
@@ -1019,10 +1073,16 @@ export default function MapView() {
     setSavingPosition(true);
     setMessage("");
 
+    const placedId = selectedExtintorId;
     const { error } = await supabase
       .from("extintores")
-      .update({ coord_x: lng, coord_y: lat, pavimento: pavimento.label })
-      .eq("id", selectedExtintorId);
+      .update({
+        coord_x: lng,
+        coord_y: lat,
+        pavimento: pavimento.label,
+        setor: pavimento.label,
+      })
+      .eq("id", placedId);
 
     if (error) {
       setMessage(`Erro ao salvar posição: ${error.message}`);
@@ -1030,6 +1090,19 @@ export default function MapView() {
       return;
     }
 
+    setExtintores((prev) =>
+      prev.map((item) =>
+        item.id === placedId
+          ? {
+              ...item,
+              coord_x: lng,
+              coord_y: lat,
+              pavimento: pavimento.label,
+              setor: pavimento.label,
+            }
+          : item,
+      ),
+    );
     setSelectedExtintorId("");
     setMessage("Posição salva com sucesso.");
     await loadExtintores();
@@ -1396,7 +1469,7 @@ export default function MapView() {
 
   const mapContent = (
     <MapContainer
-      key={pavimento.key}
+      key={`${pavimento.key}-${mapImageSize.width}x${mapImageSize.height}`}
       crs={L.CRS.Simple}
       preferCanvas
       zoomSnap={0.25}
@@ -1427,7 +1500,7 @@ export default function MapView() {
         markersDoPavimento.map((item) => (
           <Marker
             key={item.id}
-            position={[item.coord_y as number, item.coord_x as number]}
+            position={[Number(item.coord_y), Number(item.coord_x)]}
             icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, isMobile)}
             eventHandlers={{
               click: () => {
@@ -1509,7 +1582,7 @@ export default function MapView() {
         hidrantesDoPavimento.map((h) => (
           <Marker
             key={h.id}
-            position={[h.coord_y as number, h.coord_x as number]}
+            position={[Number(h.coord_y), Number(h.coord_x)]}
             icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, isMobile)}
             eventHandlers={{
               click: () => {
@@ -2001,6 +2074,7 @@ export default function MapView() {
               onSubmit={saveChecklist}
               onCancel={() => setSelectedMarker(null)}
               isSaving={savingChecklist}
+              fields={extintorChecklistFields}
               cabecalho={{
                 codigo: selectedMarker.codigo,
                 pavimento: selectedMarker.pavimento,
@@ -2024,6 +2098,7 @@ export default function MapView() {
               onSubmit={saveHidranteChecklist}
               onCancel={() => setSelectedHidrante(null)}
               isSaving={savingHidranteChecklist}
+              fields={hidranteChecklistFields}
               hidrante={hidranteCabecalhoForm(selectedHidrante)}
             />
           </InspecaoModalFrame>
@@ -2290,6 +2365,7 @@ export default function MapView() {
             onSubmit={saveChecklist}
             onCancel={() => setSelectedMarker(null)}
             isSaving={savingChecklist}
+            fields={extintorChecklistFields}
             cabecalho={{
               codigo: selectedMarker.codigo,
               pavimento: selectedMarker.pavimento,
@@ -2313,6 +2389,7 @@ export default function MapView() {
             onSubmit={saveHidranteChecklist}
             onCancel={() => setSelectedHidrante(null)}
             isSaving={savingHidranteChecklist}
+            fields={hidranteChecklistFields}
             hidrante={hidranteCabecalhoForm(selectedHidrante)}
           />
         </InspecaoModalFrame>

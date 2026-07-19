@@ -99,6 +99,7 @@ export default function AdminUsuariosPage() {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
+        ...(activeBaseId ? { "X-Active-Base-Id": activeBaseId } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -125,7 +126,7 @@ export default function AdminUsuariosPage() {
     }
 
     return payload;
-  }, [supabase]);
+  }, [supabase, activeBaseId]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -151,7 +152,7 @@ export default function AdminUsuariosPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadUsers();
-  }, [loadUsers]);
+  }, [loadUsers, activeBaseId]);
 
   function canActOn(user: UserItem): boolean {
     return canManageTarget(managerRole, user.role, managerTeam, user.team) && user.id !== currentUserId;
