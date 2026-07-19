@@ -233,6 +233,7 @@ export default function AdminExtintoresPage() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          ...(activeBaseId ? { "X-Active-Base-Id": activeBaseId } : {}),
           ...(init?.headers ?? {}),
         },
       });
@@ -249,7 +250,7 @@ export default function AdminExtintoresPage() {
         throw new Error(payload?.error ?? responseText ?? "Falha na requisição.");
       }
     },
-    [supabase],
+    [supabase, activeBaseId],
   );
 
   const load = useCallback(async () => {

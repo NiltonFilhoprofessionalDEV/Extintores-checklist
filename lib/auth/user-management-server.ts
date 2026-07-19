@@ -4,6 +4,7 @@ import {
   canAssignRole,
   canManageTarget,
   isBaseRequiredForRole,
+  isMultiBaseRole,
   isTeamRequiredForRole,
   isUserManager,
   normalizeUserTeam,
@@ -45,9 +46,29 @@ export async function getUserManagerFromRequest(request: Request): Promise<UserM
   if (profileError || !profile || !profile.active || !isUserManager(profile.role)) return null;
   const team = normalizeUserTeam(profile.team);
   if (profile.role === "leadership" && !team) return null;
-  if (profile.role !== "admin" && !profile.base_id) return null;
+  if (profile.role === "leadership" && !profile.base_id) return null;
+  if (profile.role === "admin" && !profile.base_id) return null;
+  // admin_corporativo: base_id pode ser null (usa memberships)
 
   return { id: authData.user.id, role: profile.role, team, base_id: profile.base_id };
+}
+
+export async function getManagerAccessibleBaseIds(manager: UserManager): Promise<string[]> {
+  if (manager.role === "admin" || manager.role === "leadership") {
+    return manager.base_id ? [manager.base_id] : [];
+  }
+
+  if (manager.role === "admin_corporativo") {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from("base_memberships")
+      .select("base_id")
+      .eq("user_id", manager.id);
+    if (error) throw error;
+    return (data ?? []).map((row) => String(row.base_id));
+  }
+
+  return [];
 }
 
 export async function getTargetProfile(userId: string) {
@@ -69,7 +90,7 @@ export function assertCanManageTarget(manager: UserManager, target: ManagedProfi
   if (
     manager.role === "admin" &&
     manager.base_id &&
-    target.role !== "corporativo" &&
+    !isMultiBaseRole(target.role) &&
     target.base_id &&
     target.base_id !== manager.base_id
   ) {
@@ -131,21 +152,42 @@ export function resolveBaseForWrite(
   role: UserRole,
   requestedBaseIds: unknown,
 ): { base_id: string | null; membershipBaseIds: string[]; error: string | null } {
-  if (role === "corporativo") {
-    if (manager.role !== "admin") {
-      return { base_id: null, membershipBaseIds: [], error: "Apenas administradores podem criar usuários corporativos." };
+  const ids = Array.isArray(requestedBaseIds)
+    ? requestedBaseIds.map((id) => String(id)).filter(Boolean)
+    : [];
+
+  if (isMultiBaseRole(role)) {
+    if (manager.role !== "admin_corporativo") {
+      return {
+        base_id: null,
+        membershipBaseIds: [],
+        error: "Apenas Administrador Corporativo pode criar usuários multi-base.",
+      };
     }
-    const ids = Array.isArray(requestedBaseIds)
-      ? requestedBaseIds.map((id) => String(id)).filter(Boolean)
-      : [];
     if (ids.length === 0) {
-      return { base_id: null, membershipBaseIds: [], error: "Informe ao menos uma base para o usuário corporativo." };
+      return {
+        base_id: null,
+        membershipBaseIds: [],
+        error: "Informe ao menos uma base para o usuário.",
+      };
     }
     return { base_id: null, membershipBaseIds: ids, error: null };
   }
 
   if (!isBaseRequiredForRole(role)) {
     return { base_id: null, membershipBaseIds: [], error: null };
+  }
+
+  if (manager.role === "admin_corporativo") {
+    const base_id = ids[0] ?? null;
+    if (!base_id) {
+      return {
+        base_id: null,
+        membershipBaseIds: [],
+        error: "Informe a base do usuário.",
+      };
+    }
+    return { base_id, membershipBaseIds: [], error: null };
   }
 
   if (!manager.base_id) {
