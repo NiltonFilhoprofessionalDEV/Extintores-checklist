@@ -12,6 +12,7 @@ import {
   type ConferenciaHistoricoExtintorRow,
   type ConferenciaHistoricoHidranteRow,
 } from "@/lib/export/excel";
+import { exportConferenciasPdf } from "@/lib/export/pdf";
 import {
   resolveExtintorConferenciaExport,
   resolveHidranteConferenciaExport,
@@ -29,6 +30,7 @@ import {
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { baseHasEquipesConferencia } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
+import ExportActions from "@/src/components/ExportActions";
 import ConferenciaFilterModal from "./ConferenciaFilterModal";
 import {
   ConferenciaCard,
@@ -345,7 +347,7 @@ export default function AdminConferenciasPage() {
     setDataFim(fim);
   }
 
-  function handleExport() {
+  function handleExport(format: "excel" | "pdf") {
     setExportando(true);
     try {
       const ext: ConferenciaHistoricoExtintorRow[] = filteredExt.map((item) => {
@@ -410,7 +412,11 @@ export default function AdminConferenciasPage() {
         busca,
         filtroStatus,
       );
-      exportConferenciasHistorico(ext, hid, sufixo ? { sufixoArquivo: sufixo } : undefined);
+      if (format === "pdf") {
+        exportConferenciasPdf(ext, hid, "Histórico de conferências");
+      } else {
+        exportConferenciasHistorico(ext, hid, sufixo ? { sufixoArquivo: sufixo } : undefined);
+      }
     } finally {
       setExportando(false);
     }
@@ -424,8 +430,7 @@ export default function AdminConferenciasPage() {
             <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Histórico</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Conferências realizadas</h2>
             <p className="mt-2 text-sm font-medium text-slate-300">
-              Consulte extintores e hidrantes separadamente. O Excel sempre traz as duas planilhas (Extintores
-              e Hidrantes), respeitando os filtros quando aplicados.
+              Consulte extintores e hidrantes separadamente. Os relatórios respeitam todos os filtros aplicados.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -436,21 +441,13 @@ export default function AdminConferenciasPage() {
             >
               Atualizar
             </button>
-            <button
-              type="button"
-              onClick={handleExport}
+            <ExportActions
+              tone="dark"
               disabled={exportando || totalExportacao === 0}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100 disabled:opacity-50"
-              title={
-                totalExportacao === 0
-                  ? "Nenhum registro com os filtros atuais"
-                  : `Exportar ${filteredExt.length} extintor(es) e ${filteredHid.length} hidrante(s)`
-              }
-            >
-              {exportando
-                ? "Exportando…"
-                : `Exportar Excel (${filteredExt.length} ext. + ${filteredHid.length} hid.)`}
-            </button>
+              excelLabel={exportando ? "Exportando…" : "Excel"}
+              onExcel={() => handleExport("excel")}
+              onPdf={() => handleExport("pdf")}
+            />
           </div>
         </div>
       </div>

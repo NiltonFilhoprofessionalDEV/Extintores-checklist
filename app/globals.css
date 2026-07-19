@@ -45,6 +45,8 @@
   --radius-md: 0.875rem;
   --shadow-soft: 0 12px 34px -24px rgb(28 31 35 / 0.35), 0 1px 3px rgb(28 31 35 / 0.05);
   --shadow-lift: 0 24px 48px -30px rgb(28 31 35 / 0.38);
+  --z-dock: 1000;
+  --z-modal: 2100;
 }
 
 @theme inline {
@@ -320,7 +322,7 @@ h3,
   position: fixed;
   left: 50%;
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  z-index: 1000;
+  z-index: var(--z-dock);
   display: flex;
   width: min(43rem, calc(100% - 1.25rem));
   transform: translateX(-50%);
@@ -333,6 +335,10 @@ h3,
   padding: 0.45rem;
   box-shadow: 0 18px 50px -20px rgb(28 31 35 / 0.32);
   backdrop-filter: blur(20px);
+}
+
+.modal-layer {
+  z-index: var(--z-modal) !important;
 }
 
 .admin-dock__item {

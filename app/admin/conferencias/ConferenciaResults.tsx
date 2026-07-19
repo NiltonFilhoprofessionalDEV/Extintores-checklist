@@ -193,7 +193,7 @@ export function ConferenciaDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[2300] flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="modal-layer fixed inset-0 flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="inspection-detail-title"

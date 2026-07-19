@@ -12,6 +12,7 @@ import { getCurrentSession } from "@/lib/auth/profile";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { baseHasEmpresaTabs } from "@/lib/auth/bases";
 import { exportAlertasVencimento, type AlertaVencimentoRowHighlight, type ExtintorRow } from "@/lib/export/excel";
+import { exportAlertasExtintoresPdf } from "@/lib/export/pdf";
 import { extintorTemManutencaoVencida } from "@/lib/export/conferencia-historico";
 import { checklistTemNaoConformidade, isDataVencida } from "@/lib/checklist/types";
 import { hidranteChecklistTemNaoConformidade } from "@/lib/checklist/hidrante-types";
@@ -21,6 +22,7 @@ import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/h
 import { EMPRESA_TABS, filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
+import ExportActions from "@/src/components/ExportActions";
 
 type Stats = {
   total: number;
@@ -185,7 +187,7 @@ function ExtintorManutencaoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
+      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -208,16 +210,12 @@ function ExtintorManutencaoModal({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {items.length > 0 && (
-              <button
-                type="button"
-                onClick={() => exportAlertasVencimento(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])}
-                className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white ring-1 ring-white/20 transition hover:bg-white/25"
-              >
-                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Exportar
-              </button>
+              <ExportActions
+                compact
+                tone="dark"
+                onExcel={() => exportAlertasVencimento(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])}
+                onPdf={() => exportAlertasExtintoresPdf(items, meta.title)}
+              />
             )}
             <button
               type="button"
@@ -363,16 +361,11 @@ function AlertTable({
           <h3 className="text-base font-black text-[var(--ink)]">{title}</h3>
           <p className="text-xs font-medium text-slate-500">{subtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => exportAlertasVencimento(items, exportLabel, exportHighlight)}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"
-        >
-          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Exportar
-        </button>
+        <ExportActions
+          compact
+          onExcel={() => exportAlertasVencimento(items, exportLabel, exportHighlight)}
+          onPdf={() => exportAlertasExtintoresPdf(items, title)}
+        />
       </div>
 
       <div className="overflow-x-auto">

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { exportAlertasVencimentoHidrantes, type AlertaVencimentoRowHighlight } from "@/lib/export/excel";
+import { exportAlertasHidrantesPdf } from "@/lib/export/pdf";
 import {
   computeHidranteVencimentoBuckets,
   diasRestantesMangueiraCritica,
@@ -10,6 +11,7 @@ import {
   type HidranteVencimentoRow,
 } from "@/lib/hidrantes/vencimento-mangueiras";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
+import ExportActions from "@/src/components/ExportActions";
 
 type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semPosicao";
 
@@ -100,7 +102,7 @@ function HidranteManutencaoModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
+      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -123,15 +125,14 @@ function HidranteManutencaoModal({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {items.length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
+              <ExportActions
+                compact
+                tone="dark"
+                onExcel={() =>
                   exportAlertasVencimentoHidrantes(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])
                 }
-                className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white ring-1 ring-white/20 transition hover:bg-white/25"
-              >
-                Exportar
-              </button>
+                onPdf={() => exportAlertasHidrantesPdf(items, meta.title)}
+              />
             )}
             <button
               type="button"
@@ -226,13 +227,11 @@ function HidranteAlertTable({
           <h3 className="text-base font-black text-[var(--ink)]">{title}</h3>
           <p className="text-xs font-medium text-slate-500">{subtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => exportAlertasVencimentoHidrantes(items, exportLabel, exportHighlight)}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"
-        >
-          Exportar
-        </button>
+        <ExportActions
+          compact
+          onExcel={() => exportAlertasVencimentoHidrantes(items, exportLabel, exportHighlight)}
+          onPdf={() => exportAlertasHidrantesPdf(items, title)}
+        />
       </div>
 
       <div className="overflow-x-auto">

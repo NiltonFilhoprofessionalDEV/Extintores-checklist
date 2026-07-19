@@ -72,7 +72,7 @@ export default function ConferenciaFilterModal({
 
   return (
     <div
-      className="fixed inset-0 z-[2200] flex items-end justify-center bg-slate-950/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="modal-layer fixed inset-0 flex items-end justify-center bg-slate-950/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="filter-modal-title"

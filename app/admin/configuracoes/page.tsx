@@ -464,7 +464,7 @@ export default function AdminConfiguracoesPage() {
 
       {checklistModalOpen && (
         <div
-          className="fixed inset-0 z-[1200] flex items-end justify-center bg-[var(--forest)]/55 p-0 sm:items-center sm:p-4"
+          className="modal-layer fixed inset-0 flex items-end justify-center bg-[var(--forest)]/55 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => !savingQuestions && setChecklistModalOpen(false)}
