@@ -43,7 +43,7 @@ Aplicação em [http://localhost:3000](http://localhost:3000).
 - `user`: acesso operacional mobile (`/mobile/conferencia`)
 - Login em `/login`
 
-Somente **Administrador Corporativo** vê as opções Corporativo / Administrador Corporativo na tela de usuários. O **Administrador** de base só cria perfis da própria base (admin, liderança, bombeiro, cliente).
+Somente **Administrador Corporativo** vê as opções Corporativo / Administrador Corporativo na tela de usuários e a página **Bases** (criar base + definir o admin responsável). O **Administrador** de base só cria perfis da própria base (admin, liderança, bombeiro, cliente) e gerencia o inventário/operações dela.
 
 ## Módulos principais
 

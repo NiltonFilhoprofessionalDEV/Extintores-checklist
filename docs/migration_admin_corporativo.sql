@@ -79,3 +79,17 @@ set search_path = public
 as $$
   select public.is_admin() and public.can_access_base(target_base_id);
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 3) RLS: Administrador Corporativo pode criar/atualizar bases
+-- ---------------------------------------------------------------------------
+drop policy if exists bases_insert_admin_corporativo on public.bases;
+create policy bases_insert_admin_corporativo
+on public.bases for insert to authenticated
+with check (public.is_admin_corporativo());
+
+drop policy if exists bases_update_admin_corporativo on public.bases;
+create policy bases_update_admin_corporativo
+on public.bases for update to authenticated
+using (public.is_admin_corporativo())
+with check (public.is_admin_corporativo());
