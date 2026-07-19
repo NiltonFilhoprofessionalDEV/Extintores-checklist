@@ -25,7 +25,7 @@ npm install
 4. Crie as tabelas no Supabase usando o script:
    - `docs/supabase_schema.sql`
    - Cole o conteúdo no SQL Editor do Supabase e execute.
-5. Aplique as migrations em `docs/` na ordem (incluindo `migration_multi_base.sql` para isolamento por base/aeroporto).
+5. Aplique as migrations em `docs/` na ordem. Para multi-base, rode primeiro `migration_multi_base_enum.sql` e só depois `migration_multi_base.sql` (o Postgres exige commit do novo enum antes de usá-lo).
 
 ## Execução local
 
