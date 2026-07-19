@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import type { UserRole } from "@/lib/auth/roles";
+import { isMultiBaseRole } from "@/lib/auth/roles";
 import {
   assertCanAssignRole,
   assertCanManageTarget,
+  getManagerAccessibleBaseIds,
   getTargetProfile,
   getUserManagerFromRequest,
   replaceBaseMemberships,
@@ -38,32 +40,37 @@ export async function GET(request: Request) {
       });
     }
 
-    if (!manager.base_id) {
-      return NextResponse.json({ error: "Administrador sem base definida." }, { status: 403 });
+    const accessibleBaseIds = await getManagerAccessibleBaseIds(manager);
+    if (accessibleBaseIds.length === 0) {
+      return NextResponse.json({ error: "Nenhuma base acessível para listar usuários." }, { status: 403 });
     }
 
     const { data: staffUsers, error: staffError } = await supabaseAdmin
       .from("profiles")
       .select("id,nome,role,team,active,base_id,created_at")
-      .eq("base_id", manager.base_id)
+      .in("base_id", accessibleBaseIds)
       .order("created_at", { ascending: false });
     if (staffError) return NextResponse.json({ error: staffError.message }, { status: 400 });
 
     const { data: membershipUserIds, error: membershipError } = await supabaseAdmin
       .from("base_memberships")
       .select("user_id")
-      .eq("base_id", manager.base_id);
+      .in("base_id", accessibleBaseIds);
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 400 });
     }
 
-    const corpIds = (membershipUserIds ?? []).map((row) => String(row.user_id));
+    const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
     let corpUsers: typeof staffUsers = [];
     if (corpIds.length > 0) {
+      const multiBaseRoles: UserRole[] =
+        manager.role === "admin_corporativo"
+          ? ["corporativo", "admin_corporativo"]
+          : ["corporativo"];
       const { data: corps, error: corpError } = await supabaseAdmin
         .from("profiles")
         .select("id,nome,role,team,active,base_id,created_at")
-        .eq("role", "corporativo")
+        .in("role", multiBaseRoles)
         .in("id", corpIds)
         .order("created_at", { ascending: false });
       if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });
@@ -80,6 +87,7 @@ export async function GET(request: Request) {
       managerRole: manager.role,
       managerTeam: manager.team,
       managerBaseId: manager.base_id,
+      managerAccessibleBaseIds: accessibleBaseIds,
     });
   } catch (error) {
     return NextResponse.json(
@@ -117,6 +125,14 @@ export async function POST(request: Request) {
     );
     if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
 
+    if (manager.role === "admin_corporativo" && (isMultiBaseRole(role) || base_id)) {
+      const accessible = await getManagerAccessibleBaseIds(manager);
+      const requested = isMultiBaseRole(role) ? membershipBaseIds : base_id ? [base_id] : [];
+      if (requested.some((id) => !accessible.includes(id))) {
+        return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+      }
+    }
+
     const supabaseAdmin = getSupabaseAdminClient();
     const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: body.email,
@@ -142,7 +158,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
-    if (role === "corporativo") {
+    if (isMultiBaseRole(role)) {
       try {
         await replaceBaseMemberships(createdUser.user.id, membershipBaseIds);
       } catch (membershipError) {
@@ -152,7 +168,7 @@ export async function POST(request: Request) {
             error:
               membershipError instanceof Error
                 ? membershipError.message
-                : "Falha ao vincular bases do corporativo.",
+                : "Falha ao vincular bases do usuário.",
           },
           { status: 400 },
         );
@@ -202,6 +218,14 @@ export async function PATCH(request: Request) {
     );
     if (baseError) return NextResponse.json({ error: baseError }, { status: 400 });
 
+    if (manager.role === "admin_corporativo" && (isMultiBaseRole(body.role) || base_id)) {
+      const accessible = await getManagerAccessibleBaseIds(manager);
+      const requested = isMultiBaseRole(body.role) ? membershipBaseIds : base_id ? [base_id] : [];
+      if (requested.some((id) => !accessible.includes(id))) {
+        return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+      }
+    }
+
     const supabaseAdmin = getSupabaseAdminClient();
     const { error } = await supabaseAdmin
       .from("profiles")
@@ -210,7 +234,7 @@ export async function PATCH(request: Request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    if (body.role === "corporativo") {
+    if (isMultiBaseRole(body.role)) {
       await replaceBaseMemberships(body.id, membershipBaseIds);
     } else {
       await replaceBaseMemberships(body.id, []);

@@ -60,7 +60,7 @@ export function resolveActiveBaseId(
     return homeBaseId;
   }
 
-  if (role === "corporativo") {
+  if (role === "corporativo" || role === "admin_corporativo") {
     return accessibleBases[0]?.id ?? null;
   }
 

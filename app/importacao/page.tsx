@@ -192,7 +192,7 @@ export default function ImportacaoPage() {
   const readyCount = destino === "extintores" ? rowsExtintor.length : rowsHidrante.length;
 
   return (
-    <AuthGuard allowedRoles={["admin"]}>
+    <AuthGuard allowedRoles={["admin", "admin_corporativo"]}>
       <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-8">
         <header className="page-hero p-6">
           <div className="page-hero-content">

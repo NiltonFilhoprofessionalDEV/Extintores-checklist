@@ -1,10 +1,17 @@
-export type UserRole = "admin" | "leadership" | "user" | "cliente" | "corporativo";
+export type UserRole =
+  | "admin"
+  | "admin_corporativo"
+  | "leadership"
+  | "user"
+  | "cliente"
+  | "corporativo";
 export type UserTeam = "ALFA" | "BRAVO" | "CHARLIE" | "DELTA";
 
 export const USER_TEAMS: UserTeam[] = ["ALFA", "BRAVO", "CHARLIE", "DELTA"];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrador",
+  admin_corporativo: "Administrador Corporativo",
   leadership: "Liderança",
   user: "Bombeiro",
   cliente: "Cliente",
@@ -18,7 +25,16 @@ export const TEAM_LABELS: Record<UserTeam, string> = {
   DELTA: "DELTA",
 };
 
-export const MANAGER_ROLES: UserRole[] = ["admin", "leadership"];
+export const MANAGER_ROLES: UserRole[] = ["admin", "admin_corporativo", "leadership"];
+
+/** Roles multi-base: acesso via base_memberships (profiles.base_id pode ser null). */
+export function isMultiBaseRole(role: UserRole): boolean {
+  return role === "corporativo" || role === "admin_corporativo";
+}
+
+export function isAdminLikeRole(role: UserRole): boolean {
+  return role === "admin" || role === "admin_corporativo";
+}
 
 export function isUserManager(role: UserRole): boolean {
   return MANAGER_ROLES.includes(role);
@@ -35,7 +51,11 @@ export function canManageTarget(
   actorTeam?: UserTeam | null,
   targetTeam?: UserTeam | null,
 ): boolean {
-  if (actorRole === "admin") return true;
+  if (actorRole === "admin_corporativo") return true;
+  if (actorRole === "admin") {
+    // Admin de base não gerencia Administrador Corporativo
+    return targetRole !== "admin_corporativo";
+  }
   if (actorRole === "leadership") {
     return targetRole === "user" && Boolean(actorTeam) && actorTeam === targetTeam;
   }
@@ -44,13 +64,19 @@ export function canManageTarget(
 
 /** Papel que o ator pode atribuir ao criar ou editar. */
 export function canAssignRole(actorRole: UserRole, newRole: UserRole): boolean {
-  if (actorRole === "admin") return true;
+  if (actorRole === "admin_corporativo") return true;
+  if (actorRole === "admin") {
+    return newRole === "admin" || newRole === "leadership" || newRole === "user" || newRole === "cliente";
+  }
   if (actorRole === "leadership") return newRole === "user";
   return false;
 }
 
 export function assignableRoles(actorRole: UserRole): UserRole[] {
-  if (actorRole === "admin") return ["admin", "leadership", "user", "cliente", "corporativo"];
+  if (actorRole === "admin_corporativo") {
+    return ["admin_corporativo", "corporativo", "admin", "leadership", "user", "cliente"];
+  }
+  if (actorRole === "admin") return ["admin", "leadership", "user", "cliente"];
   if (actorRole === "leadership") return ["user"];
   return [];
 }
@@ -60,7 +86,7 @@ export function isTeamRequiredForRole(role: UserRole): boolean {
 }
 
 export function isBaseRequiredForRole(role: UserRole): boolean {
-  return role !== "corporativo";
+  return !isMultiBaseRole(role);
 }
 
 export function isValidUserTeam(value: unknown): value is UserTeam {
@@ -89,11 +115,11 @@ export function isClientBlockedAdminPath(pathname: string): boolean {
 }
 
 export function canUseMapEditing(role: UserRole): boolean {
-  return role === "admin";
+  return role === "admin" || role === "admin_corporativo";
 }
 
 export function canUseMapInspection(role: UserRole): boolean {
-  return role === "admin" || role === "leadership" || role === "user";
+  return role === "admin" || role === "admin_corporativo" || role === "leadership" || role === "user";
 }
 
 export function isInventoryReadOnlyRole(role: UserRole): boolean {
@@ -110,7 +136,13 @@ export function isLeadershipBlockedAdminPath(pathname: string): boolean {
 }
 
 export function getHomePathForRole(role: UserRole): string {
-  if (role === "admin" || role === "leadership" || role === "cliente" || role === "corporativo") {
+  if (
+    role === "admin" ||
+    role === "admin_corporativo" ||
+    role === "leadership" ||
+    role === "cliente" ||
+    role === "corporativo"
+  ) {
     return "/admin/dashboard";
   }
   return "/mobile/conferencia";

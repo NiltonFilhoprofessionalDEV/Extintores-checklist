@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import type { UserRole } from "@/lib/auth/roles";
 
-const INVENTORY_MANAGER_ROLES: UserRole[] = ["admin", "leadership"];
+const INVENTORY_MANAGER_ROLES: UserRole[] = ["admin", "admin_corporativo", "leadership"];
 
 export type InventoryManager = {
   id: string;
@@ -26,16 +26,26 @@ export async function getInventoryManagerFromRequest(request: Request): Promise<
     .eq("id", authData.user.id)
     .maybeSingle<{ role: UserRole; active: boolean; base_id: string | null }>();
 
-  if (
-    profileError ||
-    !profile ||
-    !profile.active ||
-    !profile.base_id ||
-    !INVENTORY_MANAGER_ROLES.includes(profile.role)
-  ) {
+  if (profileError || !profile || !profile.active || !INVENTORY_MANAGER_ROLES.includes(profile.role)) {
     return null;
   }
 
+  if (profile.role === "admin_corporativo") {
+    const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
+    if (!activeBaseId) return null;
+
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("base_memberships")
+      .select("base_id")
+      .eq("user_id", authData.user.id)
+      .eq("base_id", activeBaseId)
+      .maybeSingle<{ base_id: string }>();
+
+    if (membershipError || !membership) return null;
+    return { id: authData.user.id, role: profile.role, base_id: activeBaseId };
+  }
+
+  if (!profile.base_id) return null;
   return { id: authData.user.id, role: profile.role, base_id: profile.base_id };
 }
 
@@ -53,6 +63,6 @@ export async function assertInventoryRowInManagerBase(
 
   if (error) return error.message;
   if (!data) return "Registro não encontrado.";
-  if (data.base_id !== baseId) return "Sem permissão para alterar registros de outra base.";
+  if (data.base_id !== baseId) return "Registro fora da base ativa.";
   return null;
 }

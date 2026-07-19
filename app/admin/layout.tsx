@@ -11,7 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isMapeamento = pathname?.includes("/mapeamento");
 
   return (
-    <AuthGuard allowedRoles={["admin", "leadership", "cliente", "corporativo"]}>
+    <AuthGuard allowedRoles={["admin", "admin_corporativo", "leadership", "cliente", "corporativo"]}>
       <ActiveBaseProvider>
         <AdminAreaGuard>
           <div

@@ -81,13 +81,25 @@ export default function MobilePerfilPage() {
   const roleLabel =
     profile?.role === "admin"
       ? "Administrador"
-      : profile?.role === "leadership"
-        ? "Liderança"
-        : "Conferente";
+      : profile?.role === "admin_corporativo"
+        ? "Administrador Corporativo"
+        : profile?.role === "leadership"
+          ? "Liderança"
+          : profile?.role === "corporativo"
+            ? "Corporativo"
+            : "Conferente";
   const roleBg =
-    profile?.role === "admin" ? "#fef3c7" : profile?.role === "leadership" ? "#ede9fe" : "#dbeafe";
+    profile?.role === "admin" || profile?.role === "admin_corporativo"
+      ? "#fef3c7"
+      : profile?.role === "leadership"
+        ? "#ede9fe"
+        : "#dbeafe";
   const roleColor =
-    profile?.role === "admin" ? "#92400e" : profile?.role === "leadership" ? "#5b21b6" : "#1e40af";
+    profile?.role === "admin" || profile?.role === "admin_corporativo"
+      ? "#92400e"
+      : profile?.role === "leadership"
+        ? "#5b21b6"
+        : "#1e40af";
 
   const formattedLastInspection = stats.ultimaInspecao
     ? new Date(stats.ultimaInspecao).toLocaleDateString("pt-BR", {
