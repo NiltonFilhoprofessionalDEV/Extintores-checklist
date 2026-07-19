@@ -8,12 +8,14 @@ import type { TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import type { ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
+import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
   checklistTemNaoConformidade,
   isDataVencida,
   mergeObservacoesComNaoConformidades,
   type ChecklistData,
+  type ChecklistItemKey,
 } from "@/lib/checklist/types";
 import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
 import {
@@ -21,6 +23,7 @@ import {
   hidranteChecklistTemNaoConformidade,
   mergeHidranteObservacoes,
   type HidranteChecklistData,
+  type HidranteItemKey,
 } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { hidranteTemMangueiraVencida } from "@/lib/hidrantes/vencimento-mangueiras";
@@ -231,8 +234,35 @@ export default function MobileConferenciaPage() {
     Map<string, ChecklistHidranteMesRow>
   >(new Map());
   const [conferenteNome, setConferenteNome] = useState("");
+  const [extintorChecklistFields, setExtintorChecklistFields] = useState<
+    { key: ChecklistItemKey; label: string }[]
+  >([]);
+  const [hidranteChecklistFields, setHidranteChecklistFields] = useState<
+    { key: HidranteItemKey; label: string }[]
+  >([]);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadQuestions = async () => {
+      const [extRows, hidRows] = await Promise.all([
+        fetchChecklistQuestionsForBase(activeBaseId, "extintor"),
+        fetchChecklistQuestionsForBase(activeBaseId, "hidrante"),
+      ]);
+      if (cancelled) return;
+      setExtintorChecklistFields(
+        extRows.map((row) => ({ key: row.item_key as ChecklistItemKey, label: row.label })),
+      );
+      setHidranteChecklistFields(
+        hidRows.map((row) => ({ key: row.item_key as HidranteItemKey, label: row.label })),
+      );
+    };
+    void loadQuestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBaseId]);
 
   const currentMonthRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
 
@@ -841,6 +871,7 @@ export default function MobileConferenciaPage() {
               onSubmit={submitChecklist}
               onCancel={() => setSelected(null)}
               isSaving={saving}
+              fields={extintorChecklistFields}
               cabecalho={{
                 codigo: selected.codigo,
                 pavimento: selected.pavimento,
@@ -870,6 +901,7 @@ export default function MobileConferenciaPage() {
               onSubmit={submitHidranteChecklist}
               onCancel={() => setSelectedHidrante(null)}
               isSaving={saving}
+              fields={hidranteChecklistFields}
               hidrante={selectedHidrante}
             />
           </div>

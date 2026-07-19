@@ -83,7 +83,11 @@ export async function getTargetProfile(userId: string) {
   return data;
 }
 
-export function assertCanManageTarget(manager: UserManager, target: ManagedProfile): string | null {
+export function assertCanManageTarget(
+  manager: UserManager,
+  target: ManagedProfile,
+  scopeBaseId?: string | null,
+): string | null {
   if (!canManageTarget(manager.role, target.role, manager.team, target.team)) {
     return "Sem permissão para gerenciar este usuário.";
   }
@@ -101,6 +105,16 @@ export function assertCanManageTarget(manager: UserManager, target: ManagedProfi
     manager.base_id &&
     target.base_id &&
     target.base_id !== manager.base_id
+  ) {
+    return "Sem permissão para gerenciar usuários de outra base.";
+  }
+  // Admin corporativo: só gerencia staff da base ativa (nunca mistura Curitiba x Santa Genoveva).
+  if (
+    manager.role === "admin_corporativo" &&
+    scopeBaseId &&
+    !isMultiBaseRole(target.role) &&
+    target.base_id &&
+    target.base_id !== scopeBaseId
   ) {
     return "Sem permissão para gerenciar usuários de outra base.";
   }

@@ -1,5 +1,6 @@
 import type { ChecklistData, ChecklistItemKey, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
-import { isChecklistValid, isDataVencida } from "@/lib/checklist/types";
+import { CHECKLIST_ITEM_KEYS, isChecklistValid, isDataVencida } from "@/lib/checklist/types";
+import { DEFAULT_EXTINTOR_QUESTION_LABELS } from "@/lib/checklist/default-questions";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
 
 type OptionDef = { value: ChecklistValue; label: string; color: string; bg: string; ring: string };
@@ -28,48 +29,10 @@ const OPTIONS: OptionDef[] = [
   },
 ];
 
-const FIELDS: { key: ChecklistItemKey; label: string }[] = [
-  {
-    key: "local_correto",
-    label:
-      "A localização do extintor está conforme o layout/mapa de distribuição e atende aos requisitos normativos aplicáveis?",
-  },
-  {
-    key: "dados_corretos",
-    label:
-      "As informações de identificação, rótulo e instruções de uso do extintor estão corretas, legíveis e atualizadas?",
-  },
-  {
-    key: "sinalizacao_correta",
-    label:
-      "A sinalização de identificação do extintor está visível, adequada e em conformidade com as normas vigentes?",
-  },
-  {
-    key: "mangueira_status",
-    label:
-      "A mangueira apresenta integridade física, sem rachaduras, ressecamento ou obstruções, e está em condições adequadas de uso?",
-  },
-  {
-    key: "bico_difusor_status",
-    label:
-      "O bico ou difusor encontra-se em perfeito estado de conservação, sem obstruções ou danos que comprometam o funcionamento?",
-  },
-  {
-    key: "alca_gatilho_status",
-    label:
-      "A alça de transporte, gatilho, lacre e pino de segurança estão íntegros, inviolados e em condições adequadas de operação?",
-  },
-  {
-    key: "medidor_pressao_status",
-    label:
-      "O manômetro apresenta leitura dentro da faixa operacional recomendada, sem sinais de falha ou avaria?",
-  },
-  {
-    key: "cilindro_status",
-    label:
-      "O cilindro apresenta boas condições estruturais, sem corrosão, amassados, vazamentos ou outros danos aparentes?",
-  },
-];
+const DEFAULT_FIELDS: { key: ChecklistItemKey; label: string }[] = CHECKLIST_ITEM_KEYS.map((key) => ({
+  key,
+  label: DEFAULT_EXTINTOR_QUESTION_LABELS[key],
+}));
 
 function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
   const v2 = isDataVencida(info.manutencao_2_nivel);
@@ -195,6 +158,8 @@ type Props = {
   onCancel: () => void;
   isSaving: boolean;
   cabecalho?: InspecaoExtintorCabecalho;
+  /** Perguntas customizadas por base (labels). Ordem = ordem de exibição. */
+  fields?: { key: ChecklistItemKey; label: string }[];
   /** @deprecated use cabecalho */
   extintor?: {
     codigo: string;
@@ -212,9 +177,11 @@ export default function ChecklistForm({
   onCancel,
   isSaving,
   cabecalho,
+  fields = DEFAULT_FIELDS,
   extintor,
 }: Props) {
   const valid = isChecklistValid(data);
+  const resolvedFields = fields.length > 0 ? fields : DEFAULT_FIELDS;
 
   function setField(key: ChecklistItemKey, value: ChecklistValue) {
     const next = { ...data, [key]: value };
@@ -268,7 +235,7 @@ export default function ChecklistForm({
           />
         </div>
 
-        {FIELDS.map((field, i) => (
+        {resolvedFields.map((field, i) => (
           <ToggleField
             key={field.key}
             index={i + 1}
