@@ -9,6 +9,7 @@ import type { ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
+import { EquipmentStatusIcon } from "@/src/components/EquipmentIcons";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
@@ -70,27 +71,6 @@ function isVencido(dateStr: string | null): boolean {
   today.setHours(0, 0, 0, 0);
   date.setHours(0, 0, 0, 0);
   return date < today;
-}
-
-function HidranteIcon({ variant }: { variant: "ok" | "pendente" | "alerta" }) {
-  const palette =
-    variant === "alerta"
-      ? { bg: "#fee2e2", fg: "var(--forest)" }
-      : variant === "pendente"
-        ? { bg: "#fef3c7", fg: "#d97706" }
-        : { bg: "#dcfce7", fg: "#16a34a" };
-
-  return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: palette.bg }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <rect x="8" y="4" width="8" height="3" rx="1" fill={palette.fg} />
-        <rect x="10" y="7" width="4" height="10" rx="1.5" fill={palette.fg} />
-        <path d="M6 17h12v2H6z" fill={palette.fg} fillOpacity="0.85" />
-        <circle cx="8" cy="19.5" r="1" fill={palette.fg} />
-        <circle cx="16" cy="19.5" r="1" fill={palette.fg} />
-      </svg>
-    </div>
-  );
 }
 
 function formatHidranteMetaLine(item: HidranteMobile): string {
@@ -158,25 +138,6 @@ function InspecaoListaItem({
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
       </svg>
     </button>
-  );
-}
-
-function ExtintorIcon({ variant }: { variant: "ok" | "pendente" | "alerta" }) {
-  const palette =
-    variant === "alerta"
-      ? { bg: "#fee2e2", fg: "#e11d48", top: "#be123c" }
-      : variant === "pendente"
-        ? { bg: "#fef3c7", fg: "#d97706", top: "#b45309" }
-        : { bg: "#dcfce7", fg: "#16a34a", top: "#15803d" };
-
-  return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: palette.bg }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect x="9" y="6" width="6" height="13" rx="3" fill={palette.fg} />
-        <path d="M15 10h4l1 2h-5" fill={palette.fg} />
-        <rect x="8" y="4" width="8" height="2" rx="1" fill={palette.top} fillOpacity="0.7" />
-      </svg>
-    </div>
   );
 }
 
@@ -863,7 +824,7 @@ export default function MobileConferenciaPage() {
                 }
                 conferidoNoMes={conferidoNoMes}
                 temNc={temNc}
-                icon={<ExtintorIcon variant={variant} />}
+                icon={<EquipmentStatusIcon kind="extintor" variant={variant} />}
                 onClick={() => {
                   setSelected(item);
                   setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
@@ -897,7 +858,7 @@ export default function MobileConferenciaPage() {
                 }
                 conferidoNoMes={conferidoNoMes}
                 temNc={temNc}
-                icon={<HidranteIcon variant={variant} />}
+                icon={<EquipmentStatusIcon kind="hidrante" variant={variant} />}
                 onClick={() => {
                   setSelectedHidrante(item);
                   setHidranteChecklist({

@@ -14,6 +14,7 @@ import { fetchBaseFloors } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 import ExportActions from "@/src/components/ExportActions";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
+import RowActionsMenu from "@/src/components/RowActionsMenu";
 
 type HidranteRow = HidranteInventarioCompletoRow;
 
@@ -711,22 +712,11 @@ export default function AdminExtintoresPage() {
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                       {!readOnly && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(e)}
-                          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(e)}
-                          className="rounded-xl bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                        <RowActionsMenu
+                          label={`extintor ${e.codigo}`}
+                          onEdit={() => openEdit(e)}
+                          onDelete={() => setDeleteTarget(e)}
+                        />
                       )}
                     </td>
                   </tr>
@@ -812,22 +802,11 @@ export default function AdminExtintoresPage() {
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                       {!readOnly && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditHidrante(h)}
-                          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTargetHidrante(h)}
-                          className="rounded-xl bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                        <RowActionsMenu
+                          label={`hidrante ${h.codigo}`}
+                          onEdit={() => openEditHidrante(h)}
+                          onDelete={() => setDeleteTargetHidrante(h)}
+                        />
                       )}
                     </td>
                   </tr>

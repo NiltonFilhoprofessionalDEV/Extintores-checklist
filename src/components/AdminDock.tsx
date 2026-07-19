@@ -13,6 +13,7 @@ import {
 import { signOutCurrentUser } from "@/lib/auth/session-client";
 import BaseSwitcher from "./BaseSwitcher";
 import BrandLogo from "./BrandLogo";
+import { EquipmentPairIcon } from "./EquipmentIcons";
 
 type IconName =
   | "dashboard"
@@ -71,7 +72,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     return <svg {...common}><path d="M4 13h6V4H4v9Zm10 7h6v-9h-6v9ZM4 20h6v-3H4v3Zm10-13h6V4h-6v3Z" /></svg>;
   }
   if (name === "inventory") {
-    return <svg {...common}><path d="M9 5h6v15H9zM8 4h8M12 2v2M15 9h4l1.5 3H15" /></svg>;
+    return <EquipmentPairIcon size={size + 4} />;
   }
   if (name === "map") {
     return <svg {...common}><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15" /></svg>;
