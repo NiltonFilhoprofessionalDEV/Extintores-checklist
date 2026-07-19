@@ -29,11 +29,14 @@ function chunk<T>(arr: T[], size: number): T[][] {
 async function loadCodigoSet(
   supabase: SupabaseClient,
   table: "extintores" | "hidrantes",
+  baseId: string,
 ): Promise<{ set: Set<string>; error: string | null }> {
   const { data, error } = await fetchAllFromTable<{ codigo: string }>(
     supabase,
     table,
     "codigo",
+    undefined,
+    { column: "base_id", value: baseId },
   );
   if (error) return { set: new Set(), error };
   return {
@@ -68,28 +71,34 @@ function extintorUpdatePayload(row: ExtintorImportRecord) {
   };
 }
 
+function withBaseId<T extends Record<string, unknown>>(rows: T[], baseId: string) {
+  return rows.map((row) => ({ ...row, base_id: baseId }));
+}
+
 export async function syncExtintores(
   supabase: SupabaseClient,
   rows: ExtintorImportRecord[],
   mode: ImportMode,
+  baseId: string,
 ): Promise<ImportSyncResult> {
+  if (!baseId) return { inserted: 0, updated: 0, error: "Base ativa não definida." };
   if (rows.length === 0) return { inserted: 0, updated: 0, error: null };
 
   if (mode === "cadastro") {
-    for (const batch of chunk(rows, CHUNK_SIZE)) {
+    for (const batch of chunk(withBaseId(rows, baseId), CHUNK_SIZE)) {
       const { error } = await supabase.from("extintores").insert(batch);
       if (error) return { inserted: 0, updated: 0, error: error.message };
     }
     return { inserted: rows.length, updated: 0, error: null };
   }
 
-  const { set: existing, error: loadError } = await loadCodigoSet(supabase, "extintores");
+  const { set: existing, error: loadError } = await loadCodigoSet(supabase, "extintores", baseId);
   if (loadError) return { inserted: 0, updated: 0, error: loadError };
 
   const toInsert = rows.filter((r) => !existing.has(normalizeCodigo(r.codigo)));
   const toUpdate = rows.filter((r) => existing.has(normalizeCodigo(r.codigo)));
 
-  for (const batch of chunk(toInsert, CHUNK_SIZE)) {
+  for (const batch of chunk(withBaseId(toInsert, baseId), CHUNK_SIZE)) {
     const { error } = await supabase.from("extintores").insert(batch);
     if (error) return { inserted: 0, updated: 0, error: error.message };
   }
@@ -98,7 +107,8 @@ export async function syncExtintores(
     supabase
       .from("extintores")
       .update(extintorUpdatePayload(row))
-      .eq("codigo", normalizeCodigo(row.codigo)),
+      .eq("codigo", normalizeCodigo(row.codigo))
+      .eq("base_id", baseId),
   );
   if (updateError) return { inserted: 0, updated: 0, error: updateError };
 
@@ -109,32 +119,34 @@ export async function syncHidrantes(
   supabase: SupabaseClient,
   rows: HidranteImportRow[],
   mode: ImportMode,
+  baseId: string,
 ): Promise<ImportSyncResult> {
+  if (!baseId) return { inserted: 0, updated: 0, error: "Base ativa não definida." };
   if (rows.length === 0) return { inserted: 0, updated: 0, error: null };
 
   if (mode === "cadastro") {
-    for (const batch of chunk(rows, CHUNK_SIZE)) {
+    for (const batch of chunk(withBaseId(rows, baseId), CHUNK_SIZE)) {
       const { error } = await supabase.from("hidrantes").insert(batch);
       if (error) return { inserted: 0, updated: 0, error: error.message };
     }
     return { inserted: rows.length, updated: 0, error: null };
   }
 
-  const { set: existing, error: loadError } = await loadCodigoSet(supabase, "hidrantes");
+  const { set: existing, error: loadError } = await loadCodigoSet(supabase, "hidrantes", baseId);
   if (loadError) return { inserted: 0, updated: 0, error: loadError };
 
   const toUpdate = rows.filter((r) => existing.has(normalizeCodigo(r.codigo)));
   const toInsert = rows.filter((r) => !existing.has(normalizeCodigo(r.codigo)));
 
-  for (const batch of chunk(toInsert, CHUNK_SIZE)) {
+  for (const batch of chunk(withBaseId(toInsert, baseId), CHUNK_SIZE)) {
     const { error } = await supabase.from("hidrantes").insert(batch);
     if (error) return { inserted: 0, updated: 0, error: error.message };
   }
 
-  for (const batch of chunk(toUpdate, CHUNK_SIZE)) {
+  for (const batch of chunk(withBaseId(toUpdate, baseId), CHUNK_SIZE)) {
     const { error } = await supabase
       .from("hidrantes")
-      .upsert(batch, { onConflict: "codigo" });
+      .upsert(batch, { onConflict: "base_id,codigo" });
     if (error) return { inserted: 0, updated: 0, error: error.message };
   }
 

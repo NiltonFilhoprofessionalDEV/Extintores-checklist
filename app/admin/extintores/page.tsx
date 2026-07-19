@@ -8,6 +8,8 @@ import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import { isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { useActiveBase } from "@/lib/auth/active-base-context";
+import { fetchBaseFloors } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 
 type HidranteRow = HidranteInventarioCompletoRow;
@@ -125,7 +127,7 @@ function toUppercaseLabel(value: string): string {
   return value.trim().toLocaleUpperCase(LOCALE_PT_BR);
 }
 
-const SETORES = [
+const SETORES_FALLBACK = [
   "SUBSOLO",
   "TÉRREO",
   "PAVIMENTO 1",
@@ -194,8 +196,10 @@ function buildHidranteSavePayload(form: HidranteFormData) {
 }
 
 export default function AdminExtintoresPage() {
+  const { ready, activeBaseId } = useActiveBase();
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteRow[]>([]);
+  const [setores, setSetores] = useState<string[]>([...SETORES_FALLBACK]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [filterHidrante, setFilterHidrante] = useState("");
@@ -229,6 +233,7 @@ export default function AdminExtintoresPage() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          ...(activeBaseId ? { "X-Active-Base-Id": activeBaseId } : {}),
           ...(init?.headers ?? {}),
         },
       });
@@ -245,25 +250,31 @@ export default function AdminExtintoresPage() {
         throw new Error(payload?.error ?? responseText ?? "Falha na requisição.");
       }
     },
-    [supabase],
+    [supabase, activeBaseId],
   );
 
   const load = useCallback(async () => {
+    if (!ready || !activeBaseId) return;
     setLoading(true);
-    const [extRes, hidRes] = await Promise.all([
+    const [extRes, hidRes, floors] = await Promise.all([
       supabase
         .from("extintores")
         .select(
           "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true }),
       supabase
         .from("hidrantes")
         .select(
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true }),
+      fetchBaseFloors(activeBaseId).catch(() => []),
     ]);
+    const floorLabels = floors.map((f) => f.label).filter(Boolean);
+    setSetores(floorLabels.length > 0 ? floorLabels : [...SETORES_FALLBACK]);
     const rows = ((extRes.data ?? []) as ExtintorRow[]).sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
@@ -273,14 +284,15 @@ export default function AdminExtintoresPage() {
     setExtintores(rows);
     setHidrantes(hidRows);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, ready, activeBaseId]);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
     const timer = window.setTimeout(() => {
       void load();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [load, ready, activeBaseId]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -881,7 +893,7 @@ export default function AdminExtintoresPage() {
                     onChange={(e) => set("setor", e.target.value)}
                   >
                     <option value="">Selecione o setor...</option>
-                    {SETORES.map((setor) => (
+                    {setores.map((setor) => (
                       <option key={setor} value={setor}>
                         {setor}
                       </option>
@@ -1056,7 +1068,7 @@ export default function AdminExtintoresPage() {
                     onChange={(e) => setHidrante("pavimento", e.target.value)}
                   >
                     <option value="">Selecione o pavimento...</option>
-                    {SETORES.map((setor) => (
+                    {setores.map((setor) => (
                       <option key={setor} value={setor}>
                         {setor}
                       </option>

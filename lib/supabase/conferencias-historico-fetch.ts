@@ -58,20 +58,23 @@ async function fetchTableWithAttempts(
   supabase: SupabaseClient,
   table: "checklists" | "checklists_hidrantes",
   attempts: string[],
+  baseId?: string | null,
 ): Promise<{ rows: Record<string, unknown>[]; error: string | null }> {
   let lastError: string | null = null;
 
   for (const select of attempts) {
-    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      supabase
+    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) => {
+      let query = supabase
         .from(table)
         .select(select)
         .order("data_conferencia", { ascending: false })
-        .range(from, to) as unknown as Promise<{
+        .range(from, to);
+      if (baseId) query = query.eq("base_id", baseId);
+      return query as unknown as Promise<{
         data: Record<string, unknown>[] | null;
         error: { message: string } | null;
-      }>,
-    );
+      }>;
+    });
 
     if (error) {
       lastError = error;
@@ -86,6 +89,7 @@ async function fetchTableWithAttempts(
 
 async function loadExtintorLookup(
   supabase: SupabaseClient,
+  baseId?: string | null,
 ): Promise<Map<string, ExtintorLookupRow>> {
   const map = new Map<string, ExtintorLookupRow>();
   const selects = [
@@ -96,16 +100,18 @@ async function loadExtintorLookup(
   ];
 
   for (const select of selects) {
-    const { data, error } = await fetchAllPages<ExtintorLookupRow>((from, to) =>
-      supabase
+    const { data, error } = await fetchAllPages<ExtintorLookupRow>((from, to) => {
+      let query = supabase
         .from("extintores")
         .select(select)
         .order("codigo", { ascending: true })
-        .range(from, to) as unknown as Promise<{
+        .range(from, to);
+      if (baseId) query = query.eq("base_id", baseId);
+      return query as unknown as Promise<{
         data: ExtintorLookupRow[] | null;
         error: { message: string } | null;
-      }>,
-    );
+      }>;
+    });
 
     if (error) continue;
 
@@ -127,7 +133,10 @@ async function loadExtintorLookup(
   return map;
 }
 
-async function loadHidranteLookup(supabase: SupabaseClient): Promise<Map<string, HidranteLookupRow>> {
+async function loadHidranteLookup(
+  supabase: SupabaseClient,
+  baseId?: string | null,
+): Promise<Map<string, HidranteLookupRow>> {
   const map = new Map<string, HidranteLookupRow>();
   const selects = [
     "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos",
@@ -136,16 +145,18 @@ async function loadHidranteLookup(supabase: SupabaseClient): Promise<Map<string,
   ];
 
   for (const select of selects) {
-    const { data, error } = await fetchAllPages<HidranteLookupRow>((from, to) =>
-      supabase
+    const { data, error } = await fetchAllPages<HidranteLookupRow>((from, to) => {
+      let query = supabase
         .from("hidrantes")
         .select(select)
         .order("codigo", { ascending: true })
-        .range(from, to) as unknown as Promise<{
+        .range(from, to);
+      if (baseId) query = query.eq("base_id", baseId);
+      return query as unknown as Promise<{
         data: HidranteLookupRow[] | null;
         error: { message: string } | null;
-      }>,
-    );
+      }>;
+    });
 
     if (error) continue;
 
@@ -228,6 +239,7 @@ export function resolveHidranteFromRow(
 
 export async function fetchConferenciasHistorico(
   supabase: SupabaseClient,
+  baseId?: string | null,
 ): Promise<{
   extintorRows: Record<string, unknown>[];
   hidranteRows: Record<string, unknown>[];
@@ -236,10 +248,10 @@ export async function fetchConferenciasHistorico(
   errors: string[];
 }> {
   const [extintorLookup, hidranteLookup, extFetch, hidFetch] = await Promise.all([
-    loadExtintorLookup(supabase),
-    loadHidranteLookup(supabase),
-    fetchTableWithAttempts(supabase, "checklists", CHECKLIST_EXT_ATTEMPTS),
-    fetchTableWithAttempts(supabase, "checklists_hidrantes", CHECKLIST_HID_ATTEMPTS),
+    loadExtintorLookup(supabase, baseId),
+    loadHidranteLookup(supabase, baseId),
+    fetchTableWithAttempts(supabase, "checklists", CHECKLIST_EXT_ATTEMPTS, baseId),
+    fetchTableWithAttempts(supabase, "checklists_hidrantes", CHECKLIST_HID_ATTEMPTS, baseId),
   ]);
 
   const errors: string[] = [];

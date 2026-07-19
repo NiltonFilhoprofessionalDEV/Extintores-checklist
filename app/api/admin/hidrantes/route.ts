@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { getInventoryManagerFromRequest } from "@/lib/auth/inventory-management-server";
+import {
+  assertInventoryRowInManagerBase,
+  getInventoryManagerFromRequest,
+} from "@/lib/auth/inventory-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 type HidrantePayload = {
@@ -43,7 +46,10 @@ export async function POST(request: Request) {
 
     const body = normalizePayload((await request.json()) as HidrantePayload);
     const supabaseAdmin = getSupabaseAdminClient();
-    const { error } = await supabaseAdmin.from("hidrantes").insert(body);
+    const { error } = await supabaseAdmin.from("hidrantes").insert({
+      ...body,
+      base_id: manager.base_id,
+    });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
@@ -63,9 +69,16 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as HidrantePayload & { id: string };
     if (!body.id) return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
 
+    const scopeError = await assertInventoryRowInManagerBase("hidrantes", body.id, manager.base_id);
+    if (scopeError) return NextResponse.json({ error: scopeError }, { status: 403 });
+
     const payload = normalizePayload(body);
     const supabaseAdmin = getSupabaseAdminClient();
-    const { error } = await supabaseAdmin.from("hidrantes").update(payload).eq("id", body.id);
+    const { error } = await supabaseAdmin
+      .from("hidrantes")
+      .update(payload)
+      .eq("id", body.id)
+      .eq("base_id", manager.base_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
@@ -85,8 +98,15 @@ export async function DELETE(request: Request) {
     const body = (await request.json()) as { id: string };
     if (!body.id) return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
 
+    const scopeError = await assertInventoryRowInManagerBase("hidrantes", body.id, manager.base_id);
+    if (scopeError) return NextResponse.json({ error: scopeError }, { status: 403 });
+
     const supabaseAdmin = getSupabaseAdminClient();
-    const { error } = await supabaseAdmin.from("hidrantes").delete().eq("id", body.id);
+    const { error } = await supabaseAdmin
+      .from("hidrantes")
+      .delete()
+      .eq("id", body.id)
+      .eq("base_id", manager.base_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });

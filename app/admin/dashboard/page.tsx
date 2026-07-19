@@ -9,6 +9,8 @@ import {
   type ChecklistHidranteMesRow,
 } from "@/lib/supabase/checklists-do-mes";
 import { getCurrentSession } from "@/lib/auth/profile";
+import { useActiveBase } from "@/lib/auth/active-base-context";
+import { baseHasEmpresaTabs } from "@/lib/auth/bases";
 import { exportAlertasVencimento, type AlertaVencimentoRowHighlight, type ExtintorRow } from "@/lib/export/excel";
 import { extintorTemManutencaoVencida } from "@/lib/export/conferencia-historico";
 import { checklistTemNaoConformidade, isDataVencida } from "@/lib/checklist/types";
@@ -428,6 +430,8 @@ function AlertTable({
 }
 
 export default function AdminDashboardPage() {
+  const { ready, activeBaseId, activeBase } = useActiveBase();
+  const showEmpresaTabs = baseHasEmpresaTabs(activeBase);
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [checklistsExtMes, setChecklistsExtMes] = useState<ChecklistExtintorMesRow[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteVencimentoRow[]>([]);
@@ -439,7 +443,12 @@ export default function AdminDashboardPage() {
 
   const mesAtualRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
 
+  useEffect(() => {
+    if (!showEmpresaTabs) setEmpresaTab("todos");
+  }, [showEmpresaTabs]);
+
   const loadDashboard = useCallback(async () => {
+    if (!ready || !activeBaseId) return;
     setLoading(true);
     const { startIso, endInclusiveIso } = mesAtualRange;
     await getCurrentSession();
@@ -449,15 +458,17 @@ export default function AdminDashboardPage() {
         .select(
           "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true }),
       supabase
         .from("hidrantes")
         .select(
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,coord_x,coord_y",
         )
+        .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true }),
-      fetchChecklistsExtintoresDoMes(supabase, startIso, endInclusiveIso),
-      fetchChecklistsHidrantesDoMes(supabase, startIso, endInclusiveIso),
+      fetchChecklistsExtintoresDoMes(supabase, startIso, endInclusiveIso, activeBaseId),
+      fetchChecklistsHidrantesDoMes(supabase, startIso, endInclusiveIso, activeBaseId),
     ]);
 
     setExtintores((extRes.data ?? []) as ExtintorRow[]);
@@ -465,14 +476,15 @@ export default function AdminDashboardPage() {
     setHidrantes((hidRes.data ?? []) as HidranteVencimentoRow[]);
     setChecklistsHidMes(chHid.ok ? chHid.rows : []);
     setLoading(false);
-  }, [supabase, mesAtualRange]);
+  }, [supabase, mesAtualRange, ready, activeBaseId]);
 
   useEffect(() => {
+    if (!ready || !activeBaseId) return;
     const timer = window.setTimeout(() => {
       void loadDashboard();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadDashboard]);
+  }, [loadDashboard, ready, activeBaseId]);
 
   const today = useMemo(() => {
     const date = new Date();
@@ -480,14 +492,16 @@ export default function AdminDashboardPage() {
     return date;
   }, []);
 
+  const effectiveEmpresaTab: EmpresaTab = showEmpresaTabs ? empresaTab : "todos";
+
   const extintoresVisiveis = useMemo(
-    () => filtrarPorEmpresa(extintores, empresaTab, (e) => e.setor),
-    [extintores, empresaTab],
+    () => filtrarPorEmpresa(extintores, effectiveEmpresaTab, (e) => e.setor),
+    [extintores, effectiveEmpresaTab],
   );
 
   const hidrantesVisiveis = useMemo(
-    () => filtrarPorEmpresa(hidrantes, empresaTab, (h) => h.pavimento),
-    [hidrantes, empresaTab],
+    () => filtrarPorEmpresa(hidrantes, effectiveEmpresaTab, (h) => h.pavimento),
+    [hidrantes, effectiveEmpresaTab],
   );
 
   const stats = useMemo<Stats>(() => {
@@ -653,7 +667,7 @@ export default function AdminDashboardPage() {
     [mesAtualRange.startIso],
   );
 
-  if (loading) {
+  if (!ready || !activeBaseId || loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#E02020] border-t-transparent" />
@@ -679,33 +693,34 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Seletor de empresa (apenas no dashboard) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="pl-5 pr-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
-          Empresa
-        </span>
-        {EMPRESA_TABS.map((tab) => {
-          const active = empresaTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setEmpresaTab(tab.id);
-                setManutencaoModal(null);
-              }}
-              aria-pressed={active}
-              className={`rounded-full border px-4 py-2 text-sm font-bold transition-all ${
-                active
-                  ? "border-[#e02020] bg-[#e02020] text-white shadow-sm shadow-red-200"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {showEmpresaTabs && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="pl-5 pr-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+            Empresa
+          </span>
+          {EMPRESA_TABS.map((tab) => {
+            const active = empresaTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setEmpresaTab(tab.id);
+                  setManutencaoModal(null);
+                }}
+                aria-pressed={active}
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition-all ${
+                  active
+                    ? "border-[#e02020] bg-[#e02020] text-white shadow-sm shadow-red-200"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="pl-5">

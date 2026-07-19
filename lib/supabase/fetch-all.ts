@@ -7,6 +7,8 @@ type PageResult<T> = {
   error: { message: string } | null;
 };
 
+export type EqFilter = { column: string; value: string };
+
 /**
  * Busca todas as linhas de uma query Supabase paginando em lotes de 1000.
  */
@@ -34,9 +36,13 @@ export async function fetchAllFromTable<T>(
   table: string,
   select: string,
   order?: { column: string; ascending?: boolean },
+  eqFilter?: EqFilter,
 ): Promise<{ data: T[]; error: string | null }> {
   return fetchAllPages<T>((from, to) => {
     let query = supabase.from(table).select(select).range(from, to);
+    if (eqFilter) {
+      query = query.eq(eqFilter.column, eqFilter.value);
+    }
     if (order) {
       query = query.order(order.column, { ascending: order.ascending ?? true });
     }

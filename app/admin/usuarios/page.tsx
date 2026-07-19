@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   assignableRoles,
   canManageTarget,
+  isMultiBaseRole,
   ROLE_LABELS,
   TEAM_LABELS,
   USER_TEAMS,
   type UserRole,
   type UserTeam,
 } from "@/lib/auth/roles";
+import { useActiveBase } from "@/lib/auth/active-base-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type UserItem = {
@@ -18,6 +20,7 @@ type UserItem = {
   role: UserRole;
   team: UserTeam | null;
   active: boolean;
+  base_id: string | null;
   created_at: string;
 };
 
@@ -27,6 +30,7 @@ type FormState = {
   nome: string;
   role: UserRole;
   team: UserTeam | "";
+  base_ids: string[];
 };
 
 type EditState = {
@@ -36,6 +40,7 @@ type EditState = {
   team: UserTeam | null;
   active: boolean;
   password: string;
+  base_ids: string[];
 };
 
 const INITIAL_FORM: FormState = {
@@ -44,6 +49,7 @@ const INITIAL_FORM: FormState = {
   nome: "",
   role: "user",
   team: "",
+  base_ids: [],
 };
 
 function isTeamRequired(role: UserRole): boolean {
@@ -51,6 +57,7 @@ function isTeamRequired(role: UserRole): boolean {
 }
 
 export default function AdminUsuariosPage() {
+  const { activeBaseId, accessibleBases } = useActiveBase();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [managerRole, setManagerRole] = useState<UserRole>("admin");
   const [managerTeam, setManagerTeam] = useState<UserTeam | null>(null);
@@ -72,6 +79,14 @@ export default function AdminUsuariosPage() {
       : isTeamRequired(selectedFormRole)
         ? form.team || USER_TEAMS[0]
         : form.team || null;
+  const defaultBaseIds = useMemo(() => {
+    if (activeBaseId) return [activeBaseId];
+    return accessibleBases[0]?.id ? [accessibleBases[0].id] : [];
+  }, [activeBaseId, accessibleBases]);
+  const needsBasePicker =
+    isMultiBaseRole(selectedFormRole) || managerRole === "admin_corporativo";
+  const formBaseIds =
+    form.base_ids.length > 0 ? form.base_ids : needsBasePicker ? defaultBaseIds : [];
 
   const callAdminApi = useCallback(async <T,>(url: string, init?: RequestInit) => {
     const {
@@ -146,12 +161,34 @@ export default function AdminUsuariosPage() {
     event.preventDefault();
     setMessage("");
 
+    const resolvedBaseIds =
+      formBaseIds.length > 0 ? formBaseIds : needsBasePicker ? defaultBaseIds : [];
+    const base_ids = needsBasePicker
+      ? isMultiBaseRole(selectedFormRole)
+        ? resolvedBaseIds
+        : resolvedBaseIds.slice(0, 1)
+      : undefined;
+
+    if (needsBasePicker && (!base_ids || base_ids.length === 0)) {
+      setMessage(
+        isMultiBaseRole(selectedFormRole)
+          ? "Selecione ao menos uma base para o usuário."
+          : "Selecione a base do usuário.",
+      );
+      return;
+    }
+
     try {
       await callAdminApi("/api/admin/usuarios", {
         method: "POST",
-        body: JSON.stringify({ ...form, role: selectedFormRole, team: selectedFormTeam }),
+        body: JSON.stringify({
+          ...form,
+          role: selectedFormRole,
+          team: selectedFormTeam,
+          ...(base_ids ? { base_ids } : {}),
+        }),
       });
-      setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user" });
+      setForm({ ...INITIAL_FORM, role: creatableRoles[0] ?? "user", base_ids: [] });
       setMessage("Usuário criado com sucesso.");
       await loadUsers();
     } catch (error) {
@@ -159,7 +196,18 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  function openEdit(user: UserItem) {
+  async function openEdit(user: UserItem) {
+    let base_ids: string[] = [];
+    if (isMultiBaseRole(user.role)) {
+      const { data } = await supabase.from("base_memberships").select("base_id").eq("user_id", user.id);
+      base_ids = (data ?? []).map((row) => String(row.base_id));
+      if (base_ids.length === 0) base_ids = defaultBaseIds;
+    } else if (user.base_id) {
+      base_ids = [user.base_id];
+    } else {
+      base_ids = defaultBaseIds;
+    }
+
     setEditUser({
       id: user.id,
       nome: user.nome,
@@ -167,6 +215,7 @@ export default function AdminUsuariosPage() {
       team: user.team,
       active: user.active,
       password: "",
+      base_ids,
     });
   }
 
@@ -174,6 +223,25 @@ export default function AdminUsuariosPage() {
     event.preventDefault();
     if (!editUser) return;
     setMessage("");
+
+    const editNeedsBasePicker =
+      isMultiBaseRole(editUser.role) || managerRole === "admin_corporativo";
+    const resolvedBaseIds =
+      editUser.base_ids.length > 0 ? editUser.base_ids : editNeedsBasePicker ? defaultBaseIds : [];
+    const base_ids = editNeedsBasePicker
+      ? isMultiBaseRole(editUser.role)
+        ? resolvedBaseIds
+        : resolvedBaseIds.slice(0, 1)
+      : undefined;
+
+    if (editNeedsBasePicker && (!base_ids || base_ids.length === 0)) {
+      setMessage(
+        isMultiBaseRole(editUser.role)
+          ? "Selecione ao menos uma base para o usuário."
+          : "Selecione a base do usuário.",
+      );
+      return;
+    }
 
     try {
       await callAdminApi("/api/admin/usuarios", {
@@ -190,6 +258,7 @@ export default function AdminUsuariosPage() {
                 : editUser.team,
           active: editUser.active,
           ...(editUser.password ? { password: editUser.password } : {}),
+          ...(base_ids ? { base_ids } : {}),
         }),
       });
       setEditUser(null);
@@ -268,10 +337,19 @@ export default function AdminUsuariosPage() {
               onChange={(event) =>
                 setForm((prev) => {
                   const nextRole = event.target.value as UserRole;
+                  const nextNeedsBase =
+                    isMultiBaseRole(nextRole) || managerRole === "admin_corporativo";
                   return {
                     ...prev,
                     role: nextRole,
                     team: isTeamRequired(nextRole) ? prev.team || USER_TEAMS[0] : "",
+                    base_ids: nextNeedsBase
+                      ? prev.base_ids.length
+                        ? isMultiBaseRole(nextRole)
+                          ? prev.base_ids
+                          : prev.base_ids.slice(0, 1)
+                        : defaultBaseIds
+                      : [],
                   };
                 })
               }
@@ -292,24 +370,84 @@ export default function AdminUsuariosPage() {
               Equipe: {managerTeam ?? "—"}
             </div>
           ) : (
-            <select
-              className="field-control"
-              value={selectedFormTeam ?? ""}
-              required={isTeamRequired(selectedFormRole)}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  team: event.target.value ? (event.target.value as UserTeam) : "",
-                }))
-              }
-            >
-              {!isTeamRequired(selectedFormRole) && <option value="">Sem equipe</option>}
-              {USER_TEAMS.map((team) => (
-                <option key={team} value={team}>
-                  Equipe {TEAM_LABELS[team]}
-                </option>
-              ))}
-            </select>
+            <>
+              {needsBasePicker && (
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    {isMultiBaseRole(selectedFormRole) ? "Bases" : "Base"}
+                  </p>
+                  {isMultiBaseRole(selectedFormRole) ? (
+                    <div className="max-h-28 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      {accessibleBases.length === 0 ? (
+                        <p className="text-xs text-slate-500">Nenhuma base acessível.</p>
+                      ) : (
+                        accessibleBases.map((base) => {
+                          const checked = formBaseIds.includes(base.id);
+                          return (
+                            <label key={base.id} className="flex items-center gap-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  setForm((prev) => {
+                                    const current =
+                                      prev.base_ids.length > 0 ? prev.base_ids : defaultBaseIds;
+                                    const next = checked
+                                      ? current.filter((id) => id !== base.id)
+                                      : [...current, base.id];
+                                    return { ...prev, base_ids: next };
+                                  })
+                                }
+                              />
+                              {base.nome}
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      className="field-control"
+                      value={formBaseIds[0] ?? ""}
+                      required
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          base_ids: event.target.value ? [event.target.value] : [],
+                        }))
+                      }
+                    >
+                      <option value="">Selecione a base</option>
+                      {accessibleBases.map((base) => (
+                        <option key={base.id} value={base.id}>
+                          {base.nome}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+              {!isMultiBaseRole(selectedFormRole) && (
+                <select
+                  className="field-control"
+                  value={selectedFormTeam ?? ""}
+                  required={isTeamRequired(selectedFormRole)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      team: event.target.value ? (event.target.value as UserTeam) : "",
+                    }))
+                  }
+                >
+                  {!isTeamRequired(selectedFormRole) && <option value="">Sem equipe</option>}
+                  {USER_TEAMS.map((team) => (
+                    <option key={team} value={team}>
+                      Equipe {TEAM_LABELS[team]}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
           )}
         </div>
 
@@ -364,7 +502,7 @@ export default function AdminUsuariosPage() {
                       <>
                         <button
                           type="button"
-                          onClick={() => openEdit(user)}
+                          onClick={() => void openEdit(user)}
                         className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                         >
                           Editar
@@ -413,10 +551,19 @@ export default function AdminUsuariosPage() {
                   setEditUser((prev) => {
                     if (!prev) return prev;
                     const nextRole = event.target.value as UserRole;
+                    const nextNeedsBase =
+                      isMultiBaseRole(nextRole) || managerRole === "admin_corporativo";
                     return {
                       ...prev,
                       role: nextRole,
                       team: isTeamRequired(nextRole) ? prev.team ?? USER_TEAMS[0] : null,
+                      base_ids: nextNeedsBase
+                        ? prev.base_ids.length
+                          ? isMultiBaseRole(nextRole)
+                            ? prev.base_ids
+                            : prev.base_ids.slice(0, 1)
+                          : defaultBaseIds
+                        : [],
                     };
                   })
                 }
@@ -433,28 +580,94 @@ export default function AdminUsuariosPage() {
             {managerRole === "leadership" ? (
               <p className="text-sm text-slate-600">Equipe: {managerTeam ?? "—"}</p>
             ) : (
-              <select
-                className="field-control"
-                value={editUser.team ?? ""}
-                required={isTeamRequired(editUser.role)}
-                onChange={(event) =>
-                  setEditUser((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          team: event.target.value ? (event.target.value as UserTeam) : null,
+              <>
+                {(isMultiBaseRole(editUser.role) || managerRole === "admin_corporativo") && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      {isMultiBaseRole(editUser.role) ? "Bases" : "Base"}
+                    </p>
+                    {isMultiBaseRole(editUser.role) ? (
+                      <div className="max-h-28 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        {accessibleBases.length === 0 ? (
+                          <p className="text-xs text-slate-500">Nenhuma base acessível.</p>
+                        ) : (
+                          accessibleBases.map((base) => {
+                            const selectedIds =
+                              editUser.base_ids.length > 0 ? editUser.base_ids : defaultBaseIds;
+                            const checked = selectedIds.includes(base.id);
+                            return (
+                              <label key={base.id} className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() =>
+                                    setEditUser((prev) => {
+                                      if (!prev) return prev;
+                                      const current =
+                                        prev.base_ids.length > 0 ? prev.base_ids : defaultBaseIds;
+                                      const next = checked
+                                        ? current.filter((id) => id !== base.id)
+                                        : [...current, base.id];
+                                      return { ...prev, base_ids: next };
+                                    })
+                                  }
+                                />
+                                {base.nome}
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        className="field-control"
+                        value={
+                          (editUser.base_ids[0] ?? defaultBaseIds[0] ?? "") as string
                         }
-                      : prev,
-                  )
-                }
-              >
-                {!isTeamRequired(editUser.role) && <option value="">Sem equipe</option>}
-                {USER_TEAMS.map((team) => (
-                  <option key={team} value={team}>
-                    Equipe {TEAM_LABELS[team]}
-                  </option>
-                ))}
-              </select>
+                        required
+                        onChange={(event) =>
+                          setEditUser((prev) =>
+                            prev
+                              ? { ...prev, base_ids: event.target.value ? [event.target.value] : [] }
+                              : prev,
+                          )
+                        }
+                      >
+                        <option value="">Selecione a base</option>
+                        {accessibleBases.map((base) => (
+                          <option key={base.id} value={base.id}>
+                            {base.nome}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                {!isMultiBaseRole(editUser.role) && (
+                  <select
+                    className="field-control"
+                    value={editUser.team ?? ""}
+                    required={isTeamRequired(editUser.role)}
+                    onChange={(event) =>
+                      setEditUser((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              team: event.target.value ? (event.target.value as UserTeam) : null,
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    {!isTeamRequired(editUser.role) && <option value="">Sem equipe</option>}
+                    {USER_TEAMS.map((team) => (
+                      <option key={team} value={team}>
+                        Equipe {TEAM_LABELS[team]}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
             )}
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
