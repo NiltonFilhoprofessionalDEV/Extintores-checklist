@@ -465,45 +465,8 @@ export default function AdminConferenciasPage() {
         </div>
       )}
 
-      <div className="section-card overflow-hidden">
-        <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50 via-white to-red-50/50 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--forest)]/10 ring-1 ring-[var(--forest)]/15">
-                <svg className="h-5 w-5 text-[var(--forest)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-black tracking-tight text-slate-900">Refinar resultados</h3>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {loading
-                    ? "Carregando conferências…"
-                    : temFiltrosAtivos
-                      ? `${visiveis.length} de ${totalTipoAtual} conferências nesta aba`
-                      : `${totalTipoAtual} conferências nesta aba`}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={limparFiltros}
-              disabled={!temFiltrosAtivos}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100/80 disabled:text-slate-400 disabled:shadow-none"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Limpar filtros
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 p-5 sm:flex-row">
+      <div className="professional-card p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="relative min-w-0 flex-1" htmlFor="filtro-busca">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
               <IconeBusca />
@@ -512,7 +475,7 @@ export default function AdminConferenciasPage() {
               id="filtro-busca"
               type="search"
               placeholder="Buscar por código, local, conferente ou observação…"
-              className="field-control !rounded-2xl !py-3 !pl-11"
+              className="field-control !rounded-xl !py-2.5 !pl-11"
               value={busca}
               onChange={(event) => setBusca(event.target.value)}
             />
@@ -520,7 +483,7 @@ export default function AdminConferenciasPage() {
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className="relative inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-5 py-3 text-sm font-bold text-[var(--ink)] shadow-sm transition hover:border-[var(--orange)] hover:text-[var(--orange-deep)]"
+            className="relative inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ink)] transition hover:border-[var(--orange)] hover:text-[var(--orange-deep)]"
           >
             <IconeEquipe />
             Filtros
@@ -530,26 +493,26 @@ export default function AdminConferenciasPage() {
               </span>
             )}
           </button>
+          <span className="hidden whitespace-nowrap px-1 text-xs font-semibold text-slate-500 md:inline">
+            {loading ? "Carregando…" : `${visiveis.length} de ${totalTipoAtual}`}
+          </span>
+          {temFiltrosAtivos && (
+            <button
+              type="button"
+              onClick={limparFiltros}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-[var(--muted)] hover:text-slate-700"
+              aria-label="Limpar filtros"
+              title="Limpar filtros"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
-        {temFiltrosAtivos && !loading && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ativos</span>
-            {busca.trim() && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                Busca: &quot;{busca.trim()}&quot;
-                <button
-                  type="button"
-                  onClick={() => setBusca("")}
-                  className="rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Remover busca"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            )}
+        {filtrosAvancadosAtivos > 0 && !loading && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
             {showEquipeFilter && filtroEquipe && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900">
                 {equipeLabelAtiva}
@@ -626,9 +589,6 @@ export default function AdminConferenciasPage() {
                 </button>
               </span>
             )}
-            <span className="ml-auto text-xs font-medium text-slate-500">
-              Excel: {filteredExt.length} extintor(es) + {filteredHid.length} hidrante(s)
-            </span>
           </div>
         )}
       </div>

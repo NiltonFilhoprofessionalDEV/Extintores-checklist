@@ -153,7 +153,8 @@ export default function AdminDock() {
     <>
       <nav className="admin-dock" aria-label="Navegação principal">
         {primaryItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active =
+            !menuOpen && (pathname === item.href || pathname.startsWith(`${item.href}/`));
           return (
             <Link
               key={item.href}
