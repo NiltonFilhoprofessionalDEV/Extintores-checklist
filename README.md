@@ -25,6 +25,7 @@ npm install
 4. Crie as tabelas no Supabase usando o script:
    - `docs/supabase_schema.sql`
    - Cole o conteúdo no SQL Editor do Supabase e execute.
+5. Aplique as migrations em `docs/` na ordem (incluindo `migration_multi_base.sql` para isolamento por base/aeroporto).
 
 ## Execução local
 

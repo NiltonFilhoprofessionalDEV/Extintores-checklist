@@ -64,31 +64,40 @@ function padHidranteMesRow(row: Record<string, unknown>): ChecklistHidranteMesRo
   };
 }
 
+type QueryResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+};
+
+async function runMonthQuery(
+  supabase: SupabaseClient,
+  table: "checklists" | "checklists_hidrantes",
+  select: string,
+  startIso: string,
+  endInclusiveIso: string,
+  baseId?: string | null,
+): Promise<QueryResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = supabase
+    .from(table)
+    .select(select)
+    .gte("data_conferencia", startIso)
+    .lte("data_conferencia", endInclusiveIso);
+  if (baseId) query = query.eq("base_id", baseId);
+  return query;
+}
+
 /**
  * Checklists de extintores no intervalo do mês. Várias tentativas de `select` se o banco ainda
  * não tiver todas as colunas de inspeção (evita falha total). `ok === false` só se todas falharem.
  */
-function applyBaseFilter<T extends { eq: (column: string, value: string) => T }>(
-  query: T,
-  baseId?: string | null,
-): T {
-  return baseId ? query.eq("base_id", baseId) : query;
-}
-
 export async function fetchChecklistsExtintoresDoMes(
   supabase: SupabaseClient,
   startIso: string,
   endInclusiveIso: string,
   baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistExtintorMesRow[] }> {
-  const q1 = await applyBaseFilter(
-    supabase
-      .from("checklists")
-      .select(EXT_SELECT_FULL)
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
-    baseId,
-  );
+  const q1 = await runMonthQuery(supabase, "checklists", EXT_SELECT_FULL, startIso, endInclusiveIso, baseId);
 
   if (!q1.error) {
     return {
@@ -97,12 +106,12 @@ export async function fetchChecklistsExtintoresDoMes(
     };
   }
 
-  const q2 = await applyBaseFilter(
-    supabase
-      .from("checklists")
-      .select("extintor_id,data_conferencia,observacoes")
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
+  const q2 = await runMonthQuery(
+    supabase,
+    "checklists",
+    "extintor_id,data_conferencia,observacoes",
+    startIso,
+    endInclusiveIso,
     baseId,
   );
 
@@ -119,12 +128,12 @@ export async function fetchChecklistsExtintoresDoMes(
     };
   }
 
-  const q3 = await applyBaseFilter(
-    supabase
-      .from("checklists")
-      .select("extintor_id,data_conferencia")
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
+  const q3 = await runMonthQuery(
+    supabase,
+    "checklists",
+    "extintor_id,data_conferencia",
+    startIso,
+    endInclusiveIso,
     baseId,
   );
 
@@ -145,12 +154,12 @@ export async function fetchChecklistsHidrantesDoMes(
   endInclusiveIso: string,
   baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistHidranteMesRow[] }> {
-  const q1 = await applyBaseFilter(
-    supabase
-      .from("checklists_hidrantes")
-      .select(HID_SELECT_FULL)
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
+  const q1 = await runMonthQuery(
+    supabase,
+    "checklists_hidrantes",
+    HID_SELECT_FULL,
+    startIso,
+    endInclusiveIso,
     baseId,
   );
 
@@ -161,12 +170,12 @@ export async function fetchChecklistsHidrantesDoMes(
     };
   }
 
-  const q2 = await applyBaseFilter(
-    supabase
-      .from("checklists_hidrantes")
-      .select("hidrante_id,data_conferencia,observacoes")
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
+  const q2 = await runMonthQuery(
+    supabase,
+    "checklists_hidrantes",
+    "hidrante_id,data_conferencia,observacoes",
+    startIso,
+    endInclusiveIso,
     baseId,
   );
 
@@ -183,12 +192,12 @@ export async function fetchChecklistsHidrantesDoMes(
     };
   }
 
-  const q3 = await applyBaseFilter(
-    supabase
-      .from("checklists_hidrantes")
-      .select("hidrante_id,data_conferencia")
-      .gte("data_conferencia", startIso)
-      .lte("data_conferencia", endInclusiveIso),
+  const q3 = await runMonthQuery(
+    supabase,
+    "checklists_hidrantes",
+    "hidrante_id,data_conferencia",
+    startIso,
+    endInclusiveIso,
     baseId,
   );
 

@@ -41,11 +41,15 @@ export default function MobilePerfilPage() {
         const prof = await getProfileBySession(session);
         setProfile(prof);
 
-        // Fetch inspection stats for this user
-        const { data: checklists } = await supabase
+        // Fetch inspection stats for this user (escopo da base do perfil)
+        let checklistsQuery = supabase
           .from("checklists")
           .select("id, data_conferencia")
           .order("data_conferencia", { ascending: false });
+        if (prof?.base_id) {
+          checklistsQuery = checklistsQuery.eq("base_id", prof.base_id);
+        }
+        const { data: checklists } = await checklistsQuery;
 
         const list = checklists ?? [];
         setStats({
