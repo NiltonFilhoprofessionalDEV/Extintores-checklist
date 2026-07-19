@@ -160,6 +160,7 @@ export default function AdminDock() {
               href={item.href}
               onClick={() => setMenuOpen(false)}
               className={`admin-dock__item ${item.icon === "map" ? "is-map" : ""} ${active ? "is-active" : ""}`}
+              aria-label={item.label}
             >
               <Icon name={item.icon} size={item.icon === "map" ? 26 : 20} />
               <span>{item.label}</span>
@@ -169,7 +170,7 @@ export default function AdminDock() {
         <button
           type="button"
           className={`admin-dock__item ${menuOpen || secondaryActive ? "is-active" : ""}`}
-          onClick={() => setMenuOpen(true)}
+          onClick={() => setMenuOpen((current) => !current)}
           aria-expanded={menuOpen}
           aria-controls="admin-menu-drawer"
         >
@@ -179,7 +180,7 @@ export default function AdminDock() {
       </nav>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-[3000]" role="presentation">
+        <div className="admin-menu-layer fixed inset-x-0 top-0" role="presentation">
           <button
             type="button"
             className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]"
@@ -188,7 +189,7 @@ export default function AdminDock() {
           />
           <aside
             id="admin-menu-drawer"
-            className="absolute inset-y-0 right-0 flex w-[min(90vw,390px)] flex-col bg-white shadow-2xl"
+            className="absolute inset-y-0 right-0 flex w-[min(90vw,390px)] flex-col rounded-l-[1.75rem] bg-white shadow-2xl"
             aria-label="Menu completo"
           >
             <div className="border-b border-[var(--border)] px-6 pb-5 pt-6">
