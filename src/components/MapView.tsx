@@ -217,6 +217,17 @@ function isSameFloor(extintorFloor: string | null, selectedFloor: string) {
   return normalizeText(extintorFloor) === normalizeText(selectedFloor);
 }
 
+/** Extintor pendente de posição neste pavimento (usa pavimento ou setor). */
+function isUnplacedOnFloor(
+  item: { coord_x: number | null; coord_y: number | null; pavimento: string | null; setor?: string },
+  selectedFloor: string,
+) {
+  if (item.coord_x != null || item.coord_y != null) return false;
+  if (item.pavimento) return isSameFloor(item.pavimento, selectedFloor);
+  if (item.setor) return isSameFloor(item.setor, selectedFloor);
+  return true;
+}
+
 function getMaintenanceStatus(extintor: Extintor) {
   const today = new Date();
   const inThirtyDays = new Date();
@@ -852,10 +863,7 @@ export default function MapView() {
   }, [isMobile, orderedMapImagePaths, pavimento.key]);
 
   const extintoresSemPosicao = useMemo(() => {
-    const list = extintores.filter(
-      (item) =>
-        item.coord_x == null && item.coord_y == null && isSameFloor(item.pavimento, pavimento.label),
-    );
+    const list = extintores.filter((item) => isUnplacedOnFloor(item, pavimento.label));
     return [...list].sort(compareExtintorCodigoAsc);
   }, [extintores, pavimento.label]);
 
@@ -905,13 +913,8 @@ export default function MapView() {
     [marcadoresEmergencia, pavimento.label],
   );
 
-  const mapClickPlacementEnabled =
-    canEdit &&
-    mode === "edicao" &&
-    ((placementExtra == null && Boolean(selectedExtintorId)) ||
-      (placementExtra === "hidrante" && Boolean(selectedHidranteId)) ||
-      placementExtra === "luz_emergencia" ||
-      placementExtra === "placa_saida_emergencia");
+  // Clique sempre ativo em edição: se nada estiver selecionado, mostramos orientação ao usuário.
+  const mapClickPlacementEnabled = canEdit && mode === "edicao";
 
   function extintorMarkerStyle(item: Extintor): MarkerColors {
     const ult = ultimoChecklistExtintorMes.get(item.id);
@@ -949,6 +952,24 @@ export default function MapView() {
 
   async function handleMapClick(lat: number, lng: number) {
     if (mode !== "edicao" || !canEdit) return;
+
+    if (placementExtra == null && !selectedExtintorId) {
+      setMessage(
+        extintoresSemPosicao.length === 0
+          ? "Nenhum extintor sem posição neste setor. Cadastre o extintor em Extintores e Hidrantes (com o setor deste mapa) e volte aqui."
+          : "Selecione um extintor na lista “sem posição” e clique de novo no mapa para posicionar.",
+      );
+      return;
+    }
+
+    if (placementExtra === "hidrante" && !selectedHidranteId) {
+      setMessage(
+        hidrantesSemPosicao.length === 0
+          ? "Nenhum hidrante sem posição neste setor. Cadastre o hidrante em Extintores e Hidrantes e volte aqui."
+          : "Selecione um hidrante na lista “sem posição” e clique de novo no mapa para posicionar.",
+      );
+      return;
+    }
 
     if (placementExtra === "luz_emergencia" || placementExtra === "placa_saida_emergencia") {
       const raw = typeof window !== "undefined" ? window.prompt("Quantidade (1–999)", "1") : "1";
@@ -2212,7 +2233,10 @@ export default function MapView() {
                       );
                     })}
                     {extintoresSemPosicao.length === 0 && (
-                      <p className="text-sm text-zinc-500">Nenhum extintor pendente neste pavimento.</p>
+                      <p className="text-sm text-zinc-500">
+                        Nenhum extintor pendente neste setor. Cadastre em{" "}
+                        <strong>Extintores e Hidrantes</strong> com o setor “{pavimento.label}”.
+                      </p>
                     )}
                   </div>
                 </>

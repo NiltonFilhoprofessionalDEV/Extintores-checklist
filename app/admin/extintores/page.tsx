@@ -436,9 +436,10 @@ export default function AdminExtintoresPage() {
     setSaving(true);
     setFeedback(null);
 
+    const setorLabel = toUppercaseLabel(form.setor);
     const payload = {
       codigo: form.codigo.trim(),
-      setor: toUppercaseLabel(form.setor),
+      setor: setorLabel,
       local_detalhado: form.local_detalhado.trim(),
       num_inmetro: form.num_inmetro.trim(),
       tipo: toUppercaseLabel(form.tipo),
@@ -446,7 +447,8 @@ export default function AdminExtintoresPage() {
       capacidade_extintora: form.capacidade_extintora.trim(),
       manutencao_2_nivel: form.manutencao_2_nivel?.trim() || null,
       manutencao_3_nivel: form.manutencao_3_nivel?.trim() || null,
-      pavimento: form.pavimento?.trim() || null,
+      // Alinha com o pavimento do mapa (mesmo nome do setor em Mapas e Setores)
+      pavimento: form.pavimento?.trim() || setorLabel || null,
     };
 
     try {
