@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentSession } from "@/lib/auth/session-client";
-import type { UserRole, UserTeam } from "@/lib/auth/roles";
+import { normalizeUserRole, type UserRole, type UserTeam } from "@/lib/auth/roles";
 
 export type { UserRole } from "@/lib/auth/roles";
 export { getCurrentSession, signOutCurrentUser } from "@/lib/auth/session-client";
@@ -41,7 +41,17 @@ async function getProfileLegacy(session: Session): Promise<Profile | null> {
   }
 
   if (error) throw error;
-  return data ? { ...data, base_id: null } : null;
+  if (!data) return null;
+  const role = normalizeUserRole(data.role);
+  if (!role) return null;
+  return { ...data, role, base_id: null };
+}
+
+function normalizeProfile(data: Profile | null): Profile | null {
+  if (!data) return null;
+  const role = normalizeUserRole(data.role);
+  if (!role) return null;
+  return { ...data, role };
 }
 
 export async function getProfileBySession(session: Session) {
@@ -61,5 +71,5 @@ export async function getProfileBySession(session: Session) {
   }
 
   if (error) throw error;
-  return data;
+  return normalizeProfile(data);
 }
