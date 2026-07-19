@@ -53,8 +53,13 @@ export function canManageTarget(
 ): boolean {
   if (actorRole === "admin_corporativo") return true;
   if (actorRole === "admin") {
-    // Admin de base não gerencia Administrador Corporativo
-    return targetRole !== "admin_corporativo";
+    // Admin de base: só staff da base — nunca perfis corporativos
+    return (
+      targetRole === "admin" ||
+      targetRole === "leadership" ||
+      targetRole === "user" ||
+      targetRole === "cliente"
+    );
   }
   if (actorRole === "leadership") {
     return targetRole === "user" && Boolean(actorTeam) && actorTeam === targetTeam;
@@ -64,8 +69,18 @@ export function canManageTarget(
 
 /** Papel que o ator pode atribuir ao criar ou editar. */
 export function canAssignRole(actorRole: UserRole, newRole: UserRole): boolean {
-  if (actorRole === "admin_corporativo") return true;
+  if (actorRole === "admin_corporativo") {
+    // Só o corporativo cria admin_corporativo + staff de base
+    return (
+      newRole === "admin_corporativo" ||
+      newRole === "admin" ||
+      newRole === "leadership" ||
+      newRole === "user" ||
+      newRole === "cliente"
+    );
+  }
   if (actorRole === "admin") {
+    // Base: nunca corporativo / admin_corporativo
     return newRole === "admin" || newRole === "leadership" || newRole === "user" || newRole === "cliente";
   }
   if (actorRole === "leadership") return newRole === "user";
@@ -74,7 +89,7 @@ export function canAssignRole(actorRole: UserRole, newRole: UserRole): boolean {
 
 export function assignableRoles(actorRole: UserRole): UserRole[] {
   if (actorRole === "admin_corporativo") {
-    return ["admin_corporativo", "corporativo", "admin", "leadership", "user", "cliente"];
+    return ["admin_corporativo", "admin", "leadership", "user", "cliente"];
   }
   if (actorRole === "admin") return ["admin", "leadership", "user", "cliente"];
   if (actorRole === "leadership") return ["user"];
