@@ -51,6 +51,15 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
           router.replace(getHomePathForRole(profile.role));
           return;
         }
+
+        if (
+          pathname?.startsWith("/admin/mapas-setores") &&
+          profile.role !== "admin" &&
+          profile.role !== "admin_corporativo"
+        ) {
+          router.replace(getHomePathForRole(profile.role));
+          return;
+        }
       } finally {
         if (mounted) setReady(true);
       }
