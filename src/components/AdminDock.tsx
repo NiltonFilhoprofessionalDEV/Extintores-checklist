@@ -38,14 +38,14 @@ const PRIMARY_ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "Início", icon: "dashboard" },
   { href: "/admin/extintores", label: "Inventário", icon: "inventory" },
   { href: "/admin/mapeamento", label: "Mapa", icon: "map" },
-  { href: "/admin/conferencias", label: "Conferências", icon: "checks" },
+  { href: "/admin/inspecoes-lista", label: "Checklist", icon: "checks" },
 ];
 
 const SECONDARY_ITEMS: NavItem[] = [
+  { href: "/admin/conferencias", label: "Conferências", icon: "checks" },
   { href: "/admin/usuarios", label: "Usuários", icon: "users" },
   { href: "/admin/bases", label: "Bases", icon: "bases", adminCorporativoOnly: true },
   { href: "/admin/importacao", label: "Importar dados", icon: "import" },
-  { href: "/admin/inspecoes-lista", label: "Inspeções em lista", icon: "checks" },
   {
     href: "/admin/configuracoes",
     label: "Configurações da base",
@@ -159,9 +159,9 @@ export default function AdminDock() {
               key={item.href}
               href={item.href}
               onClick={() => setMenuOpen(false)}
-              className={`admin-dock__item ${active ? "is-active" : ""}`}
+              className={`admin-dock__item ${item.icon === "map" ? "is-map" : ""} ${active ? "is-active" : ""}`}
             >
-              <Icon name={item.icon} />
+              <Icon name={item.icon} size={item.icon === "map" ? 26 : 20} />
               <span>{item.label}</span>
             </Link>
           );

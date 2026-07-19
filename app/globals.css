@@ -362,8 +362,30 @@ h3,
   box-shadow: 0 10px 22px -14px rgb(249 115 22 / 0.8);
 }
 
+.admin-dock__item.is-map {
+  align-self: stretch;
+  background: var(--graphite);
+  color: #fff;
+  transform: translateY(-0.55rem);
+  box-shadow: 0 14px 28px -16px rgb(28 31 35 / 0.75);
+}
+
+.admin-dock__item.is-map:hover {
+  background: var(--graphite-soft);
+  color: #fff;
+}
+
+.admin-dock__item.is-map.is-active {
+  background: var(--orange);
+  box-shadow: 0 14px 28px -14px rgb(249 115 22 / 0.85);
+}
+
 .admin-dock__item:active {
   transform: scale(0.98);
+}
+
+.admin-dock__item.is-map:active {
+  transform: translateY(-0.55rem) scale(0.98);
 }
 
 .page-heading {
