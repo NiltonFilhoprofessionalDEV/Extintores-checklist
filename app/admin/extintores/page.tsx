@@ -572,14 +572,13 @@ export default function AdminExtintoresPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="page-hero p-6">
-        <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="professional-card reveal-up p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-5">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Inventário</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Extintores e Hidrantes</h1>
-            <p className="mt-2 text-sm font-medium text-slate-300">
+            <p className="page-eyebrow">Inventário</p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Extintores e hidrantes</h1>
+            <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
               {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} e {hidrantes.length} hidrante
               {hidrantes.length !== 1 ? "s" : ""} cadastrados.
             </p>
@@ -589,7 +588,7 @@ export default function AdminExtintoresPage() {
               type="button"
               disabled={loading || (extintores.length === 0 && hidrantes.length === 0)}
               onClick={() => exportInventarioCompleto(extintores, hidrantes)}
-              className="flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path
@@ -604,7 +603,7 @@ export default function AdminExtintoresPage() {
               <button
                 type="button"
                 onClick={openCreate}
-                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100"
+                className="btn-primary"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -616,7 +615,7 @@ export default function AdminExtintoresPage() {
               <button
                 type="button"
                 onClick={openCreateHidrante}
-                className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-[var(--ink)] shadow-lg transition hover:bg-slate-100"
+                className="btn-primary"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -637,7 +636,7 @@ export default function AdminExtintoresPage() {
 
       {tipoLista === "extintor" && (
         <>
-      <div className="section-card flex items-center gap-2 px-4 py-3">
+      <div className="professional-card flex items-center gap-2 px-4 py-3">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
           <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
         </svg>
@@ -656,7 +655,7 @@ export default function AdminExtintoresPage() {
       </div>
 
       {/* Table */}
-      <div className="section-card overflow-hidden">
+      <div className="professional-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
@@ -749,7 +748,7 @@ export default function AdminExtintoresPage() {
 
       {tipoLista === "hidrante" && (
         <>
-      <div className="section-card flex items-center gap-2 px-4 py-3">
+      <div className="professional-card flex items-center gap-2 px-4 py-3">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
           <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
         </svg>
@@ -767,7 +766,7 @@ export default function AdminExtintoresPage() {
         )}
       </div>
 
-      <div className="section-card overflow-hidden">
+      <div className="professional-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />

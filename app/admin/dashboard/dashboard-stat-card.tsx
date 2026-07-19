@@ -109,30 +109,33 @@ export function DashboardStatCard({
   icon: React.ReactNode;
   onClick?: () => void;
 }) {
-  const className = `group relative flex w-full overflow-hidden rounded-[1.5rem] border border-white/80 bg-white p-5 text-left shadow-[var(--shadow-soft)] transition-all ${
+  const className = `group relative flex min-h-36 w-full overflow-hidden rounded-[1.25rem] border border-[var(--border)] bg-white p-5 text-left shadow-[var(--shadow-soft)] transition-all ${
     onClick
-      ? "pressable cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)] focus:outline-none focus:ring-2 focus:ring-[var(--neon)]/45"
+      ? "pressable cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[var(--shadow-lift)] focus:outline-none focus:ring-2 focus:ring-[var(--orange)]/30"
       : ""
   }`;
 
   const content = (
     <>
-      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-15" style={{ background: color }} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5" style={{ background: color }} />
-      <div className="relative flex flex-col">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md ring-1 ring-inset ring-white/25"
-          style={{ background: color }}
-        >
-          {icon}
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full" style={{ background: color }} />
+      <div className="relative flex w-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <p className="max-w-[12rem] text-xs font-bold leading-relaxed text-[var(--muted-foreground)]">
+            {label}
+          </p>
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: `${color}14`, color }}
+          >
+            {icon}
+          </div>
         </div>
-        <div className="mt-4 min-w-0">
-          <p className="font-display text-3xl font-extrabold tracking-tight text-[var(--ink)]">{value}</p>
-          <p className="mt-0.5 text-xs font-bold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+          <p className="font-display text-4xl font-extrabold tracking-tight text-[var(--ink)]">{value}</p>
           {onClick && (
-            <p className="mt-2 inline-flex items-center rounded-full bg-[var(--forest)]/5 px-2 py-0.5 text-[10px] font-bold text-[var(--forest)] transition-colors group-hover:bg-[var(--neon)]/35">
-              Ver detalhes
-            </p>
+            <span className="mb-1 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--orange-deep)]">
+              Detalhes <span aria-hidden>→</span>
+            </span>
           )}
         </div>
       </div>

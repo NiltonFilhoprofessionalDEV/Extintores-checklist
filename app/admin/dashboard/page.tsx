@@ -676,14 +676,14 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Page header */}
       <div className="page-hero reveal-up p-6 sm:p-7">
         <div className="page-hero-content flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Painel operacional</p>
             <h1 className="font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm font-medium text-emerald-100/70">
+            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">
               Visão consolidada de extintores, hidrantes, conferências mensais e manutenção programada.
             </p>
           </div>
@@ -722,17 +722,17 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Extintores</p>
-          <h2 className="text-xl font-black text-[var(--ink)]">Vencimento de manutenção</h2>
+      <div className="page-heading">
+        <div>
+          <p className="page-eyebrow">Extintores</p>
+          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Vencimento de manutenção</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">
           Manutenção de 2º e 3º nível conforme datas cadastradas no extintor.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <DashboardStatCard
           label="Total de extintores"
           value={stats.total}
@@ -794,11 +794,11 @@ export default function AdminDashboardPage() {
       <HidranteVencimentoSection hidrantes={hidrantesVisiveis} />
 
       {/* Conferência no mês */}
-      <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+      <section className="professional-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-5">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Auditoria mensal</p>
-            <h2 className="mt-1 text-xl font-black text-[var(--ink)]">Conferência no mês</h2>
+            <p className="page-eyebrow">Auditoria mensal</p>
+            <h2 className="mt-1 text-xl font-extrabold text-[var(--ink)]">Conferência no mês</h2>
           </div>
           <p className="max-w-xl text-xs font-medium text-slate-500">
             Última conferência registrada no mês. Vencidos (manutenção ou mangueira) entram em não conforme.
@@ -806,7 +806,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid gap-5 p-5 lg:grid-cols-2">
-          <div className="space-y-4 rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-[var(--ink)]">Extintores</h3>
               <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700">
@@ -849,7 +849,7 @@ export default function AdminDashboardPage() {
             )}
           </div>
 
-          <div className="space-y-4 rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-[var(--ink)]">Hidrantes</h3>
               <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-orange-700">
@@ -896,17 +896,17 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--forest)]">Planejamento</p>
-          <h2 className="text-xl font-black text-[var(--ink)]">Manutenção programada</h2>
+      <div className="page-heading">
+        <div>
+          <p className="page-eyebrow">Planejamento</p>
+          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Manutenção programada</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">Extintores por vencimento de manutenção (2º e 3º nível).</p>
       </div>
 
       {/* Summary bar */}
       {stats.total > 0 && (
-        <div className="overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-sm shadow-slate-200/70">
+        <div className="professional-card overflow-hidden p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-black text-[var(--ink)]">Distribuição de manutenção</p>

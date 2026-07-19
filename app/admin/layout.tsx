@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
 import AuthGuard from "@/src/components/AuthGuard";
 import AdminAreaGuard from "@/src/components/AdminAreaGuard";
-import AdminSidebar from "@/src/components/AdminSidebar";
+import AdminDock from "@/src/components/AdminDock";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,9 +22,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 : { minHeight: "100vh" }
             }
           >
-            <AdminSidebar />
+            <AdminDock />
             <div
-              className={isMapeamento ? "flex-1 min-h-0 lg:pl-64" : "lg:pl-64"}
+              className={isMapeamento ? "min-h-0 flex-1 pb-24" : "pb-28"}
               style={isMapeamento ? { display: "flex", flexDirection: "column" } : undefined}
             >
               {isMapeamento ? (
@@ -32,7 +32,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {children}
                 </div>
               ) : (
-                <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+                <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+                  {children}
+                </main>
               )}
             </div>
           </div>

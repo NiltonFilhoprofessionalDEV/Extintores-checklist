@@ -30,12 +30,12 @@ export default function InventarioTipoTabs({
         onClick={() => onChange("extintor")}
         className={`flex-1 rounded-full px-4 py-2.5 text-sm font-bold transition ${
           value === "extintor"
-            ? "bg-[var(--forest)] text-[var(--neon)] shadow-sm"
+            ? "bg-[var(--orange)] text-white shadow-sm"
             : "text-[var(--muted-foreground)] hover:text-[var(--ink)]"
         }`}
       >
         Extintores
-        <span className={`ml-1.5 text-xs font-semibold ${value === "extintor" ? "text-[var(--neon)]/70" : "text-slate-400"}`}>
+        <span className={`ml-1.5 text-xs font-semibold ${value === "extintor" ? "text-white/75" : "text-slate-400"}`}>
           ({extintoresCount})
         </span>
       </button>
@@ -46,12 +46,12 @@ export default function InventarioTipoTabs({
         onClick={() => onChange("hidrante")}
         className={`flex-1 rounded-full px-4 py-2.5 text-sm font-bold transition ${
           value === "hidrante"
-            ? "bg-[var(--forest)] text-[var(--neon)] shadow-sm"
+            ? "bg-[var(--orange)] text-white shadow-sm"
             : "text-[var(--muted-foreground)] hover:text-[var(--ink)]"
         }`}
       >
         Hidrantes
-        <span className={`ml-1.5 text-xs font-semibold ${value === "hidrante" ? "text-[var(--neon)]/70" : "text-slate-400"}`}>
+        <span className={`ml-1.5 text-xs font-semibold ${value === "hidrante" ? "text-white/75" : "text-slate-400"}`}>
           ({hidrantesCount})
         </span>
       </button>

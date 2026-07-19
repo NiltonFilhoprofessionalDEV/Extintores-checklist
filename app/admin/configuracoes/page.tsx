@@ -291,68 +291,86 @@ export default function AdminConfiguracoesPage() {
   }
 
   return (
-    <section className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-black tracking-tight text-[var(--ink)]">Configurações da Base</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Base ativa: <strong>{activeBase?.nome ?? "—"}</strong>. Aqui o administrador define setores/mapas
-          e as perguntas dos checklists usadas nas inspeções desta base.
-        </p>
-      </div>
-
-      <div className="section-card space-y-3 p-5">
-        <h3 className="text-lg font-black text-[var(--ink)]">Checklists de inspeção</h3>
-        <p className="text-sm text-slate-500">
-          Edite as perguntas de extintor e hidrante. As mudanças valem apenas para esta base.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => openChecklistModal("extintor")}
-          >
-            Editar checklist de Extintor
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => openChecklistModal("hidrante")}
-          >
-            Editar checklist de Hidrante
-          </button>
+    <section className="space-y-6">
+      <div className="professional-card reveal-up flex flex-wrap items-center justify-between gap-4 p-6">
+        <div>
+          <p className="page-eyebrow">Administração</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Configurações da base</h1>
+          <p className="mt-2 max-w-2xl text-sm text-[var(--muted-foreground)]">
+            Organize mapas, setores e checklists usados pela equipe nas inspeções.
+          </p>
+        </div>
+        <div className="rounded-2xl bg-[var(--orange-soft)] px-4 py-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--orange-deep)]">Base ativa</p>
+          <p className="mt-0.5 font-bold text-[var(--ink)]">{activeBase?.nome ?? "—"}</p>
         </div>
       </div>
 
-      <form onSubmit={handleCreate} className="section-card space-y-3 p-5">
-        <h3 className="text-lg font-black text-[var(--ink)]">Novo setor / mapa</h3>
-        <input
-          className="field-control"
-          required
-          placeholder="Nome do setor (ex.: Térreo, TECA, Subsolo)"
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-        />
-        <label className="block text-sm text-slate-700">
-          Imagem da planta (JPG, PNG ou WebP)
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="professional-card space-y-3 p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--orange-soft)] text-[var(--orange-deep)]">
+            <span className="text-lg" aria-hidden>✓</span>
+          </div>
+          <h2 className="text-lg font-extrabold text-[var(--ink)]">Checklists de inspeção</h2>
+          <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+            Edite as perguntas de extintor e hidrante. As alterações valem somente para esta base.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button type="button" className="btn-primary" onClick={() => openChecklistModal("extintor")}>
+              Checklist de extintor
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => openChecklistModal("hidrante")}>
+              Checklist de hidrante
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleCreate} className="professional-card space-y-3 p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--orange-soft)] text-[var(--orange-deep)]">
+            <span className="text-xl" aria-hidden>＋</span>
+          </div>
+          <h2 className="text-lg font-extrabold text-[var(--ink)]">Adicionar setor e mapa</h2>
+          <p className="text-sm text-[var(--muted-foreground)]">Cadastre um pavimento e envie sua planta técnica.</p>
           <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
+            className="field-control"
             required
-            className="mt-1 block w-full text-sm"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            placeholder="Nome do setor (ex.: Térreo, TECA, Subsolo)"
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
           />
-        </label>
-        <button type="submit" className="btn-primary" disabled={saving}>
-          {saving ? "Salvando…" : "Adicionar"}
-        </button>
-      </form>
+          <label className="block rounded-2xl border border-dashed border-slate-300 bg-[#fafafa] p-4 text-sm font-semibold text-slate-700">
+            Imagem da planta
+            <span className="mt-1 block text-xs font-normal text-slate-500">JPG, PNG ou WebP</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              required
+              className="mt-3 block w-full text-sm"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? "Salvando…" : "Adicionar mapa"}
+          </button>
+        </form>
+      </div>
 
       {message && (
-        <p className="surface-muted rounded-2xl p-3 text-sm font-medium text-slate-700">{message}</p>
+        <p className="rounded-2xl border border-[var(--border)] bg-white p-3 text-sm font-medium text-slate-700">
+          {message}
+        </p>
       )}
 
-      <div className="section-card p-5">
-        <h3 className="mb-4 text-lg font-black text-[var(--ink)]">Setores e mapas cadastrados</h3>
+      <div className="professional-card p-5">
+        <div className="mb-5 flex items-end justify-between gap-3">
+          <div>
+            <p className="page-eyebrow">Plantas técnicas</p>
+            <h2 className="mt-1 text-xl font-extrabold text-[var(--ink)]">Setores e mapas cadastrados</h2>
+          </div>
+          <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-xs font-bold text-slate-600">
+            {floors.length} {floors.length === 1 ? "mapa" : "mapas"}
+          </span>
+        </div>
         {loading ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : floors.length === 0 ? (
@@ -367,14 +385,14 @@ export default function AdminConfiguracoesPage() {
               return (
                 <div
                   key={floor.id}
-                  className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                  className="rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4 transition hover:border-slate-300"
                 >
                   <div className="flex flex-wrap gap-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={preview}
                       alt={floor.label}
-                      className="h-24 w-36 rounded-xl border border-slate-200 object-cover bg-white"
+                      className="h-24 w-36 rounded-xl border border-slate-200 bg-white object-cover shadow-sm"
                     />
                     <div className="min-w-0 flex-1 space-y-2">
                       {isEditing ? (
