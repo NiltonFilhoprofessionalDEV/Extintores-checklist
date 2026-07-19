@@ -313,17 +313,17 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-600">Hidrantes</p>
-          <h2 className="text-xl font-black text-[var(--ink)]">Vencimento das mangueiras</h2>
+      <div className="page-heading">
+        <div>
+          <p className="page-eyebrow">Hidrantes</p>
+          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Vencimento das mangueiras</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">
           Teste hidrostático: validade de 1 ano a partir da última realização (M-1 a M-4).
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <DashboardStatCard
           label="Total de hidrantes"
           value={stats.total}
@@ -378,16 +378,16 @@ export function HidranteVencimentoSection({ hidrantes }: { hidrantes: HidranteVe
         <HidranteManutencaoModal modalKey={modalKey} items={modalItems} onClose={() => setModalKey(null)} />
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="pl-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-600">Planejamento</p>
-          <h2 className="text-xl font-black text-[var(--ink)]">Testes hidrostáticos programados</h2>
+      <div className="page-heading">
+        <div>
+          <p className="page-eyebrow">Planejamento</p>
+          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Testes hidrostáticos programados</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">Hidrantes organizados por vencimento das mangueiras.</p>
       </div>
 
       {stats.total > 0 && (
-        <div className="overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-sm shadow-slate-200/70">
+        <div className="professional-card overflow-hidden p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-black text-[var(--ink)]">Distribuição de vencimento</p>

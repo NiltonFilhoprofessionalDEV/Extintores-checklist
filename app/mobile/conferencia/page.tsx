@@ -729,7 +729,7 @@ export default function MobileConferenciaPage() {
           <h2 className="font-display relative mt-1 text-xl font-extrabold tracking-tight">
             {isAdminLista ? "Inspeções (lista)" : "Inspeções"}
           </h2>
-          <p className="relative mt-1 text-xs font-medium text-emerald-100/70">
+          <p className="relative mt-1 text-xs font-medium text-slate-300">
             {extintores.length} extintores · {hidrantes.length} hidrantes
           </p>
         </div>

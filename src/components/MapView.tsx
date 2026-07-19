@@ -1722,14 +1722,14 @@ export default function MapView() {
 
   if (isMobile) {
     return (
-      <main className="flex min-h-0 flex-1 w-full flex-col bg-[#f6f7fb]">
+      <main className="flex min-h-0 flex-1 w-full flex-col bg-[#f4f5f6]">
         {/* ── Barra única: pavimento + modo + camadas ── */}
-        <div className="shrink-0 border-b border-slate-200 bg-white">
+        <div className="shrink-0 border-b border-[var(--border)] bg-white shadow-sm">
           {/* Linha 1: pavimento + botões de modo */}
           <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-1">
             <select
               aria-label="Selecionar pavimento"
-              className="min-w-0 flex-1 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+              className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[#fafafa] px-3 py-2 text-xs font-semibold text-slate-700"
               value={pavimento.key}
               onChange={(event) => {
                 const selected = pavimentos.find((item) => item.key === event.target.value);
@@ -1746,7 +1746,7 @@ export default function MapView() {
             {canEdit && (
               <button
                 type="button"
-                className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
                   mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("edicao")}
@@ -1757,7 +1757,7 @@ export default function MapView() {
             {canInspect && (
               <button
                 type="button"
-                className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
                   mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("inspecao")}
@@ -2200,17 +2200,23 @@ export default function MapView() {
   }
 
   return (
-    <main className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1 flex-col gap-2 overflow-hidden px-2 py-2 sm:px-3">
-      <header className="surface-card flex shrink-0 flex-col gap-2 p-2 sm:p-2.5">
+    <main className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
+      <header className="professional-card flex shrink-0 flex-col gap-3 p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-base font-bold leading-tight text-slate-900 sm:text-lg">
-            {canInspect ? "Mapeamento e inspeção de extintores" : "Mapeamento de extintores e hidrantes"}
-          </h1>
-          <div className="flex shrink-0 flex-wrap gap-1.5">
+          <div>
+            <p className="page-eyebrow">Planta técnica</p>
+            <h1 className="mt-1 text-xl font-extrabold leading-tight text-[var(--ink)]">
+              {canInspect ? "Mapa operacional" : "Mapeamento de equipamentos"}
+            </h1>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              Navegue por pavimento, filtre camadas e selecione um marcador para ver detalhes.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-1 rounded-2xl bg-[var(--muted)] p-1">
             {canEdit && (
               <button
                 type="button"
-                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                className={`rounded-xl px-3 py-2 text-xs font-bold ${
                   mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("edicao")}
@@ -2221,7 +2227,7 @@ export default function MapView() {
             {canInspect && (
               <button
                 type="button"
-                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                className={`rounded-xl px-3 py-2 text-xs font-bold ${
                   mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
                 }`}
                 onClick={() => setMode("inspecao")}
@@ -2231,9 +2237,9 @@ export default function MapView() {
             )}
           </div>
         </div>
-        <details className="rounded-md border border-slate-200 bg-slate-50 text-[11px] leading-snug text-slate-700 sm:text-xs sm:leading-relaxed">
-          <summary className="cursor-pointer list-none px-2 py-1.5 font-semibold text-slate-800 marker:content-none [&::-webkit-details-marker]:hidden hover:bg-slate-100">
-            Legenda dos marcadores (mês atual) — clique para expandir
+        <details className="rounded-xl border border-[var(--border)] bg-[#fafafa] text-[11px] leading-snug text-slate-700 sm:text-xs sm:leading-relaxed">
+          <summary className="cursor-pointer list-none px-3 py-2 font-bold text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden hover:bg-slate-100">
+            Como interpretar os marcadores
           </summary>
           <div className="border-t border-slate-200 px-2 py-2 sm:px-3">
             <p className="text-slate-600">
@@ -2276,13 +2282,14 @@ export default function MapView() {
       {/* relative wrapper → filho absolute inset-0 garante altura concreta ao Leaflet */}
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden lg:flex-row">
-        <aside className="surface-card flex shrink-0 flex-col overflow-y-auto p-2.5 sm:p-3 lg:w-[290px] lg:overflow-y-auto">
-          <label htmlFor="pavimento" className="mb-1 block text-sm font-semibold text-slate-700">
+        <aside className="professional-card flex shrink-0 flex-col overflow-y-auto p-4 lg:w-[310px] lg:overflow-y-auto">
+          <p className="page-eyebrow mb-3">Filtros do mapa</p>
+          <label htmlFor="pavimento" className="mb-1.5 block text-xs font-bold text-slate-700">
             Pavimento
           </label>
           <select
             id="pavimento"
-            className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+            className="field-control !rounded-xl"
             value={pavimento.key}
             onChange={(event) => {
               const selected = pavimentos.find((item) => item.key === event.target.value);
@@ -2328,8 +2335,8 @@ export default function MapView() {
                 key={key}
                 type="button"
                 onClick={() => setShowLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className={`rounded-md px-2 py-1 text-[11px] font-semibold ${
-                  showLayers[key] ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+                className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                  showLayers[key] ? "bg-[var(--orange)] text-white" : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {label}
@@ -2337,9 +2344,11 @@ export default function MapView() {
             ))}
           </div>
 
-          <div className="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-900">
-            Extintores pendentes no mês:{" "}
-            <span className="font-bold">{extintores.filter((item) => !conferidosNoMesIds.has(item.id)).length}</span>
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">
+            <span>Pendentes no mês</span>
+            <span className="rounded-full bg-white px-2 py-0.5 font-extrabold shadow-sm">
+              {extintores.filter((item) => !conferidosNoMesIds.has(item.id)).length}
+            </span>
           </div>
 
           {canEdit && mode === "edicao" && (
@@ -2349,7 +2358,7 @@ export default function MapView() {
                 <button
                   type="button"
                   className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === null ? "bg-[var(--forest)] text-white" : "bg-slate-100 text-slate-700"
+                    placementExtra === null ? "bg-[var(--orange)] text-white" : "bg-slate-100 text-slate-700"
                   }`}
                   onClick={() => {
                     setPlacementExtra(null);
@@ -2361,7 +2370,7 @@ export default function MapView() {
                 <button
                   type="button"
                   className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                    placementExtra === "hidrante" ? "bg-[var(--forest)] text-white" : "bg-slate-100 text-slate-700"
+                    placementExtra === "hidrante" ? "bg-[var(--orange)] text-white" : "bg-slate-100 text-slate-700"
                   }`}
                   onClick={() => {
                     setPlacementExtra("hidrante");
@@ -2443,7 +2452,7 @@ export default function MapView() {
           {message && <p className="mt-2 rounded bg-slate-100 p-2 text-xs text-slate-700">{message}</p>}
         </aside>
 
-        <section className="surface-card relative min-h-0 flex-1 overflow-hidden">
+        <section className="professional-card relative min-h-0 flex-1 overflow-hidden">
           <div className="absolute inset-0">{mapContent}</div>
         </section>
         </div>
