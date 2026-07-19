@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 type ExportActionsProps = {
   onExcel: () => void;
-  onPdf: () => void;
+  onPdf: () => void | Promise<unknown>;
   disabled?: boolean;
   excelLabel?: string;
   pdfLabel?: string;
@@ -35,6 +37,7 @@ export default function ExportActions({
   tone = "light",
   compact = false,
 }: ExportActionsProps) {
+  const [pdfLoading, setPdfLoading] = useState(false);
   const base = `inline-flex items-center justify-center gap-2 font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${
     compact ? "rounded-xl px-3 py-2 text-xs" : "rounded-2xl px-4 py-3 text-sm"
   }`;
@@ -47,6 +50,15 @@ export default function ExportActions({
       ? "bg-white text-[var(--ink)] hover:bg-slate-100"
       : "border border-rose-200 bg-rose-50 text-rose-700 shadow-sm hover:bg-rose-100";
 
+  async function handlePdfExport() {
+    setPdfLoading(true);
+    try {
+      await onPdf();
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
   return (
     <div className="inline-flex items-center gap-2" role="group" aria-label="Opções de exportação">
       <button type="button" onClick={onExcel} disabled={disabled} className={`${base} ${excelTone}`}>
@@ -55,13 +67,13 @@ export default function ExportActions({
       </button>
       <button
         type="button"
-        onClick={onPdf}
-        disabled={disabled}
+        onClick={() => void handlePdfExport()}
+        disabled={disabled || pdfLoading}
         className={`${base} ${pdfTone}`}
-        title="Abre o relatório pronto para salvar como PDF"
+        title="Baixar relatório em PDF"
       >
         <PdfIcon />
-        {pdfLabel}
+        {pdfLoading ? "Gerando…" : pdfLabel}
       </button>
     </div>
   );

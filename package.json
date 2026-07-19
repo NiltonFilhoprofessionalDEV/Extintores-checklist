@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "leaflet-rotate": "^0.2.8",
     "next": "16.2.4",
