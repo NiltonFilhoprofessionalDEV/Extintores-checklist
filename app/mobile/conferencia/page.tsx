@@ -8,6 +8,7 @@ import type { TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import type { ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
@@ -870,12 +871,16 @@ export default function MobileConferenciaPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
           <div
-            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
+            className="relative w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
             style={{ maxHeight: "95vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />
+            <ModalCloseButton
+              onClick={() => setSelected(null)}
+              className="absolute right-4 top-4"
+            />
             <ChecklistForm
               data={checklist}
               onChange={setChecklist}
@@ -900,12 +905,16 @@ export default function MobileConferenciaPage() {
       )}
 
       {selectedHidrante && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
           <div
-            className="w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
+            className="relative w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-[var(--forest)]/30"
             style={{ maxHeight: "95vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />
+            <ModalCloseButton
+              onClick={() => setSelectedHidrante(null)}
+              className="absolute right-4 top-4"
+            />
             <HidranteChecklistForm
               data={hidranteChecklist}
               onChange={setHidranteChecklist}

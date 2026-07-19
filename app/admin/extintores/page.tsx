@@ -5,12 +5,15 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
+import { exportInventarioPdf } from "@/lib/export/pdf";
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import { isInventoryReadOnlyRole } from "@/lib/auth/roles";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { fetchBaseFloors } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
+import ExportActions from "@/src/components/ExportActions";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 
 type HidranteRow = HidranteInventarioCompletoRow;
 
@@ -584,21 +587,11 @@ export default function AdminExtintoresPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <ExportActions
               disabled={loading || (extintores.length === 0 && hidrantes.length === 0)}
-              onClick={() => exportInventarioCompleto(extintores, hidrantes)}
-              className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              Exportar Excel ({extintores.length} ext. + {hidrantes.length} hid.)
-            </button>
+              onExcel={() => exportInventarioCompleto(extintores, hidrantes)}
+              onPdf={() => exportInventarioPdf(extintores, hidrantes)}
+            />
             {tipoLista === "extintor" && !readOnly && (
               <button
                 type="button"
@@ -849,7 +842,7 @@ export default function AdminExtintoresPage() {
 
       {/* Create / Edit Modal */}
       {modalMode && modalEntity === "extintor" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
             {/* Modal header */}
             <div
@@ -1028,7 +1021,7 @@ export default function AdminExtintoresPage() {
       )}
 
       {modalMode && modalEntity === "hidrante" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
             <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
               <div>
@@ -1185,7 +1178,7 @@ export default function AdminExtintoresPage() {
       )}
 
       {detalheView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
             <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
               <div>
@@ -1288,12 +1281,15 @@ export default function AdminExtintoresPage() {
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <ModalCloseButton onClick={() => setDeleteTarget(null)} />
             </div>
             <h3 className="text-base font-bold text-slate-900">Excluir extintor?</h3>
             <p className="mt-1 text-sm text-slate-500">
@@ -1324,12 +1320,15 @@ export default function AdminExtintoresPage() {
       )}
 
       {deleteTargetHidrante && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <ModalCloseButton onClick={() => setDeleteTargetHidrante(null)} />
             </div>
             <h3 className="text-base font-bold text-slate-900">Excluir hidrante?</h3>
             <p className="mt-1 text-sm text-slate-500">

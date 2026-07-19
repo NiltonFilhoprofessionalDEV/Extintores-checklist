@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { signOutCurrentUser } from "@/lib/auth/session-client";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 
 type Stats = {
   totalInspecoes: number;
@@ -233,9 +234,13 @@ export default function MobilePerfilPage() {
 
       {/* Confirm sign out modal */}
       {showConfirmSignOut && (
-        <div className="fixed inset-0 z-[1000] flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
-          <div className="w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-[var(--forest)]/30">
+        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
+          <div className="relative w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-[var(--forest)]/30">
             <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200" />
+            <ModalCloseButton
+              onClick={() => setShowConfirmSignOut(false)}
+              className="absolute right-4 top-4"
+            />
 
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100">

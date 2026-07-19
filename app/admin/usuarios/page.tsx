@@ -11,6 +11,7 @@ import {
   type UserRole,
   type UserTeam,
 } from "@/lib/auth/roles";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -528,12 +529,15 @@ export default function AdminUsuariosPage() {
       </div>
 
       {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <form
             onSubmit={handleSaveEdit}
             className="section-card w-full max-w-md space-y-3 p-5 shadow-2xl shadow-[var(--forest)]/30"
           >
-            <h3 className="text-lg font-black text-[var(--ink)]">Editar usuário</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-black text-[var(--ink)]">Editar usuário</h3>
+              <ModalCloseButton onClick={() => setEditUser(null)} />
+            </div>
             <input
               type="text"
               required
@@ -710,9 +714,12 @@ export default function AdminUsuariosPage() {
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
+        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="section-card w-full max-w-sm space-y-4 p-5 shadow-2xl shadow-[var(--forest)]/30">
-            <h3 className="text-lg font-black text-[var(--ink)]">Excluir usuário</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-black text-[var(--ink)]">Excluir usuário</h3>
+              <ModalCloseButton onClick={() => setDeleteTarget(null)} />
+            </div>
             <p className="text-sm text-slate-600">
               Tem certeza que deseja excluir <strong>{deleteTarget.nome}</strong>? Esta ação não
               pode ser desfeita.

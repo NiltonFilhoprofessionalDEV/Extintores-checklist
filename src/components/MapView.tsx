@@ -39,6 +39,7 @@ import {
 import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
@@ -535,7 +536,7 @@ function InspecaoModalFrame({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+      className="modal-layer fixed inset-0 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -1915,7 +1916,7 @@ export default function MapView() {
         {/* Bottom sheet de informação — aparece ao segurar o dedo (long press) no marcador */}
         {infoMarker && !selectedMarker && !selectedHidrante && !infoEmergencia && !infoHidrante && (
           <div
-            className="fixed inset-0 z-[999] flex items-end"
+            className="modal-layer fixed inset-0 flex items-end"
             style={{ background: "rgba(0,0,0,0.4)" }}
             onClick={() => setInfoMarker(null)}
           >
@@ -2040,7 +2041,7 @@ export default function MapView() {
         {/* Modal de checklist — incluso no branch mobile também */}
         {infoHidrante && !selectedHidrante && (
           <div
-            className="fixed inset-0 z-[999] flex items-end bg-black/40"
+            className="modal-layer fixed inset-0 flex items-end bg-black/40"
             onClick={() => setInfoHidrante(null)}
           >
             <div
@@ -2048,8 +2049,13 @@ export default function MapView() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" />
-              <h3 className="text-lg font-bold text-zinc-900">{infoHidrante.codigo}</h3>
-              <p className="text-sm text-zinc-500">Hidrante</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">{infoHidrante.codigo}</h3>
+                  <p className="text-sm text-zinc-500">Hidrante</p>
+                </div>
+                <ModalCloseButton onClick={() => setInfoHidrante(null)} />
+              </div>
               <div className="mt-4 flex flex-col gap-2">
                 {mode === "inspecao" && canInspect && (
                   <button
@@ -2082,7 +2088,7 @@ export default function MapView() {
 
         {infoEmergencia && !selectedMarker && !selectedHidrante && (
           <div
-            className="fixed inset-0 z-[999] flex items-end bg-black/40"
+            className="modal-layer fixed inset-0 flex items-end bg-black/40"
             onClick={() => setInfoEmergencia(null)}
           >
             <div
@@ -2090,10 +2096,15 @@ export default function MapView() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" />
-              <h3 className="text-lg font-bold text-zinc-900">
-                {infoEmergencia.kind === "luz_emergencia" ? "Luz de emergência" : "Placa de saída"}
-              </h3>
-              <p className="text-sm text-zinc-600">Quantidade marcada: {infoEmergencia.quantidade}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">
+                    {infoEmergencia.kind === "luz_emergencia" ? "Luz de emergência" : "Placa de saída"}
+                  </h3>
+                  <p className="text-sm text-zinc-600">Quantidade marcada: {infoEmergencia.quantidade}</p>
+                </div>
+                <ModalCloseButton onClick={() => setInfoEmergencia(null)} />
+              </div>
               <p
                 className={`mt-1 text-xs font-semibold ${
                   marcadorEmergenciaIconColor(infoEmergencia) === "green"
