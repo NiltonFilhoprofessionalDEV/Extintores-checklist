@@ -1,70 +1,74 @@
+import type { CSSProperties } from "react";
+
 type EquipmentIconProps = {
   size?: number;
   className?: string;
 };
 
-export function ExtinguisherIcon({ size = 24, className = "" }: EquipmentIconProps) {
+type EquipmentKind = "extintor" | "hidrante";
+
+/** Assets reais em public/icons — substitua pelos PNGs enviados pelo usuário. */
+export const EQUIPMENT_ICON_SRC: Record<EquipmentKind, string> = {
+  extintor: "/icons/extintor.png",
+  hidrante: "/icons/hidrante.png",
+};
+
+function equipmentMaskStyle(kind: EquipmentKind, size: number, color: string): CSSProperties {
+  const src = EQUIPMENT_ICON_SRC[kind];
+  return {
+    width: size,
+    height: size,
+    display: "inline-block",
+    flexShrink: 0,
+    backgroundColor: color,
+    WebkitMask: `url(${src}) center / contain no-repeat`,
+    mask: `url(${src}) center / contain no-repeat`,
+  };
+}
+
+export function equipmentIconMarkup(
+  kind: EquipmentKind,
+  size: number,
+  color = "currentColor",
+): string {
+  const src = EQUIPMENT_ICON_SRC[kind];
+  return `<span aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;background:${color};-webkit-mask:url(${src}) center/contain no-repeat;mask:url(${src}) center/contain no-repeat;"></span>`;
+}
+
+function EquipmentImageIcon({
+  kind,
+  size = 24,
+  className,
+}: EquipmentIconProps & { kind: EquipmentKind }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
+    <span
       aria-hidden
-    >
-      <path d="M9 8.5h6v10.25A2.25 2.25 0 0 1 12.75 21h-1.5A2.25 2.25 0 0 1 9 18.75V8.5Z" />
-      <path d="M8 8.5h8M9.5 5.5h5M12 3v2.5M10 3h4" />
-      <path d="M15 10h2.6c1.35 0 2.4 1.08 2.4 2.4V15" />
-      <path d="M20 15h-1.5" />
-      <path d="M12 12.25c-.9 1.1-1.35 1.85-1.35 2.55a1.35 1.35 0 0 0 2.7 0c0-.7-.45-1.45-1.35-2.55Z" />
-    </svg>
+      className={className}
+      style={equipmentMaskStyle(kind, size, "currentColor")}
+    />
   );
+}
+
+export function ExtinguisherIcon({ size = 24, className = "" }: EquipmentIconProps) {
+  return <EquipmentImageIcon kind="extintor" size={size} className={className} />;
 }
 
 export function HydrantIcon({ size = 24, className = "" }: EquipmentIconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M8 9.5h8V20H8z" />
-      <path d="M7 9.5h10M9 6.5h6l1 3H8l1-3ZM10.5 4h3M12 4v2.5" />
-      <path d="M8 12H5.5v4H8M16 12h2.5v4H16M4 20h16" />
-      <path d="M10.25 13.5h3.5M10.25 16.5h3.5" />
-    </svg>
-  );
+  return <EquipmentImageIcon kind="hidrante" size={size} className={className} />;
 }
 
 export function EquipmentPairIcon({ size = 24, className = "" }: EquipmentIconProps) {
+  const iconSize = Math.round(size * 0.72);
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.7}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
+    <span
+      className={`inline-flex items-center ${className}`}
+      style={{ width: size + 8, height: size }}
       aria-hidden
     >
-      <path d="M4.5 8h7v11.5a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V8ZM3.5 8h9M6 5.5h4M8 3.5v2M11.5 10h2.5c1.2 0 2 1 2 2.2V14" />
-      <path d="M21 9h7v11h-7zM20 9h9M22 6h5l1 3h-7l1-3ZM24.5 4v2M22 4h5M21 12h-2v3h2M28 12h2v3h-2M19 20h11" />
-    </svg>
+      <EquipmentImageIcon kind="extintor" size={iconSize} />
+      <span style={{ width: Math.max(4, Math.round(size * 0.12)) }} />
+      <EquipmentImageIcon kind="hidrante" size={iconSize} />
+    </span>
   );
 }
 
@@ -72,7 +76,7 @@ export function EquipmentStatusIcon({
   kind,
   variant,
 }: {
-  kind: "extintor" | "hidrante";
+  kind: EquipmentKind;
   variant: "ok" | "pendente" | "alerta";
 }) {
   const palette =
@@ -91,7 +95,7 @@ export function EquipmentStatusIcon({
         borderColor: palette.ring,
       }}
     >
-      {kind === "extintor" ? <ExtinguisherIcon size={26} /> : <HydrantIcon size={27} />}
+      <EquipmentImageIcon kind={kind} size={26} />
     </span>
   );
 }

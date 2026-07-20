@@ -41,6 +41,7 @@ import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
+import { equipmentIconMarkup } from "@/src/components/EquipmentIcons";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
@@ -313,7 +314,7 @@ function extinguisherIcon(colors: MarkerColors, codigo = "", compact = false) {
         iconAnchor: [19, 16],
         html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
         <div class="map-marker-mobile__ring-wrap">
-          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--ext">🧯</div>
+          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--ext">${equipmentIconMarkup("extintor", 16, "#fff")}</div>
         </div>
         <span class="map-marker-mobile__label">${safeLabel}</span>
       </div>`,
@@ -326,7 +327,7 @@ function extinguisherIcon(colors: MarkerColors, codigo = "", compact = false) {
       iconAnchor: [19, 16],
       html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9999px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
-        <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${statusBg};color:#fff;font-size:14px;border:2px solid #fff;font-family:system-ui,sans-serif;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">🧯</div>
+        <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:${statusBg};border:2px solid #fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">${equipmentIconMarkup("extintor", 16, "#fff")}</div>
       </div>
       <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${safeLabel}</span>
     </div>`,
@@ -370,7 +371,7 @@ function hydrantIcon(colors: MarkerColors, codigo: string, compact = false) {
         iconAnchor: [17, 15],
         html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
         <div class="map-marker-mobile__ring-wrap map-marker-mobile__ring-wrap--square">
-          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--hyd">H</div>
+          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--hyd">${equipmentIconMarkup("hidrante", 15, "#fff")}</div>
         </div>
         <span class="map-marker-mobile__label">${safeLabel}</span>
       </div>`,
@@ -383,7 +384,7 @@ function hydrantIcon(colors: MarkerColors, codigo: string, compact = false) {
       iconAnchor: [17, 15],
       html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
       <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
-        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:${statusBg};color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;font-family:system-ui,sans-serif;line-height:1;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">H</div>
+        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:${statusBg};border:2px solid #fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">${equipmentIconMarkup("hidrante", 15, "#fff")}</div>
       </div>
       <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:2px;padding:1px 4px;white-space:nowrap;">${safeLabel}</span>
     </div>`,
