@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useActiveBase } from "@/lib/auth/active-base-context";
-import { resolveFloorImageUrl } from "@/lib/auth/bases";
+import { floorHasMap, resolveFloorImageUrl } from "@/lib/auth/bases";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import MapUploadField from "@/src/components/MapUploadField";
+import ModalCloseButton from "@/src/components/ModalCloseButton";
 import {
   defaultQuestionsForKind,
   makeUniqueQuestionKey,
@@ -136,24 +138,30 @@ export default function AdminConfiguracoesPage() {
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    if (!file) {
-      setMessage("Selecione a imagem do mapa.");
+    if (!label.trim()) {
+      setMessage("Informe o nome do setor.");
       return;
     }
     setSaving(true);
     setMessage("");
     try {
-      const dims = await readImageDimensions(file);
       const body = new FormData();
-      body.set("label", label);
+      body.set("label", label.trim());
       body.set("sort_order", String(floors.length));
-      body.set("image_width", String(dims.width));
-      body.set("image_height", String(dims.height));
-      body.set("file", file);
+      if (file) {
+        const dims = await readImageDimensions(file);
+        body.set("image_width", String(dims.width));
+        body.set("image_height", String(dims.height));
+        body.set("file", file);
+      }
       await callApi("/api/admin/floors", { method: "POST", body });
       setLabel("");
       setFile(null);
-      setMessage("Setor/mapa criado. Já aparece no cadastro e no mapeamento.");
+      setMessage(
+        file
+          ? "Setor criado com mapa. Já aparece no cadastro e no mapeamento."
+          : "Setor criado. Você pode enviar o mapa depois ao editar o setor.",
+      );
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao criar.");
@@ -180,7 +188,7 @@ export default function AdminConfiguracoesPage() {
       await callApi("/api/admin/floors", { method: "PATCH", body });
       setEditingId(null);
       setEditFile(null);
-      setMessage("Setor/mapa atualizado.");
+      setMessage(editFile ? "Setor e mapa atualizados." : "Setor atualizado.");
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao atualizar.");
@@ -325,32 +333,34 @@ export default function AdminConfiguracoesPage() {
           </div>
         </div>
 
-        <form onSubmit={handleCreate} className="professional-card space-y-3 p-5">
+        <form onSubmit={handleCreate} className="professional-card space-y-4 p-5">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--orange-soft)] text-[var(--orange-deep)]">
             <span className="text-xl" aria-hidden>＋</span>
           </div>
-          <h2 className="text-lg font-extrabold text-[var(--ink)]">Adicionar setor e mapa</h2>
-          <p className="text-sm text-[var(--muted-foreground)]">Cadastre um pavimento e envie sua planta técnica.</p>
-          <input
-            className="field-control"
-            required
-            placeholder="Nome do setor (ex.: Térreo, TECA, Subsolo)"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-          />
-          <label className="block rounded-2xl border border-dashed border-slate-300 bg-[#fafafa] p-4 text-sm font-semibold text-slate-700">
-            Imagem da planta
-            <span className="mt-1 block text-xs font-normal text-slate-500">JPG, PNG ou WebP</span>
+          <div>
+            <h2 className="text-lg font-extrabold text-[var(--ink)]">Novo setor</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              Cadastre o setor agora e envie a planta do mapa quando quiser.
+            </p>
+          </div>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted-foreground)]">
+              Nome do setor
+            </span>
             <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
+              className="field-control"
               required
-              className="mt-3 block w-full text-sm"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              placeholder="Ex.: Térreo, TECA, Subsolo"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
             />
           </label>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? "Salvando…" : "Adicionar mapa"}
+
+          <MapUploadField file={file} onFileChange={setFile} disabled={saving} optional />
+
+          <button type="submit" className="btn-primary w-full sm:w-auto" disabled={saving || !label.trim()}>
+            {saving ? "Salvando…" : file ? "Adicionar setor com mapa" : "Adicionar setor"}
           </button>
         </form>
       </div>
@@ -380,34 +390,52 @@ export default function AdminConfiguracoesPage() {
         ) : (
           <div className="space-y-3">
             {floors.map((floor) => {
-              const preview = resolveFloorImageUrl(floor.image_path);
+              const hasMap = floorHasMap(floor.image_path);
+              const preview = hasMap ? resolveFloorImageUrl(floor.image_path) : "";
               const isEditing = editingId === floor.id;
               return (
                 <div
                   key={floor.id}
-                  className="rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4 transition hover:border-slate-300"
+                  className="rounded-2xl border border-[var(--border)] bg-white p-4 transition hover:border-slate-300"
                 >
                   <div className="flex flex-wrap gap-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={preview}
-                      alt={floor.label}
-                      className="h-24 w-36 rounded-xl border border-slate-200 bg-white object-cover shadow-sm"
-                    />
+                    {hasMap && preview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={preview}
+                        alt={floor.label}
+                        className="h-24 w-36 rounded-xl border border-slate-200 bg-[var(--mist)] object-cover shadow-sm"
+                      />
+                    ) : (
+                      <div className="flex h-24 w-36 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-[var(--mist)] text-center">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="text-slate-400">
+                          <path d="M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2 1.586-1.586a2 2 0 0 1 2.828 0L20 14" />
+                          <rect x="3" y="4" width="18" height="16" rx="2" />
+                        </svg>
+                        <span className="px-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          Sem mapa
+                        </span>
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1 space-y-2">
                       {isEditing ? (
-                        <form onSubmit={handleSaveEdit} className="space-y-2">
-                          <input
-                            className="field-control"
-                            required
-                            value={editLabel}
-                            onChange={(event) => setEditLabel(event.target.value)}
-                          />
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="block w-full text-sm"
-                            onChange={(event) => setEditFile(event.target.files?.[0] ?? null)}
+                        <form onSubmit={handleSaveEdit} className="space-y-3">
+                          <label className="block space-y-1.5">
+                            <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted-foreground)]">
+                              Nome do setor
+                            </span>
+                            <input
+                              className="field-control"
+                              required
+                              value={editLabel}
+                              onChange={(event) => setEditLabel(event.target.value)}
+                            />
+                          </label>
+                          <MapUploadField
+                            file={editFile}
+                            onFileChange={setEditFile}
+                            disabled={saving}
+                            optional
                           />
                           <div className="flex gap-2">
                             <button type="submit" className="btn-primary" disabled={saving}>
@@ -427,9 +455,21 @@ export default function AdminConfiguracoesPage() {
                         </form>
                       ) : (
                         <>
-                          <p className="font-bold text-[var(--ink)]">{floor.label}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-[var(--ink)]">{floor.label}</p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                hasMap
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {hasMap ? "Com mapa" : "Aguardando mapa"}
+                            </span>
+                          </div>
                           <p className="text-xs text-slate-500">
-                            Ordem {floor.sort_order} · {floor.image_width}×{floor.image_height}
+                            Ordem {floor.sort_order}
+                            {hasMap ? ` · ${floor.image_width}×${floor.image_height}` : ""}
                           </p>
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -441,7 +481,7 @@ export default function AdminConfiguracoesPage() {
                                 setEditFile(null);
                               }}
                             >
-                              Editar
+                              {hasMap ? "Editar" : "Editar / enviar mapa"}
                             </button>
                             <button
                               type="button"

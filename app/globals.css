@@ -718,6 +718,117 @@ h3,
   box-shadow: var(--shadow-soft);
 }
 
+.map-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1.5px dashed var(--border);
+  border-radius: 1.15rem;
+  background: linear-gradient(180deg, #fff 0%, var(--mist) 100%);
+  padding: 1.35rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.map-upload-zone:hover:not(.is-disabled) {
+  border-color: rgb(249 115 22 / 0.45);
+  background: var(--orange-pale);
+  box-shadow: 0 0 0 3px rgb(249 115 22 / 0.08);
+}
+
+.map-upload-zone.is-dragover {
+  border-color: var(--orange);
+  background: var(--orange-soft);
+  box-shadow: 0 0 0 4px rgb(249 115 22 / 0.12);
+}
+
+.map-upload-zone.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.map-upload-zone__icon {
+  display: grid;
+  height: 3rem;
+  width: 3rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--orange-soft);
+  color: var(--orange-deep);
+}
+
+.map-upload-zone__title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.map-upload-zone__hint {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.map-upload-zone__button {
+  margin-top: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--ink);
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.map-upload-zone__button:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--orange-deep);
+}
+
+.map-upload-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.map-upload-preview__thumb {
+  height: 4rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--mist);
+}
+
+.map-upload-preview__thumb--empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted-foreground);
+}
+
+.map-upload-preview__remove {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #be123c;
+}
+
+.map-upload-preview__remove:hover:not(:disabled) {
+  background: #ffe4e6;
+}
+
 @media (max-width: 640px) {
   .admin-dock {
     bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));

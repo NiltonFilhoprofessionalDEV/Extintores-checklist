@@ -45,9 +45,32 @@ export async function POST(request: Request) {
     const file = form.get("file");
 
     if (!label) return NextResponse.json({ error: "Informe o nome do setor/mapa." }, { status: 400 });
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: "Envie a imagem do mapa." }, { status: 400 });
+
+    const key = slugifyFloorKey(keyRaw || label);
+    if (!key) return NextResponse.json({ error: "Chave do mapa inválida." }, { status: 400 });
+
+    const supabaseAdmin = getSupabaseAdminClient();
+    const hasFile = file instanceof File && file.size > 0;
+
+    if (!hasFile) {
+      const { data, error } = await supabaseAdmin
+        .from("base_floors")
+        .insert({
+          base_id: manager.base_id,
+          key,
+          label,
+          sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+          image_path: "",
+          image_width: Number.isFinite(imageWidth) && imageWidth > 0 ? Math.round(imageWidth) : 14042,
+          image_height: Number.isFinite(imageHeight) && imageHeight > 0 ? Math.round(imageHeight) : 9934,
+        })
+        .select("id,base_id,key,label,sort_order,image_path,image_width,image_height")
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ ok: true, floor: data });
     }
+
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: "Imagem maior que 10 MB." }, { status: 400 });
     }
@@ -57,10 +80,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Use JPG, PNG ou WebP." }, { status: 400 });
     }
 
-    const key = slugifyFloorKey(keyRaw || label);
-    if (!key) return NextResponse.json({ error: "Chave do mapa inválida." }, { status: 400 });
-
-    const supabaseAdmin = getSupabaseAdminClient();
     const objectPath = `${manager.base_id}/${key}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 

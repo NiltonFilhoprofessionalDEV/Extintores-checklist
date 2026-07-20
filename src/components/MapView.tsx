@@ -33,6 +33,7 @@ import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import {
   baseHasEquipesConferencia,
   fetchBaseFloors,
+  floorHasMap,
   resolveFloorImageUrl,
   type BaseFloor,
 } from "@/lib/auth/bases";
@@ -1619,7 +1620,9 @@ export default function MapView() {
         minZoomAbsolute={isMobile ? -22 : -16}
         boundsPad={isMobile ? 2.8 : 0.15}
       />
-      <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
+      {floorHasMap(pavimento.imageBase) && mapImagePath ? (
+        <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
+      ) : null}
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
       {showLayers.extintor &&
