@@ -184,3 +184,200 @@ export async function createBaseWithAdmin(
 
   return { ok: true, base_id: baseId, slug: String(base.slug), admin_user_id: adminUserId };
 }
+
+export type UpdateBaseInput = {
+  id: string;
+  nome?: string;
+  slug?: string;
+  active?: boolean;
+  empresa_tabs?: boolean;
+  equipes_conferencia?: boolean;
+};
+
+export type UpdateBaseResult =
+  | {
+      ok: true;
+      base: {
+        id: string;
+        slug: string;
+        nome: string;
+        active: boolean;
+        config: Record<string, unknown> | null;
+      };
+    }
+  | { ok: false; error: string; status: number };
+
+export async function updateBase(
+  manager: UserManager,
+  input: UpdateBaseInput,
+): Promise<UpdateBaseResult> {
+  const baseId = input.id.trim();
+  if (!baseId) return { ok: false, error: "Base inválida.", status: 400 };
+
+  const accessible = await getManagerAccessibleBaseIds(manager);
+  if (!accessible.includes(baseId)) {
+    return { ok: false, error: "Base fora do seu escopo de acesso.", status: 403 };
+  }
+
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data: existing, error: fetchError } = await supabaseAdmin
+    .from("bases")
+    .select("id,slug,nome,active,config")
+    .eq("id", baseId)
+    .maybeSingle<{
+      id: string;
+      slug: string;
+      nome: string;
+      active: boolean;
+      config: Record<string, unknown> | null;
+    }>();
+
+  if (fetchError || !existing) {
+    return { ok: false, error: "Base não encontrada.", status: 404 };
+  }
+
+  const updates: Record<string, unknown> = {};
+
+  if (input.nome !== undefined) {
+    const nome = input.nome.trim();
+    if (!nome) return { ok: false, error: "Informe o nome da base.", status: 400 };
+    updates.nome = nome;
+  }
+
+  if (input.slug !== undefined) {
+    const slug = slugifyBaseName(input.slug);
+    if (!slug) return { ok: false, error: "Slug inválido.", status: 400 };
+    if (slug !== existing.slug) {
+      const { data: conflict } = await supabaseAdmin
+        .from("bases")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (conflict) {
+        return { ok: false, error: "Já existe uma base com este slug.", status: 400 };
+      }
+      updates.slug = slug;
+    }
+  }
+
+  if (input.active !== undefined) {
+    updates.active = Boolean(input.active);
+  }
+
+  if (input.empresa_tabs !== undefined || input.equipes_conferencia !== undefined) {
+    const currentConfig = existing.config ?? {};
+    updates.config = {
+      ...currentConfig,
+      ...(input.empresa_tabs !== undefined ? { empresa_tabs: Boolean(input.empresa_tabs) } : {}),
+      ...(input.equipes_conferencia !== undefined
+        ? { equipes_conferencia: Boolean(input.equipes_conferencia) }
+        : {}),
+    };
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { ok: false, error: "Nenhuma alteração informada.", status: 400 };
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("bases")
+    .update(updates)
+    .eq("id", baseId)
+    .select("id,slug,nome,active,config")
+    .single<{
+      id: string;
+      slug: string;
+      nome: string;
+      active: boolean;
+      config: Record<string, unknown> | null;
+    }>();
+
+  if (updateError || !updated) {
+    return { ok: false, error: updateError?.message ?? "Falha ao atualizar base.", status: 400 };
+  }
+
+  return { ok: true, base: updated };
+}
+
+export type DeleteBaseInput = {
+  id: string;
+  confirm_name: string;
+};
+
+export type DeleteBaseResult = { ok: true } | { ok: false; error: string; status: number };
+
+const BASE_DEPENDENT_TABLES = [
+  "inspecoes_marcadores_emergencia",
+  "checklists_hidrantes",
+  "checklists",
+  "hidrantes",
+  "extintores",
+  "marcadores_emergencia",
+] as const;
+
+export async function deleteBase(
+  manager: UserManager,
+  input: DeleteBaseInput,
+): Promise<DeleteBaseResult> {
+  const baseId = input.id.trim();
+  const confirmName = input.confirm_name.trim();
+
+  if (!baseId) return { ok: false, error: "Base inválida.", status: 400 };
+  if (!confirmName) {
+    return { ok: false, error: "Digite o nome da base para confirmar a exclusão.", status: 400 };
+  }
+
+  const accessible = await getManagerAccessibleBaseIds(manager);
+  if (!accessible.includes(baseId)) {
+    return { ok: false, error: "Base fora do seu escopo de acesso.", status: 403 };
+  }
+
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data: existing, error: fetchError } = await supabaseAdmin
+    .from("bases")
+    .select("id,nome")
+    .eq("id", baseId)
+    .maybeSingle<{ id: string; nome: string }>();
+
+  if (fetchError || !existing) {
+    return { ok: false, error: "Base não encontrada.", status: 404 };
+  }
+
+  if (confirmName !== existing.nome.trim()) {
+    return { ok: false, error: "O nome digitado não confere com o nome da base.", status: 400 };
+  }
+
+  const { count: profileCount, error: profileCountError } = await supabaseAdmin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("base_id", baseId)
+    .in("role", ["admin", "leadership", "user", "cliente"]);
+
+  if (profileCountError) {
+    return { ok: false, error: profileCountError.message, status: 400 };
+  }
+
+  if ((profileCount ?? 0) > 0) {
+    return {
+      ok: false,
+      error: `Esta base possui ${profileCount} usuário(s) vinculado(s). Reatribua ou exclua os usuários antes de excluir a base.`,
+      status: 400,
+    };
+  }
+
+  for (const table of BASE_DEPENDENT_TABLES) {
+    const { error } = await supabaseAdmin.from(table).delete().eq("base_id", baseId);
+    if (error) return { ok: false, error: error.message, status: 400 };
+  }
+
+  const { error: membershipError } = await supabaseAdmin
+    .from("base_memberships")
+    .delete()
+    .eq("base_id", baseId);
+  if (membershipError) return { ok: false, error: membershipError.message, status: 400 };
+
+  const { error: deleteError } = await supabaseAdmin.from("bases").delete().eq("id", baseId);
+  if (deleteError) return { ok: false, error: deleteError.message, status: 400 };
+
+  return { ok: true };
+}

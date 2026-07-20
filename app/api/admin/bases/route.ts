@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import {
   createBaseWithAdmin,
+  deleteBase,
   requireAdminCorporativo,
+  updateBase,
   type CreateBaseInput,
 } from "@/lib/auth/base-management-server";
 import { getManagerAccessibleBaseIds } from "@/lib/auth/user-management-server";
@@ -105,6 +107,78 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao criar base." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const manager = await requireAdminCorporativo(request);
+    if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+
+    const body = (await request.json()) as {
+      id?: string;
+      nome?: string;
+      slug?: string;
+      active?: boolean;
+      empresa_tabs?: boolean;
+      equipes_conferencia?: boolean;
+    };
+
+    if (!body.id?.trim()) {
+      return NextResponse.json({ error: "ID da base é obrigatório." }, { status: 400 });
+    }
+
+    const result = await updateBase(manager, {
+      id: body.id,
+      nome: body.nome,
+      slug: body.slug,
+      active: body.active,
+      empresa_tabs: body.empresa_tabs,
+      equipes_conferencia: body.equipes_conferencia,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    return NextResponse.json({ ok: true, base: result.base });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Erro ao atualizar base." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const manager = await requireAdminCorporativo(request);
+    if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+
+    const body = (await request.json()) as {
+      id?: string;
+      confirm_name?: string;
+    };
+
+    if (!body.id?.trim()) {
+      return NextResponse.json({ error: "ID da base é obrigatório." }, { status: 400 });
+    }
+
+    const result = await deleteBase(manager, {
+      id: body.id,
+      confirm_name: body.confirm_name ?? "",
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Erro ao excluir base." },
       { status: 500 },
     );
   }
