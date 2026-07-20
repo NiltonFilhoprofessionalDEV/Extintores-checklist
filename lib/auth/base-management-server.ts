@@ -184,3 +184,117 @@ export async function createBaseWithAdmin(
 
   return { ok: true, base_id: baseId, slug: String(base.slug), admin_user_id: adminUserId };
 }
+
+export type UpdateBaseInput = {
+  id: string;
+  nome?: string;
+  slug?: string;
+  active?: boolean;
+  empresa_tabs?: boolean;
+  equipes_conferencia?: boolean;
+};
+
+export type UpdateBaseResult =
+  | {
+      ok: true;
+      base: {
+        id: string;
+        slug: string;
+        nome: string;
+        active: boolean;
+        config: Record<string, unknown> | null;
+      };
+    }
+  | { ok: false; error: string; status: number };
+
+export async function updateBase(
+  manager: UserManager,
+  input: UpdateBaseInput,
+): Promise<UpdateBaseResult> {
+  const baseId = input.id.trim();
+  if (!baseId) return { ok: false, error: "Base inválida.", status: 400 };
+
+  const accessible = await getManagerAccessibleBaseIds(manager);
+  if (!accessible.includes(baseId)) {
+    return { ok: false, error: "Base fora do seu escopo de acesso.", status: 403 };
+  }
+
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data: existing, error: fetchError } = await supabaseAdmin
+    .from("bases")
+    .select("id,slug,nome,active,config")
+    .eq("id", baseId)
+    .maybeSingle<{
+      id: string;
+      slug: string;
+      nome: string;
+      active: boolean;
+      config: Record<string, unknown> | null;
+    }>();
+
+  if (fetchError || !existing) {
+    return { ok: false, error: "Base não encontrada.", status: 404 };
+  }
+
+  const updates: Record<string, unknown> = {};
+
+  if (input.nome !== undefined) {
+    const nome = input.nome.trim();
+    if (!nome) return { ok: false, error: "Informe o nome da base.", status: 400 };
+    updates.nome = nome;
+  }
+
+  if (input.slug !== undefined) {
+    const slug = slugifyBaseName(input.slug);
+    if (!slug) return { ok: false, error: "Slug inválido.", status: 400 };
+    if (slug !== existing.slug) {
+      const { data: conflict } = await supabaseAdmin
+        .from("bases")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (conflict) {
+        return { ok: false, error: "Já existe uma base com este slug.", status: 400 };
+      }
+      updates.slug = slug;
+    }
+  }
+
+  if (input.active !== undefined) {
+    updates.active = Boolean(input.active);
+  }
+
+  if (input.empresa_tabs !== undefined || input.equipes_conferencia !== undefined) {
+    const currentConfig = existing.config ?? {};
+    updates.config = {
+      ...currentConfig,
+      ...(input.empresa_tabs !== undefined ? { empresa_tabs: Boolean(input.empresa_tabs) } : {}),
+      ...(input.equipes_conferencia !== undefined
+        ? { equipes_conferencia: Boolean(input.equipes_conferencia) }
+        : {}),
+    };
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { ok: false, error: "Nenhuma alteração informada.", status: 400 };
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("bases")
+    .update(updates)
+    .eq("id", baseId)
+    .select("id,slug,nome,active,config")
+    .single<{
+      id: string;
+      slug: string;
+      nome: string;
+      active: boolean;
+      config: Record<string, unknown> | null;
+    }>();
+
+  if (updateError || !updated) {
+    return { ok: false, error: updateError?.message ?? "Falha ao atualizar base.", status: 400 };
+  }
+
+  return { ok: true, base: updated };
+}
