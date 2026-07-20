@@ -3,51 +3,66 @@ type EquipmentIconProps = {
   className?: string;
 };
 
-export const EXTINGUISHER_ICON_PATH =
-  "M11 2.25h2v2h-2v-2Zm-1.25 3.25h4.5v1.5h-4.5v-1.5ZM8 7.5h8c1.1 0 2 .9 2 2v10.75c0 1.52-1.23 2.75-2.75 2.75h-6.5C7.23 23 6 21.77 6 20.25V9.5c0-1.1.9-2 2-2Zm8.75 2.25c1.38 0 2.5 1.12 2.5 2.5V15h-1.75v-2.75c0-.41-.34-.75-.75-.75H16.75V9.75Z";
+/** Corpo do extintor — silhueta lateral com mangueira à esquerda. */
+const EXTINGUISHER_PATHS = [
+  "M11.25 2.75h1.5v1.75h-1.5V2.75Z",
+  "M9.75 5h4.5v1.25H9.75V5Z",
+  "M10.25 6.75h3.5c1.1 0 2 .9 2 2v11.25c0 1.24-1.01 2.25-2.25 2.25h-3c-1.24 0-2.25-1.01-2.25-2.25V8.75c0-1.1.9-2 2-2Z",
+  "M10.25 9.25H9.1c-1.93 0-3.5 1.57-3.5 3.5v2.75c0 .69.56 1.25 1.25 1.25h1.15v-1.25H7.35v-2.75c0-1.04.84-1.88 1.88-1.88h1.02V9.25Z",
+  "M5.15 16h2.1v1.75H5.15V16Z",
+];
 
-export const HYDRANT_ICON_PATH =
-  "M12 2.75c2 0 3.62 1.62 3.62 3.62S14 10 12 10 8.38 8.38 8.38 6.38 10 2.75 12 2.75ZM10.25 10.25h3.5V18.5h-3.5v-8.25ZM6.75 12h2.5v2H6.75v-2Zm8.25 0h2.5v2H15v-2ZM7.5 19.25h9v2.25h-9v-2.25Z";
+/** Hidrante — cúpula, coluna, saídas laterais e base. */
+const HYDRANT_PATHS = [
+  "M12 2.75c2.07 0 3.75 1.68 3.75 3.75S14.07 10.25 12 10.25 8.25 8.57 8.25 6.5 9.93 2.75 12 2.75Z",
+  "M10.5 10.25h3v8h-3v-8Z",
+  "M6.75 12h2.75v2H6.75v-2Z",
+  "M14.5 12h2.75v2H14.5v-2Z",
+  "M7.5 18.75h9v2.25h-9v-2.25Z",
+];
+
+function renderIconPaths(paths: string[], color = "currentColor") {
+  return paths.map((d) => `<path d="${d}"/>`).join("");
+}
 
 export function equipmentIconMarkup(
   kind: "extintor" | "hidrante",
   size: number,
   color = "currentColor",
 ): string {
-  const path = kind === "extintor" ? EXTINGUISHER_ICON_PATH : HYDRANT_ICON_PATH;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true"><path d="${path}"/></svg>`;
+  const paths = kind === "extintor" ? EXTINGUISHER_PATHS : HYDRANT_PATHS;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true">${renderIconPaths(paths, color)}</svg>`;
 }
 
-/** Silhueta minimalista de extintor. */
+function IconSvg({
+  paths,
+  size,
+  className,
+}: EquipmentIconProps & { paths: string[] }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      {paths.map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
+
+/** Silhueta de extintor (referência do app). */
 export function ExtinguisherIcon({ size = 24, className = "" }: EquipmentIconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden
-    >
-      <path d={EXTINGUISHER_ICON_PATH} />
-    </svg>
-  );
+  return <IconSvg paths={EXTINGUISHER_PATHS} size={size} className={className} />;
 }
 
-/** Silhueta minimalista de hidrante. */
+/** Silhueta de hidrante (referência do app). */
 export function HydrantIcon({ size = 24, className = "" }: EquipmentIconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden
-    >
-      <path d={HYDRANT_ICON_PATH} />
-    </svg>
-  );
+  return <IconSvg paths={HYDRANT_PATHS} size={size} className={className} />;
 }
 
 export function EquipmentPairIcon({ size = 24, className = "" }: EquipmentIconProps) {
@@ -60,8 +75,16 @@ export function EquipmentPairIcon({ size = 24, className = "" }: EquipmentIconPr
       className={className}
       aria-hidden
     >
-      <path d="M7 3.25h1.5v1.5H7V3.25ZM5.75 5.25h4v1h-4v-1ZM5 7h6c.83 0 1.5.67 1.5 1.5v8.75c0 1.24-1 2.25-2.25 2.25H5.75C4.51 19.5 3.5 18.5 3.5 17.25V8.5C3.5 7.67 4.17 7 5 7Zm6.75 1.75c1.03 0 1.87.84 1.87 1.87V13h-1.4v-2.38c0-.26-.21-.47-.47-.47H11.75V8.75Z" />
-      <path d="M23.25 4c1.52 0 2.75 1.23 2.75 2.75S24.77 9.5 23.25 9.5 20.5 8.27 20.5 6.75 21.73 4 23.25 4ZM21.25 9.75h4V16.5h-4V9.75ZM19 11.5h2v1.5h-2V11.5Zm6.25 0H27.5v1.5h-2.25V11.5ZM19.75 16.75h7.5v1.75h-7.5V16.75Z" />
+      <g transform="translate(1 0) scale(0.72)">
+        {EXTINGUISHER_PATHS.map((d) => (
+          <path key={`ext-${d}`} d={d} />
+        ))}
+      </g>
+      <g transform="translate(14 0) scale(0.72)">
+        {HYDRANT_PATHS.map((d) => (
+          <path key={`hid-${d}`} d={d} />
+        ))}
+      </g>
     </svg>
   );
 }
