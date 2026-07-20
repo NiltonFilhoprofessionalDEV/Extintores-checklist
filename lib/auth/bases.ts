@@ -142,8 +142,12 @@ export async function fetchBaseFloors(baseId: string): Promise<BaseFloor[]> {
 }
 
 /** Resolve image URL for a floor image_path (static /maps/..., URL pública ou path no bucket mapas). */
+export function floorHasMap(imagePath: string | null | undefined): boolean {
+  return Boolean(imagePath?.trim());
+}
+
 export function resolveFloorImageUrl(imagePath: string, preferWebp = true): string {
-  if (!imagePath) return "";
+  if (!floorHasMap(imagePath)) return "";
   if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
     return imagePath;
   }

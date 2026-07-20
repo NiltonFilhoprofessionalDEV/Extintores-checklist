@@ -72,3 +72,11 @@ export function extensionForMime(mime: string): string | null {
   if (mime === "image/webp") return "webp";
   return null;
 }
+
+/** Valor persistido quando o setor ainda não tem planta enviada. */
+export const FLOOR_NO_MAP_PATH = "";
+
+export function floorHasMap(imagePath: string | null | undefined): boolean {
+  const value = imagePath?.trim() ?? "";
+  return value.length > 0;
+}
