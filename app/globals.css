@@ -922,17 +922,12 @@ h3,
   width: 26px;
   height: 26px;
   border-radius: 9999px;
-  font-size: 14px;
-  line-height: 1;
 }
 
 .map-marker-mobile__symbol--hyd {
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1;
 }
 
 .map-marker-mobile__label {

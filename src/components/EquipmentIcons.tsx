@@ -3,47 +3,49 @@ type EquipmentIconProps = {
   className?: string;
 };
 
+export const EXTINGUISHER_ICON_PATH =
+  "M11 2.25h2v2h-2v-2Zm-1.25 3.25h4.5v1.5h-4.5v-1.5ZM8 7.5h8c1.1 0 2 .9 2 2v10.75c0 1.52-1.23 2.75-2.75 2.75h-6.5C7.23 23 6 21.77 6 20.25V9.5c0-1.1.9-2 2-2Zm8.75 2.25c1.38 0 2.5 1.12 2.5 2.5V15h-1.75v-2.75c0-.41-.34-.75-.75-.75H16.75V9.75Z";
+
+export const HYDRANT_ICON_PATH =
+  "M12 2.75c2 0 3.62 1.62 3.62 3.62S14 10 12 10 8.38 8.38 8.38 6.38 10 2.75 12 2.75ZM10.25 10.25h3.5V18.5h-3.5v-8.25ZM6.75 12h2.5v2H6.75v-2Zm8.25 0h2.5v2H15v-2ZM7.5 19.25h9v2.25h-9v-2.25Z";
+
+export function equipmentIconMarkup(
+  kind: "extintor" | "hidrante",
+  size: number,
+  color = "currentColor",
+): string {
+  const path = kind === "extintor" ? EXTINGUISHER_ICON_PATH : HYDRANT_ICON_PATH;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+/** Silhueta minimalista de extintor. */
 export function ExtinguisherIcon({ size = 24, className = "" }: EquipmentIconProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       className={className}
       aria-hidden
     >
-      <path d="M9 8.5h6v10.25A2.25 2.25 0 0 1 12.75 21h-1.5A2.25 2.25 0 0 1 9 18.75V8.5Z" />
-      <path d="M8 8.5h8M9.5 5.5h5M12 3v2.5M10 3h4" />
-      <path d="M15 10h2.6c1.35 0 2.4 1.08 2.4 2.4V15" />
-      <path d="M20 15h-1.5" />
-      <path d="M12 12.25c-.9 1.1-1.35 1.85-1.35 2.55a1.35 1.35 0 0 0 2.7 0c0-.7-.45-1.45-1.35-2.55Z" />
+      <path d={EXTINGUISHER_ICON_PATH} />
     </svg>
   );
 }
 
+/** Silhueta minimalista de hidrante. */
 export function HydrantIcon({ size = 24, className = "" }: EquipmentIconProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       className={className}
       aria-hidden
     >
-      <path d="M8 9.5h8V20H8z" />
-      <path d="M7 9.5h10M9 6.5h6l1 3H8l1-3ZM10.5 4h3M12 4v2.5" />
-      <path d="M8 12H5.5v4H8M16 12h2.5v4H16M4 20h16" />
-      <path d="M10.25 13.5h3.5M10.25 16.5h3.5" />
+      <path d={HYDRANT_ICON_PATH} />
     </svg>
   );
 }
@@ -54,16 +56,12 @@ export function EquipmentPairIcon({ size = 24, className = "" }: EquipmentIconPr
       width={size}
       height={size}
       viewBox="0 0 32 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.7}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       className={className}
       aria-hidden
     >
-      <path d="M4.5 8h7v11.5a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V8ZM3.5 8h9M6 5.5h4M8 3.5v2M11.5 10h2.5c1.2 0 2 1 2 2.2V14" />
-      <path d="M21 9h7v11h-7zM20 9h9M22 6h5l1 3h-7l1-3ZM24.5 4v2M22 4h5M21 12h-2v3h2M28 12h2v3h-2M19 20h11" />
+      <path d="M7 3.25h1.5v1.5H7V3.25ZM5.75 5.25h4v1h-4v-1ZM5 7h6c.83 0 1.5.67 1.5 1.5v8.75c0 1.24-1 2.25-2.25 2.25H5.75C4.51 19.5 3.5 18.5 3.5 17.25V8.5C3.5 7.67 4.17 7 5 7Zm6.75 1.75c1.03 0 1.87.84 1.87 1.87V13h-1.4v-2.38c0-.26-.21-.47-.47-.47H11.75V8.75Z" />
+      <path d="M23.25 4c1.52 0 2.75 1.23 2.75 2.75S24.77 9.5 23.25 9.5 20.5 8.27 20.5 6.75 21.73 4 23.25 4ZM21.25 9.75h4V16.5h-4V9.75ZM19 11.5h2v1.5h-2V11.5Zm6.25 0H27.5v1.5h-2.25V11.5ZM19.75 16.75h7.5v1.75h-7.5V16.75Z" />
     </svg>
   );
 }
@@ -91,7 +89,7 @@ export function EquipmentStatusIcon({
         borderColor: palette.ring,
       }}
     >
-      {kind === "extintor" ? <ExtinguisherIcon size={26} /> : <HydrantIcon size={27} />}
+      {kind === "extintor" ? <ExtinguisherIcon size={26} /> : <HydrantIcon size={26} />}
     </span>
   );
 }
