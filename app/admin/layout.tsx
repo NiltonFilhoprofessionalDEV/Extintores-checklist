@@ -5,6 +5,7 @@ import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
 import AuthGuard from "@/src/components/AuthGuard";
 import AdminAreaGuard from "@/src/components/AdminAreaGuard";
 import AdminDock from "@/src/components/AdminDock";
+import AdminSidebar from "@/src/components/AdminSidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,26 +16,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <ActiveBaseProvider>
         <AdminAreaGuard>
           <div
-            className="app-shell-bg"
-            style={
-              isMapeamento
-                ? { height: "100dvh", display: "flex", flexDirection: "column" }
-                : { minHeight: "100vh" }
-            }
+            className={`app-shell-bg ${isMapeamento ? "admin-shell admin-shell--map" : "admin-shell"}`}
           >
+            <AdminSidebar />
             <AdminDock />
             <div
-              className={isMapeamento ? "min-h-0 flex-1 pb-24" : "pb-28"}
-              style={isMapeamento ? { display: "flex", flexDirection: "column" } : undefined}
+              className={`admin-shell__content ${isMapeamento ? "admin-shell__content--map" : ""}`}
             >
               {isMapeamento ? (
-                <div className="flex min-h-0 flex-1 flex-col" style={{ flex: "1 1 0" }}>
-                  {children}
-                </div>
+                <div className="admin-shell__map">{children}</div>
               ) : (
-                <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-                  {children}
-                </main>
+                <main className="admin-shell__main">{children}</main>
               )}
             </div>
           </div>
