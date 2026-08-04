@@ -8,13 +8,8 @@ import {
   HIDRANTE_REQUIRED_HEADERS,
   type HidranteImportRow,
 } from "@/lib/rf01/hidrante-import-parser";
-import { getSupabaseClient } from "@/lib/supabase/client";
-import {
-  formatSyncResultMessage,
-  syncExtintores,
-  syncHidrantes,
-  type ImportMode,
-} from "@/lib/import/spreadsheet-sync";
+import { importSpreadsheetViaApi } from "@/lib/import/import-api-client";
+import { formatSyncResultMessage, type ImportMode } from "@/lib/import/spreadsheet-sync";
 import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import AuthGuard from "@/src/components/AuthGuard";
@@ -127,11 +122,17 @@ export default function ImportacaoPage() {
   }
 
   async function handleImport() {
-    const supabase = getSupabaseClient();
     const baseId = await resolveBaseId();
     if (!baseId) {
       setStatus("error");
       setMessage("Base ativa não definida. Selecione uma base antes de importar.");
+      return;
+    }
+
+    const session = await getCurrentSession();
+    if (!session?.access_token) {
+      setStatus("error");
+      setMessage("Sessão expirada. Faça login novamente para importar.");
       return;
     }
 
@@ -140,7 +141,13 @@ export default function ImportacaoPage() {
       setStatus("uploading");
       setMessage("");
 
-      const result = await syncExtintores(supabase, rowsExtintor, modo, baseId);
+      const result = await importSpreadsheetViaApi({
+        accessToken: session.access_token,
+        activeBaseId: baseId,
+        destino: "extintores",
+        mode: modo,
+        rows: rowsExtintor,
+      });
 
       if (result.error) {
         setStatus("error");
@@ -165,7 +172,13 @@ export default function ImportacaoPage() {
     setStatus("uploading");
     setMessage("");
 
-    const result = await syncHidrantes(supabase, rowsHidrante, modo, baseId);
+    const result = await importSpreadsheetViaApi({
+      accessToken: session.access_token,
+      activeBaseId: baseId,
+      destino: "hidrantes",
+      mode: modo,
+      rows: rowsHidrante,
+    });
 
     if (result.error) {
       setStatus("error");
