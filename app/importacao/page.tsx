@@ -32,6 +32,20 @@ function isSchemaError(message: string): boolean {
   );
 }
 
+function isRlsError(message: string): boolean {
+  return /row-level security|rls policy/i.test(message);
+}
+
+function rlsHint(): string {
+  return (
+    "\n\nPossíveis causas:" +
+    "\n• Base ativa incorreta — selecione a base correta no menu antes de importar." +
+    "\n• Cache do app — feche a aba, abra novamente ou limpe o cache do navegador (Ctrl+Shift+R)." +
+    "\n• Supabase — execute docs/migration_fix_import_extintores_rls.sql no SQL Editor." +
+    "\n• Deploy — confira se SUPABASE_SERVICE_ROLE_KEY está configurada (chave service_role, não anon)."
+  );
+}
+
 export default function ImportacaoPage() {
   const activeBaseCtx = useOptionalActiveBase();
   const [destino, setDestino] = useState<DestinoImport>("extintores");
@@ -154,7 +168,9 @@ export default function ImportacaoPage() {
         const hint =
           modo === "cadastro" && isDuplicateError(result.error)
             ? "\n\nCódigos já existem no sistema. Use o modo «Atualizar em lote» para alterar registros existentes."
-            : "";
+            : isRlsError(result.error)
+              ? rlsHint()
+              : "";
         setMessage(`Erro ao importar extintores: ${result.error}${hint}`);
         return;
       }
@@ -189,7 +205,9 @@ export default function ImportacaoPage() {
           : "";
       const schemaHint = isSchemaError(result.error)
         ? "\n\nO banco ainda não tem todas as colunas da planilha. No Supabase → SQL Editor, execute o bloco com comentário \"Colunas da planilha RF01 hidrantes\" no arquivo docs/migration_mapa_recursos.sql (vários ALTER TABLE … ADD COLUMN IF NOT EXISTS)."
-        : "";
+        : isRlsError(result.error)
+          ? rlsHint()
+          : "";
       setMessage(`${base}${duplicateHint}${schemaHint}`);
       return;
     }

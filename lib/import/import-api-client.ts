@@ -13,6 +13,7 @@ export async function importSpreadsheetViaApi(params: {
 }): Promise<ImportSyncResult> {
   const response = await fetch("/api/admin/import", {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${params.accessToken}`,

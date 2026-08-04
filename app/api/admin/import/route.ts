@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getInventoryManagerFromRequest } from "@/lib/auth/inventory-management-server";
+import { runImportSyncWithRlsFallback } from "@/lib/import/import-supabase";
 import { syncExtintores, syncHidrantes, type ImportMode } from "@/lib/import/spreadsheet-sync";
 import type { ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
-import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 type ImportBody = {
   destino: "extintores" | "hidrantes";
@@ -13,8 +13,20 @@ type ImportBody = {
 
 const MAX_ROWS = 5000;
 
+function extractAccessToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.replace("Bearer ", "").trim();
+  return token || null;
+}
+
 export async function POST(request: Request) {
   try {
+    const accessToken = extractAccessToken(request);
+    if (!accessToken) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
     const manager = await getInventoryManagerFromRequest(request);
     if (!manager) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
@@ -40,25 +52,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdminClient();
-
     if (body.destino === "extintores") {
-      const result = await syncExtintores(
-        supabaseAdmin,
-        body.rows as ExtintorImportRecord[],
-        body.mode,
-        manager.base_id,
+      const result = await runImportSyncWithRlsFallback(accessToken, (client) =>
+        syncExtintores(client, body.rows as ExtintorImportRecord[], body.mode, manager.base_id),
       );
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
       return NextResponse.json(result);
     }
 
     if (body.destino === "hidrantes") {
-      const result = await syncHidrantes(
-        supabaseAdmin,
-        body.rows as HidranteImportRow[],
-        body.mode,
-        manager.base_id,
+      const result = await runImportSyncWithRlsFallback(accessToken, (client) =>
+        syncHidrantes(client, body.rows as HidranteImportRow[], body.mode, manager.base_id),
       );
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
       return NextResponse.json(result);
