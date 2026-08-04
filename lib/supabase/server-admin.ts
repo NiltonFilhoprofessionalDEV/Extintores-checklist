@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseDatabase } from "@/lib/supabase/types";
+import { assertSupabaseServiceRoleKey } from "@/lib/supabase/service-role-key";
 
 function normalizeUrl(rawUrl: string) {
   return rawUrl.trim().replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/g, "");
@@ -14,6 +15,8 @@ export function getSupabaseAdminClient() {
       "Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias.",
     );
   }
+
+  assertSupabaseServiceRoleKey(serviceRoleKey);
 
   return createClient<SupabaseDatabase>(normalizeUrl(supabaseUrl), serviceRoleKey.trim(), {
     auth: {
