@@ -58,17 +58,28 @@ async function runInBatches<T>(
   return null;
 }
 
-function extintorUpdatePayload(row: ExtintorImportRecord) {
+function dateOrNull(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed : null;
+}
+
+function extintorInsertPayload(row: ExtintorImportRecord) {
   return {
+    codigo: normalizeCodigo(row.codigo),
     setor: row.setor,
     local_detalhado: row.local_detalhado,
     num_inmetro: row.num_inmetro,
     tipo: row.tipo,
     tamanho: row.tamanho,
     capacidade_extintora: row.capacidade_extintora,
-    manutencao_2_nivel: row.manutencao_2_nivel || null,
-    manutencao_3_nivel: row.manutencao_3_nivel || null,
+    manutencao_2_nivel: dateOrNull(row.manutencao_2_nivel),
+    manutencao_3_nivel: dateOrNull(row.manutencao_3_nivel),
   };
+}
+
+function extintorUpdatePayload(row: ExtintorImportRecord) {
+  const { codigo: _codigo, ...fields } = extintorInsertPayload(row);
+  return fields;
 }
 
 function withBaseId<T extends Record<string, unknown>>(rows: T[], baseId: string) {
@@ -85,7 +96,8 @@ export async function syncExtintores(
   if (rows.length === 0) return { inserted: 0, updated: 0, error: null };
 
   if (mode === "cadastro") {
-    for (const batch of chunk(withBaseId(rows, baseId), CHUNK_SIZE)) {
+    const payloads = rows.map(extintorInsertPayload);
+    for (const batch of chunk(withBaseId(payloads, baseId), CHUNK_SIZE)) {
       const { error } = await supabase.from("extintores").insert(batch);
       if (error) return { inserted: 0, updated: 0, error: error.message };
     }
@@ -98,7 +110,8 @@ export async function syncExtintores(
   const toInsert = rows.filter((r) => !existing.has(normalizeCodigo(r.codigo)));
   const toUpdate = rows.filter((r) => existing.has(normalizeCodigo(r.codigo)));
 
-  for (const batch of chunk(withBaseId(toInsert, baseId), CHUNK_SIZE)) {
+  const insertPayloads = toInsert.map(extintorInsertPayload);
+  for (const batch of chunk(withBaseId(insertPayloads, baseId), CHUNK_SIZE)) {
     const { error } = await supabase.from("extintores").insert(batch);
     if (error) return { inserted: 0, updated: 0, error: error.message };
   }

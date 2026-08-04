@@ -28,8 +28,8 @@ export type ExtintorImportRecord = {
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
-  manutencao_2_nivel: string;
-  manutencao_3_nivel: string;
+  manutencao_2_nivel: string | null;
+  manutencao_3_nivel: string | null;
 };
 
 const HEADER_ALIASES: Record<RequiredHeader, string[]> = {
@@ -84,6 +84,11 @@ function formatDate(value: unknown): string {
   return parsedDate.toISOString().slice(0, 10);
 }
 
+function dateOrNull(iso: string): string | null {
+  const trimmed = iso.trim();
+  return trimmed ? trimmed : null;
+}
+
 function normalizeRecord(row: Record<RequiredHeader, unknown>): ExtintorImportRecord {
   return {
     codigo: String(row["Código"] ?? "").trim(),
@@ -93,8 +98,8 @@ function normalizeRecord(row: Record<RequiredHeader, unknown>): ExtintorImportRe
     tipo: String(row["Tipo"] ?? "").trim(),
     tamanho: String(row["Tamanho"] ?? "").trim(),
     capacidade_extintora: String(row["Capacidade Extintora"] ?? "").trim(),
-    manutencao_2_nivel: formatDate(row["Vencimento Manutenção 2º Nível"]),
-    manutencao_3_nivel: formatDate(row["Vencimento Manutenção 3º Nível"]),
+    manutencao_2_nivel: dateOrNull(formatDate(row["Vencimento Manutenção 2º Nível"])),
+    manutencao_3_nivel: dateOrNull(formatDate(row["Vencimento Manutenção 3º Nível"])),
   };
 }
 
