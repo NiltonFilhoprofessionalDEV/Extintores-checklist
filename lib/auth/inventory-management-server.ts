@@ -9,6 +9,45 @@ export type InventoryManager = {
   base_id: string;
 };
 
+async function userHasBaseAccess(
+  userId: string,
+  baseId: string,
+): Promise<boolean> {
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin
+    .from("base_memberships")
+    .select("base_id")
+    .eq("user_id", userId)
+    .eq("base_id", baseId)
+    .maybeSingle<{ base_id: string }>();
+
+  return !error && Boolean(data);
+}
+
+async function resolveManagerBaseId(
+  request: Request,
+  userId: string,
+  profile: { role: UserRole; base_id: string | null },
+): Promise<string | null> {
+  const headerBaseId = request.headers.get("x-active-base-id")?.trim() || null;
+
+  if (profile.role === "admin_corporativo") {
+    if (!headerBaseId) return null;
+    return (await userHasBaseAccess(userId, headerBaseId)) ? headerBaseId : null;
+  }
+
+  if (headerBaseId) {
+    if (profile.base_id && headerBaseId === profile.base_id) {
+      return headerBaseId;
+    }
+    if (await userHasBaseAccess(userId, headerBaseId)) {
+      return headerBaseId;
+    }
+  }
+
+  return profile.base_id ?? null;
+}
+
 export async function getInventoryManagerFromRequest(request: Request): Promise<InventoryManager | null> {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -30,23 +69,10 @@ export async function getInventoryManagerFromRequest(request: Request): Promise<
     return null;
   }
 
-  if (profile.role === "admin_corporativo") {
-    const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
-    if (!activeBaseId) return null;
+  const baseId = await resolveManagerBaseId(request, authData.user.id, profile);
+  if (!baseId) return null;
 
-    const { data: membership, error: membershipError } = await supabaseAdmin
-      .from("base_memberships")
-      .select("base_id")
-      .eq("user_id", authData.user.id)
-      .eq("base_id", activeBaseId)
-      .maybeSingle<{ base_id: string }>();
-
-    if (membershipError || !membership) return null;
-    return { id: authData.user.id, role: profile.role, base_id: activeBaseId };
-  }
-
-  if (!profile.base_id) return null;
-  return { id: authData.user.id, role: profile.role, base_id: profile.base_id };
+  return { id: authData.user.id, role: profile.role, base_id: baseId };
 }
 
 export async function assertInventoryRowInManagerBase(
