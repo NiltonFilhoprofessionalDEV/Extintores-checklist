@@ -13,19 +13,28 @@ import { EquipmentStatusIcon } from "@/src/components/EquipmentIcons";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
-  buildChecklistAnswersJson,
+  CHECKLIST_ITEM_KEYS,
   checklistTemNaoConformidade,
+  getChecklistAnswer,
   isDataVencida,
-  mergeObservacoesComNaoConformidades,
   type ChecklistData,
+  type ChecklistItemKey,
 } from "@/lib/checklist/types";
-import { buildObservacoesLegadoApenasNaoConformidades } from "@/lib/checklist/parse-legacy-observacoes";
+import { DEFAULT_EXTINTOR_QUESTION_LABELS } from "@/lib/checklist/default-questions";
 import {
+  buildExtintorChecklistPayload,
+  buildHidranteChecklistPayload,
+  insertExtintorChecklist,
+  insertHidranteChecklist,
+} from "@/lib/checklist/insert-checklist";
+import {
+  HIDRANTE_ACTIVE_ITEM_KEYS,
   HIDRANTE_CHECKLIST_INITIAL,
-  buildHidranteAnswersJson,
+  HIDRANTE_ITEM_LABELS,
+  getHidranteAnswer,
   hidranteChecklistTemNaoConformidade,
-  mergeHidranteObservacoes,
   type HidranteChecklistData,
+  type HidranteItemKey,
 } from "@/lib/checklist/hidrante-types";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { hidranteTemMangueiraVencida } from "@/lib/hidrantes/vencimento-mangueiras";
@@ -58,6 +67,22 @@ const EXTINTORES_CACHE_KEY = "extintores_cache_v1";
 const HIDRANTES_CACHE_KEY = "hidrantes_cache_v1";
 const PENDING_CHECKLISTS_KEY = "pending_checklists_v1";
 const PENDING_HIDRANTE_CHECKLISTS_KEY = "pending_hidrante_checklists_v1";
+
+type ChecklistFieldDef = { key: string; label: string };
+
+function defaultExtintorFields(): ChecklistFieldDef[] {
+  return CHECKLIST_ITEM_KEYS.map((key) => ({
+    key,
+    label: DEFAULT_EXTINTOR_QUESTION_LABELS[key],
+  }));
+}
+
+function defaultHidranteFields(): ChecklistFieldDef[] {
+  return HIDRANTE_ACTIVE_ITEM_KEYS.map((key) => ({
+    key,
+    label: HIDRANTE_ITEM_LABELS[key as HidranteItemKey],
+  }));
+}
 
 function compareCodigo(a: string, b: string) {
   return a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
@@ -196,12 +221,11 @@ export default function MobileConferenciaPage() {
     Map<string, ChecklistHidranteMesRow>
   >(new Map());
   const [conferenteNome, setConferenteNome] = useState("");
-  const [extintorChecklistFields, setExtintorChecklistFields] = useState<
-    { key: string; label: string }[]
-  >([]);
-  const [hidranteChecklistFields, setHidranteChecklistFields] = useState<
-    { key: string; label: string }[]
-  >([]);
+  const [extintorChecklistFields, setExtintorChecklistFields] = useState<ChecklistFieldDef[]>([]);
+  const [hidranteChecklistFields, setHidranteChecklistFields] = useState<ChecklistFieldDef[]>([]);
+  const [activeExtintorFields, setActiveExtintorFields] = useState<ChecklistFieldDef[]>([]);
+  const [activeHidranteFields, setActiveHidranteFields] = useState<ChecklistFieldDef[]>([]);
+  const [messageIsError, setMessageIsError] = useState(false);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -477,111 +501,68 @@ export default function MobileConferenciaPage() {
 
   async function submitChecklist(event: React.FormEvent) {
     event.preventDefault();
-    if (!selected || !activeBaseId) return;
-    setSaving(true);
-
-    const fieldKeys = extintorChecklistFields.map((field) => field.key);
-    const fieldLabels = Object.fromEntries(
-      extintorChecklistFields.map((field) => [field.key, field.label]),
-    );
-    const observacoesFinal = mergeObservacoesComNaoConformidades(checklist, fieldLabels);
-    const answersJson = buildChecklistAnswersJson(checklist, fieldKeys);
-
-    const session = await getCurrentSession();
-    const profile = session ? await getProfileBySession(session) : null;
-    const conferente =
-      resolveConferenteNome(session, profile, checklist.conferente) || conferenteNome.trim();
-    if (!conferente) {
-      setSaving(false);
+    if (!selected) {
+      setMessageIsError(true);
+      setMessage("Selecione um extintor para inspecionar.");
       return;
     }
 
-    const payloadNovo = {
-      extintor_id: selected.id,
-      base_id: activeBaseId,
-      data_conferencia: new Date().toISOString(),
-      conferente,
-      status_lacre: checklist.alca_gatilho_status === "conforme",
-      status_manometro: checklist.medidor_pressao_status === "conforme",
-      local_correto: checklist.local_correto,
-      dados_corretos: checklist.dados_corretos,
-      sinalizacao_correta: checklist.sinalizacao_correta,
-      mangueira_status: checklist.mangueira_status,
-      bico_difusor_status: checklist.bico_difusor_status,
-      alca_gatilho_status: checklist.alca_gatilho_status,
-      medidor_pressao_status: checklist.medidor_pressao_status,
-      cilindro_status: checklist.cilindro_status,
-      answers_json: answersJson,
-      observacoes: observacoesFinal || null,
-    } as unknown as Record<string, unknown>;
+    setSaving(true);
+    setMessage("");
+    setMessageIsError(false);
 
-    let finalError: { message?: string } | null = null;
-    if (typeof navigator !== "undefined" && navigator.onLine) {
-      const { error } = await supabase.from("checklists").insert(payloadNovo);
-      finalError = error;
-    } else {
-      finalError = { message: "offline" };
-    }
+    try {
+      let baseId = activeBaseId;
+      if (!baseId) {
+        const { data: extRow } = await supabase
+          .from("extintores")
+          .select("base_id")
+          .eq("id", selected.id)
+          .maybeSingle();
+        baseId = extRow?.base_id ? String(extRow.base_id) : null;
+      }
 
-    if (
-      finalError?.message?.includes("schema cache") ||
-      finalError?.message?.includes("column")
-    ) {
-      const payloadCompacto = {
-        extintor_id: selected.id,
-        base_id: activeBaseId,
-        data_conferencia: payloadNovo.data_conferencia,
-        conferente,
-        answers_json: answersJson,
-        observacoes: observacoesFinal || null,
-      };
-      const retryCompacto = await supabase.from("checklists").insert(payloadCompacto);
-      finalError = retryCompacto.error;
-    }
+      if (!baseId) {
+        setMessageIsError(true);
+        setMessage("Base ativa não encontrada. Selecione uma base e tente novamente.");
+        return;
+      }
 
-    if (finalError?.message?.includes("answers_json")) {
-      const observacoesLegado = buildObservacoesLegadoApenasNaoConformidades(observacoesFinal, checklist);
+      const session = await getCurrentSession();
+      if (!session) {
+        setMessageIsError(true);
+        setMessage("Sessão expirada. Faça login novamente para salvar a inspeção.");
+        return;
+      }
 
-      const payloadLegado = {
-        extintor_id: selected.id,
-        base_id: activeBaseId,
-        data_conferencia: new Date().toISOString(),
-        conferente,
-        status_lacre: checklist.alca_gatilho_status === "conforme",
-        status_manometro: checklist.medidor_pressao_status === "conforme",
-        observacoes: observacoesLegado || null,
-      } as unknown as Record<string, unknown>;
+      const profile = await getProfileBySession(session).catch(() => null);
+      const conferente =
+        resolveConferenteNome(session, profile, checklist.conferente) || conferenteNome.trim();
+      if (!conferente) {
+        setMessageIsError(true);
+        setMessage("Informe o nome do conferente.");
+        return;
+      }
 
-      const retry = await supabase.from("checklists").insert(payloadLegado);
-      finalError = retry.error;
-    }
+      const fields =
+        activeExtintorFields.length > 0 ? activeExtintorFields : defaultExtintorFields();
+      const fieldLabels = Object.fromEntries(fields.map((field) => [field.key, field.label]));
 
-    setSaving(false);
-    if (finalError) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
-      if (offline && typeof window !== "undefined") {
+      if (offline) {
+        const payload = buildExtintorChecklistPayload({
+          extintorId: selected.id,
+          baseId,
+          conferente,
+          data: checklist,
+          fieldKeys: fields.map((field) => field.key),
+          fieldLabels,
+        });
         const raw = window.localStorage.getItem(PENDING_CHECKLISTS_KEY);
         const queue = raw ? (JSON.parse(raw) as Array<Record<string, unknown>>) : [];
-        queue.push(payloadNovo);
+        queue.push(payload);
         window.localStorage.setItem(PENDING_CHECKLISTS_KEY, JSON.stringify(queue));
-
-        setConferidosNoMesIds((prev) => new Set([...prev, selected.id]));
-        setUltimoChecklistMes((prev) => {
-          const next = new Map(prev);
-          next.set(selected.id, {
-            extintor_id: selected.id,
-            data_conferencia: String(payloadNovo.data_conferencia),
-            local_correto: checklist.local_correto,
-            dados_corretos: checklist.dados_corretos,
-            sinalizacao_correta: checklist.sinalizacao_correta,
-            mangueira_status: checklist.mangueira_status,
-            bico_difusor_status: checklist.bico_difusor_status,
-            alca_gatilho_status: checklist.alca_gatilho_status,
-            medidor_pressao_status: checklist.medidor_pressao_status,
-            cilindro_status: checklist.cilindro_status,
-          });
-          return next;
-        });
+        markExtintorConferidoLocal(selected.id, checklist, String(payload.data_conferencia));
         setMessage("Sem internet: conferência salva localmente e será sincronizada ao reconectar.");
         setSelected(null);
         setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
@@ -589,131 +570,195 @@ export default function MobileConferenciaPage() {
         return;
       }
 
-      setMessage(`Erro ao salvar: ${finalError.message}`);
-      return;
-    }
-
-    setConferidosNoMesIds((prev) => new Set([...prev, selected.id]));
-    setUltimoChecklistMes((prev) => {
-      const next = new Map(prev);
-      next.set(selected.id, {
-        extintor_id: selected.id,
-        data_conferencia: new Date().toISOString(),
-        local_correto: checklist.local_correto,
-        dados_corretos: checklist.dados_corretos,
-        sinalizacao_correta: checklist.sinalizacao_correta,
-        mangueira_status: checklist.mangueira_status,
-        bico_difusor_status: checklist.bico_difusor_status,
-        alca_gatilho_status: checklist.alca_gatilho_status,
-        medidor_pressao_status: checklist.medidor_pressao_status,
-        cilindro_status: checklist.cilindro_status,
+      const { ok, error, payload } = await insertExtintorChecklist(supabase, {
+        extintorId: selected.id,
+        baseId,
+        conferente,
+        data: checklist,
+        fieldKeys: fields.map((field) => field.key),
+        fieldLabels,
       });
-      return next;
-    });
-    setMessage(`✓ Inspeção registrada para ${selected.codigo}`);
-    setSelected(null);
-    setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
-    setTimeout(() => setMessage(""), 4000);
+
+      if (!ok) {
+        setMessageIsError(true);
+        setMessage(`Erro ao salvar: ${error?.message ?? "Falha desconhecida"}`);
+        return;
+      }
+
+      markExtintorConferidoLocal(selected.id, checklist, String(payload.data_conferencia));
+      setMessage(`✓ Inspeção registrada para ${selected.codigo}`);
+      setSelected(null);
+      setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
+      setTimeout(() => setMessage(""), 4000);
+    } catch (err) {
+      setMessageIsError(true);
+      setMessage(err instanceof Error ? err.message : "Erro inesperado ao salvar a inspeção.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submitHidranteChecklist(event: React.FormEvent) {
     event.preventDefault();
-    if (!selectedHidrante || !activeBaseId) return;
-    setSaving(true);
-
-    const hidFieldKeys = hidranteChecklistFields.map((field) => field.key);
-    const hidFieldLabels = Object.fromEntries(
-      hidranteChecklistFields.map((field) => [field.key, field.label]),
-    );
-    const observacoesFinal = mergeHidranteObservacoes(hidranteChecklist, hidFieldLabels);
-    const answersJson = buildHidranteAnswersJson(hidranteChecklist, hidFieldKeys);
-    const session = await getCurrentSession();
-    const profile = session ? await getProfileBySession(session) : null;
-    const conferente =
-      resolveConferenteNome(session, profile, hidranteChecklist.conferente) || conferenteNome.trim();
-    if (!conferente) {
-      setSaving(false);
+    if (!selectedHidrante) {
+      setMessageIsError(true);
+      setMessage("Selecione um hidrante para inspecionar.");
       return;
     }
 
-    const payload = {
-      hidrante_id: selectedHidrante.id,
-      base_id: activeBaseId,
-      data_conferencia: new Date().toISOString(),
-      conferente,
-      acesso_desobstruido: hidranteChecklist.acesso_desobstruido,
-      identificacao_sinalizacao: hidranteChecklist.identificacao_sinalizacao,
-      mangueira_esguicho: hidranteChecklist.mangueira_esguicho,
-      valvulas_registros: hidranteChecklist.valvulas_registros,
-      pressao_abastecimento: hidranteChecklist.pressao_abastecimento,
-      gabinete_caixa: hidranteChecklist.gabinete_caixa,
-      hidrante_integridade: hidranteChecklist.hidrante_integridade,
-      documentacao_acesso: hidranteChecklist.documentacao_acesso,
-      answers_json: answersJson,
-      observacoes: observacoesFinal || null,
-    } as Record<string, unknown>;
+    setSaving(true);
+    setMessage("");
+    setMessageIsError(false);
 
-    let finalError: { message?: string } | null = null;
-    if (typeof navigator !== "undefined" && navigator.onLine) {
-      const { error } = await supabase.from("checklists_hidrantes").insert(payload);
-      finalError = error;
-    } else {
-      finalError = { message: "offline" };
-    }
+    try {
+      let baseId = activeBaseId;
+      if (!baseId) {
+        const { data: hidRow } = await supabase
+          .from("hidrantes")
+          .select("base_id")
+          .eq("id", selectedHidrante.id)
+          .maybeSingle();
+        baseId = hidRow?.base_id ? String(hidRow.base_id) : null;
+      }
 
-    if (finalError?.message?.includes("schema cache") || finalError?.message?.includes("column")) {
-      const payloadCompacto = {
-        hidrante_id: selectedHidrante.id,
-        base_id: activeBaseId,
-        data_conferencia: payload.data_conferencia,
-        conferente,
-        answers_json: answersJson,
-        observacoes: observacoesFinal || null,
-      };
-      const retryCompacto = await supabase
-        .from("checklists_hidrantes")
-        .insert(payloadCompacto);
-      finalError = retryCompacto.error;
-    }
+      if (!baseId) {
+        setMessageIsError(true);
+        setMessage("Base ativa não encontrada. Selecione uma base e tente novamente.");
+        return;
+      }
 
-    if (finalError?.message?.includes("answers_json")) {
-      const payloadLegado = {
-        hidrante_id: selectedHidrante.id,
-        base_id: activeBaseId,
-        data_conferencia: payload.data_conferencia,
-        conferente,
-        observacoes: observacoesFinal || null,
-      };
-      const retryLegado = await supabase
-        .from("checklists_hidrantes")
-        .insert(payloadLegado);
-      finalError = retryLegado.error;
-    }
+      const session = await getCurrentSession();
+      if (!session) {
+        setMessageIsError(true);
+        setMessage("Sessão expirada. Faça login novamente para salvar a inspeção.");
+        return;
+      }
 
-    setSaving(false);
-    if (finalError) {
+      const profile = await getProfileBySession(session).catch(() => null);
+      const conferente =
+        resolveConferenteNome(session, profile, hidranteChecklist.conferente) ||
+        conferenteNome.trim();
+      if (!conferente) {
+        setMessageIsError(true);
+        setMessage("Informe o nome do conferente.");
+        return;
+      }
+
+      const fields =
+        activeHidranteFields.length > 0 ? activeHidranteFields : defaultHidranteFields();
+      const fieldLabels = Object.fromEntries(fields.map((field) => [field.key, field.label]));
+
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
-      if (offline && typeof window !== "undefined") {
+      if (offline) {
+        const payload = buildHidranteChecklistPayload({
+          hidranteId: selectedHidrante.id,
+          baseId,
+          conferente,
+          data: hidranteChecklist,
+          fieldKeys: fields.map((field) => field.key),
+          fieldLabels,
+        });
         const raw = window.localStorage.getItem(PENDING_HIDRANTE_CHECKLISTS_KEY);
         const queue = raw ? (JSON.parse(raw) as Array<Record<string, unknown>>) : [];
         queue.push(payload);
         window.localStorage.setItem(PENDING_HIDRANTE_CHECKLISTS_KEY, JSON.stringify(queue));
-        setConferidosHidranteMesIds((prev) => new Set([...prev, selectedHidrante.id]));
+        markHidranteConferidoLocal(
+          selectedHidrante.id,
+          hidranteChecklist,
+          String(payload.data_conferencia),
+        );
         setMessage("Sem internet: inspeção do hidrante salva localmente.");
         setSelectedHidrante(null);
-        setHidranteChecklist({ ...HIDRANTE_CHECKLIST_INITIAL, conferente: conferenteNome });
+        setHidranteChecklist({
+          ...HIDRANTE_CHECKLIST_INITIAL,
+          conferente: conferenteNome,
+          detalhesNaoConformidade: {},
+        });
         setTimeout(() => setMessage(""), 4500);
         return;
       }
-      setMessage(`Erro ao salvar: ${finalError.message}`);
-      return;
-    }
 
-    setConferidosHidranteMesIds((prev) => new Set([...prev, selectedHidrante.id]));
-    setMessage(`✓ Inspeção registrada para ${selectedHidrante.codigo}`);
-    setSelectedHidrante(null);
-    setHidranteChecklist({ ...HIDRANTE_CHECKLIST_INITIAL, conferente: conferenteNome });
-    setTimeout(() => setMessage(""), 4000);
+      const { ok, error, payload } = await insertHidranteChecklist(supabase, {
+        hidranteId: selectedHidrante.id,
+        baseId,
+        conferente,
+        data: hidranteChecklist,
+        fieldKeys: fields.map((field) => field.key),
+        fieldLabels,
+      });
+
+      if (!ok) {
+        setMessageIsError(true);
+        setMessage(`Erro ao salvar: ${error?.message ?? "Falha desconhecida"}`);
+        return;
+      }
+
+      markHidranteConferidoLocal(
+        selectedHidrante.id,
+        hidranteChecklist,
+        String(payload.data_conferencia),
+      );
+      setMessage(`✓ Inspeção registrada para ${selectedHidrante.codigo}`);
+      setSelectedHidrante(null);
+      setHidranteChecklist({
+        ...HIDRANTE_CHECKLIST_INITIAL,
+        conferente: conferenteNome,
+        detalhesNaoConformidade: {},
+      });
+      setTimeout(() => setMessage(""), 4000);
+    } catch (err) {
+      setMessageIsError(true);
+      setMessage(err instanceof Error ? err.message : "Erro inesperado ao salvar a inspeção.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  function markExtintorConferidoLocal(
+    extintorId: string,
+    data: ChecklistData,
+    dataConferencia: string,
+  ) {
+    setConferidosNoMesIds((prev) => new Set([...prev, extintorId]));
+    setUltimoChecklistMes((prev) => {
+      const next = new Map(prev);
+      next.set(extintorId, {
+        extintor_id: extintorId,
+        data_conferencia: dataConferencia,
+        local_correto: getChecklistAnswer(data, "local_correto"),
+        dados_corretos: getChecklistAnswer(data, "dados_corretos"),
+        sinalizacao_correta: getChecklistAnswer(data, "sinalizacao_correta"),
+        mangueira_status: getChecklistAnswer(data, "mangueira_status"),
+        bico_difusor_status: getChecklistAnswer(data, "bico_difusor_status"),
+        alca_gatilho_status: getChecklistAnswer(data, "alca_gatilho_status"),
+        medidor_pressao_status: getChecklistAnswer(data, "medidor_pressao_status"),
+        cilindro_status: getChecklistAnswer(data, "cilindro_status"),
+      });
+      return next;
+    });
+  }
+
+  function markHidranteConferidoLocal(
+    hidranteId: string,
+    data: HidranteChecklistData,
+    dataConferencia: string,
+  ) {
+    setConferidosHidranteMesIds((prev) => new Set([...prev, hidranteId]));
+    setUltimoChecklistHidranteMes((prev) => {
+      const next = new Map(prev);
+      next.set(hidranteId, {
+        hidrante_id: hidranteId,
+        data_conferencia: dataConferencia,
+        acesso_desobstruido: getHidranteAnswer(data, "acesso_desobstruido"),
+        identificacao_sinalizacao: getHidranteAnswer(data, "identificacao_sinalizacao"),
+        mangueira_esguicho: getHidranteAnswer(data, "mangueira_esguicho"),
+        valvulas_registros: getHidranteAnswer(data, "valvulas_registros"),
+        pressao_abastecimento: getHidranteAnswer(data, "pressao_abastecimento"),
+        gabinete_caixa: getHidranteAnswer(data, "gabinete_caixa"),
+        hidrante_integridade: getHidranteAnswer(data, "hidrante_integridade"),
+        documentacao_acesso: getHidranteAnswer(data, "documentacao_acesso"),
+      });
+      return next;
+    });
   }
 
   function handleTipoChange(tipo: TipoEquipamento) {
@@ -783,7 +828,13 @@ export default function MobileConferenciaPage() {
       </div>
 
       {message && (
-        <div className="status-success-soft flex items-center gap-2 rounded-xl border border-green-100 px-4 py-3 text-sm font-semibold">
+        <div
+          className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${
+            messageIsError
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "status-success-soft border-green-100"
+          }`}
+        >
           {message}
         </div>
       )}
@@ -826,9 +877,19 @@ export default function MobileConferenciaPage() {
                 temNc={temNc}
                 icon={<EquipmentStatusIcon kind="extintor" variant={variant} />}
                 onClick={() => {
+                  setActiveExtintorFields(
+                    extintorChecklistFields.length > 0
+                      ? extintorChecklistFields
+                      : defaultExtintorFields(),
+                  );
                   setSelected(item);
-                  setChecklist({ ...CHECKLIST_INITIAL, conferente: conferenteNome, detalhesNaoConformidade: {} });
+                  setChecklist({
+                    ...CHECKLIST_INITIAL,
+                    conferente: conferenteNome,
+                    detalhesNaoConformidade: {},
+                  });
                   setMessage("");
+                  setMessageIsError(false);
                 }}
               />
             );
@@ -860,6 +921,11 @@ export default function MobileConferenciaPage() {
                 temNc={temNc}
                 icon={<EquipmentStatusIcon kind="hidrante" variant={variant} />}
                 onClick={() => {
+                  setActiveHidranteFields(
+                    hidranteChecklistFields.length > 0
+                      ? hidranteChecklistFields
+                      : defaultHidranteFields(),
+                  );
                   setSelectedHidrante(item);
                   setHidranteChecklist({
                     ...HIDRANTE_CHECKLIST_INITIAL,
@@ -867,6 +933,7 @@ export default function MobileConferenciaPage() {
                     detalhesNaoConformidade: {},
                   });
                   setMessage("");
+                  setMessageIsError(false);
                 }}
               />
             );
@@ -890,7 +957,7 @@ export default function MobileConferenciaPage() {
               onSubmit={submitChecklist}
               onCancel={() => setSelected(null)}
               isSaving={saving}
-              fields={extintorChecklistFields}
+              fields={activeExtintorFields}
               cabecalho={{
                 codigo: selected.codigo,
                 pavimento: selected.pavimento,
@@ -924,7 +991,7 @@ export default function MobileConferenciaPage() {
               onSubmit={submitHidranteChecklist}
               onCancel={() => setSelectedHidrante(null)}
               isSaving={saving}
-              fields={hidranteChecklistFields}
+              fields={activeHidranteFields}
               hidrante={selectedHidrante}
             />
           </div>
