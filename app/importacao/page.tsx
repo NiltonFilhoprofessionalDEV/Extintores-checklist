@@ -24,6 +24,13 @@ function isDuplicateError(message: string): boolean {
   return /duplicate|unique|already exists|violates unique/i.test(message);
 }
 
+function duplicateHintForMode(mode: ImportMode): string {
+  if (mode === "cadastro") {
+    return "\n\nCódigos já existem na base selecionada. Confira o seletor «Base ativa» no menu ou use «Atualizar em lote».";
+  }
+  return "\n\nConflito de código na base selecionada. Confira se a «Base ativa» está correta e se a planilha não repete o mesmo código em linhas diferentes.";
+}
+
 function isSchemaError(message: string): boolean {
   return (
     /column of ['"]hidrantes['"]/i.test(message) ||
@@ -151,10 +158,7 @@ export default function ImportacaoPage() {
 
       if (result.error) {
         setStatus("error");
-        const hint =
-          modo === "cadastro" && isDuplicateError(result.error)
-            ? "\n\nCódigos já existem no sistema. Use o modo «Atualizar em lote» para alterar registros existentes."
-            : "";
+        const hint = isDuplicateError(result.error) ? duplicateHintForMode(modo) : "";
         setMessage(`Erro ao importar extintores: ${result.error}${hint}`);
         return;
       }
@@ -183,14 +187,11 @@ export default function ImportacaoPage() {
     if (result.error) {
       setStatus("error");
       const base = `Erro ao importar hidrantes: ${result.error}`;
-      const duplicateHint =
-        modo === "cadastro" && isDuplicateError(result.error)
-          ? "\n\nCódigos já existem no sistema. Use o modo «Atualizar em lote» para alterar registros existentes."
-          : "";
+      const duplicateHintMsg = isDuplicateError(result.error) ? duplicateHintForMode(modo) : "";
       const schemaHint = isSchemaError(result.error)
         ? "\n\nO banco ainda não tem todas as colunas da planilha. No Supabase → SQL Editor, execute o bloco com comentário \"Colunas da planilha RF01 hidrantes\" no arquivo docs/migration_mapa_recursos.sql (vários ALTER TABLE … ADD COLUMN IF NOT EXISTS)."
         : "";
-      setMessage(`${base}${duplicateHint}${schemaHint}`);
+      setMessage(`${base}${duplicateHintMsg}${schemaHint}`);
       return;
     }
 
@@ -216,6 +217,11 @@ export default function ImportacaoPage() {
             <strong>Hidrantes:</strong> planilha própria com os cabeçalhos padronizados listados abaixo (.xlsx ou .csv).{" "}
             Use <strong>Atualizar em lote</strong> para reimportar a planilha com dados alterados — o código do equipamento é a chave.
           </p>
+          {activeBaseCtx?.activeBase && (
+            <p className="mt-3 text-sm font-semibold text-[var(--neon)]">
+              Base ativa para importação: {activeBaseCtx.activeBase.nome}
+            </p>
+          )}
           </div>
         </header>
 
