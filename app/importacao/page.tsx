@@ -309,23 +309,37 @@ export default function ImportacaoPage() {
         <section className="section-card p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
             {destino === "extintores" && (
-              <div className="flex min-w-[200px] flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:max-w-[240px]">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
-                    Modelo
+              <div className="relative flex min-w-[220px] flex-col justify-between overflow-hidden rounded-2xl border-2 border-[var(--neon)] bg-gradient-to-br from-[var(--neon)]/15 via-white to-[var(--orange-soft)] p-4 shadow-[0_0_0_4px_rgb(255_140_0_/0.12)] sm:max-w-[260px]">
+                <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[var(--neon)]/20" />
+                <div className="relative">
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--ink)] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--neon)]">
+                    Passo 1 · Modelo
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-800">Planilha padrão</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Cabeçalhos oficiais prontos para preencher.
+                  <p className="mt-2 text-base font-extrabold text-[var(--ink)]">Planilha padrão</p>
+                  <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600">
+                    Baixe o modelo oficial com os cabeçalhos prontos para preencher.
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="btn-secondary mt-3 w-full text-sm"
+                  className="btn-primary relative mt-4 inline-flex w-full items-center justify-center gap-2 text-sm"
                   onClick={() => downloadExtintorImportTemplate()}
                   disabled={disabled}
                 >
-                  Download
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14" />
+                  </svg>
+                  Download do modelo
                 </button>
               </div>
             )}
