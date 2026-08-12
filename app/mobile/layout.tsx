@@ -127,29 +127,27 @@ function MobileNav({ isMapaRoute }: { isMapaRoute: boolean }) {
         </div>
       </header>
 
-      {!isMapaRoute && (
-        <nav className="mobile-dock" aria-label="Navegação principal">
-          <div className="flex items-center justify-around px-2 py-2">
-            {NAV_LINKS.map(({ href, label, icon }) => {
-              const active = isActive(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`relative flex min-w-[4.5rem] flex-col items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
-                    active
-                      ? "bg-[var(--neon)] text-[var(--neon-ink)] shadow-md shadow-black/20"
-                      : "text-slate-300 hover:text-white"
-                  }`}
-                >
-                  {icon(active)}
-                  {label}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      <nav className="mobile-dock" aria-label="Navegação principal">
+        <div className="flex items-center justify-around px-2 py-2">
+          {NAV_LINKS.map(({ href, label, icon }) => {
+            const active = isActive(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`relative flex min-w-[4.5rem] flex-col items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                  active
+                    ? "bg-[var(--neon)] text-[var(--neon-ink)] shadow-md shadow-black/20"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                {icon(active)}
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </>
   );
 }
@@ -172,7 +170,16 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
                 ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
                 : "mx-auto w-full max-w-2xl overflow-y-auto px-3 py-4 pb-28"
             }
-            style={isMapaRoute ? { flex: "1 1 0", minHeight: 0 } : { flex: "1 1 auto" }}
+            style={
+              isMapaRoute
+                ? {
+                    flex: "1 1 0",
+                    minHeight: 0,
+                    /* Reserva espaço para a dock fixa não cobrir controles/marcadores */
+                    paddingBottom: "var(--mobile-dock-clearance)",
+                  }
+                : { flex: "1 1 auto" }
+            }
           >
             {children}
           </main>
