@@ -13,7 +13,16 @@ const STAT_ICON_PROPS = {
 export function DashboardStatIcon({
   name,
 }: {
-  name: "total" | "vencido" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semMapa";
+  name:
+    | "total"
+    | "vencido"
+    | "alerta30"
+    | "alerta60"
+    | "alerta90"
+    | "alerta120"
+    | "alerta180"
+    | "alerta360"
+    | "semMapa";
 }) {
   switch (name) {
     case "total":
@@ -82,6 +91,31 @@ export function DashboardStatIcon({
           <path d="M12 18h.01" />
         </svg>
       );
+    case "alerta180":
+      return (
+        <svg {...STAT_ICON_PROPS}>
+          <path d="M8 2v4" />
+          <path d="M16 2v4" />
+          <rect width="18" height="18" x="3" y="4" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M8 14h.01" />
+          <path d="M12 14h.01" />
+          <path d="M16 14h.01" />
+        </svg>
+      );
+    case "alerta360":
+      return (
+        <svg {...STAT_ICON_PROPS}>
+          <path d="M8 2v4" />
+          <path d="M16 2v4" />
+          <rect width="18" height="18" x="3" y="4" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M12 14h.01" />
+          <path d="M8 18h.01" />
+          <path d="M12 18h.01" />
+          <path d="M16 18h.01" />
+        </svg>
+      );
     case "semMapa":
       return (
         <svg {...STAT_ICON_PROPS}>
@@ -98,12 +132,14 @@ export function DashboardStatIcon({
 
 export function DashboardStatCard({
   label,
+  subtitle,
   value,
   color,
   icon,
   onClick,
 }: {
   label: string;
+  subtitle?: string;
   value: number;
   color: string;
   icon: React.ReactNode;
@@ -120,9 +156,16 @@ export function DashboardStatCard({
       <div className="pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full" style={{ background: color }} />
       <div className="relative flex w-full flex-col">
         <div className="flex items-start justify-between gap-3">
-          <p className="max-w-[12rem] text-xs font-bold leading-relaxed text-[var(--muted-foreground)]">
-            {label}
-          </p>
+          <div className="min-w-0">
+            <p className="max-w-[13rem] text-xs font-bold leading-relaxed text-[var(--muted-foreground)]">
+              {label}
+            </p>
+            {subtitle ? (
+              <p className="mt-1 max-w-[14rem] text-[10px] font-semibold leading-snug text-slate-500">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
             style={{ background: `${color}14`, color }}

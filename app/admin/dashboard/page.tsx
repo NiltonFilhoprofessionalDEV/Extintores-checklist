@@ -14,12 +14,20 @@ import { baseHasEmpresaTabs } from "@/lib/auth/bases";
 import { exportAlertasVencimento, type AlertaVencimentoRowHighlight, type ExtintorRow } from "@/lib/export/excel";
 import { exportAlertasExtintoresPdf } from "@/lib/export/pdf";
 import { extintorTemManutencaoVencida } from "@/lib/export/conferencia-historico";
-import { checklistTemNaoConformidade, isDataVencida } from "@/lib/checklist/types";
+import { checklistTemNaoConformidade } from "@/lib/checklist/types";
 import { hidranteChecklistTemNaoConformidade } from "@/lib/checklist/hidrante-types";
 import { getLocalCalendarMonthUtcIsoRange } from "@/lib/date/local-month-range";
-import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
+import { formatDateOnlyPt } from "@/lib/date/date-only";
 import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 import { EMPRESA_TABS, filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
+import {
+  dataNivel2NaFaixa,
+  diasRestantesNivel2,
+  faixaDateRangeLabel,
+  nivel3VenceNoMesmoAnoQueNivel2,
+  startOfTodayLocal,
+  type ManutencaoAlertaKey,
+} from "@/lib/dashboard/manutencao-nivel2";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
 import ExportActions from "@/src/components/ExportActions";
@@ -32,42 +40,10 @@ type Stats = {
   alerta60: number;
   alerta90: number;
   alerta120: number;
+  alerta180: number;
+  alerta360: number;
   semPosicao: number;
 };
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-}
-
-function diffDays(dateStr: string): number {
-  const target = parseCalendarDateAsLocal(dateStr);
-  if (!target) return 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
-  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-/** Returns the earlier of the two maintenance dates (non-null) */
-function earliestDate(e: ExtintorRow): string | null {
-  const dates = [e.manutencao_2_nivel, e.manutencao_3_nivel].filter(Boolean) as string[];
-  if (dates.length === 0) return null;
-  return dates.sort()[0];
-}
-
-function isManutencaoNivel2Vencida(e: ExtintorRow): boolean {
-  return isDataVencida(e.manutencao_2_nivel);
-}
-
-function diasRestantes(e: ExtintorRow, referencia: "earliest" | "nivel2"): number | null {
-  if (referencia === "nivel2") {
-    return e.manutencao_2_nivel ? diffDays(e.manutencao_2_nivel) : null;
-  }
-  const d = earliestDate(e);
-  return d ? diffDays(d) : null;
-}
 
 function buildUltimoPorExtintor(rows: ChecklistExtintorMesRow[]): Map<string, ChecklistExtintorMesRow> {
   const sorted = [...rows].sort(
@@ -102,7 +78,7 @@ function formatDatePt(d: string | null): string {
   return formatDateOnlyPt(d);
 }
 
-type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semPosicao";
+type ManutencaoModalKey = ManutencaoAlertaKey | "semPosicao";
 
 const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
   vencidos: "vencido",
@@ -110,6 +86,8 @@ const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHig
   alerta60: "alerta",
   alerta90: "alerta",
   alerta120: "alerta",
+  alerta180: "alerta",
+  alerta360: "alerta",
   semPosicao: "none",
 };
 
@@ -138,33 +116,45 @@ const MANUTENCAO_MODAL_META: Record<
 > = {
   vencidos: {
     title: "Manutenção de 2º nível vencida",
-    subtitle: "Próximo teste nível 2 com data já ultrapassada",
+    subtitle: "Vencimento anual (2º nível) com data já ultrapassada",
     color: "#dc2626",
     exportLabel: "Nivel_2_vencidos",
   },
   alerta30: {
     title: "Extintores vencendo em 30 dias",
-    subtitle: "Agendar manutenção urgente",
+    subtitle: "Agendar manutenção urgente (2º nível)",
     color: "#f59e0b",
     exportLabel: "Vencendo_30_dias",
   },
   alerta60: {
     title: "Extintores vencendo em 60 dias",
-    subtitle: "Planejar manutenção preventiva",
+    subtitle: "Planejar manutenção preventiva (2º nível)",
     color: "#eab308",
     exportLabel: "Vencendo_60_dias",
   },
   alerta90: {
     title: "Extintores vencendo em 90 dias",
-    subtitle: "Antecipar agendamento de manutenção",
+    subtitle: "Antecipar agendamento de manutenção (2º nível)",
     color: "#84cc16",
     exportLabel: "Vencendo_90_dias",
   },
   alerta120: {
     title: "Extintores vencendo em 120 dias",
-    subtitle: "Incluir no planejamento trimestral",
+    subtitle: "Incluir no planejamento trimestral (2º nível)",
     color: "#22c55e",
     exportLabel: "Vencendo_120_dias",
+  },
+  alerta180: {
+    title: "Extintores vencendo em 180 dias",
+    subtitle: "Planejamento semestral (2º nível)",
+    color: "#14b8a6",
+    exportLabel: "Vencendo_180_dias",
+  },
+  alerta360: {
+    title: "Extintores vencendo em 360 dias",
+    subtitle: "Planejamento anual (2º nível)",
+    color: "#0ea5e9",
+    exportLabel: "Vencendo_360_dias",
   },
   semPosicao: {
     title: "Extintores sem posição no mapa",
@@ -174,17 +164,31 @@ const MANUTENCAO_MODAL_META: Record<
   },
 };
 
+function Nivel3AvisoBadge({ extintor }: { extintor: ExtintorRow }) {
+  if (!nivel3VenceNoMesmoAnoQueNivel2(extintor.manutencao_2_nivel, extintor.manutencao_3_nivel)) {
+    return null;
+  }
+  return (
+    <span className="mt-1 inline-flex max-w-[11rem] rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold leading-snug text-violet-800">
+      3º nível também vence neste ano
+    </span>
+  );
+}
+
 function ExtintorManutencaoModal({
   modalKey,
   items,
+  dateRangeLabel,
   onClose,
 }: {
   modalKey: ManutencaoModalKey;
   items: ExtintorRow[];
+  dateRangeLabel?: string;
   onClose: () => void;
 }) {
   const meta = MANUTENCAO_MODAL_META[modalKey];
   const showManutencaoCols = modalKey !== "semPosicao";
+  const today = startOfTodayLocal();
 
   return (
     <div
@@ -205,6 +209,11 @@ function ExtintorManutencaoModal({
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/60">Detalhamento</p>
             <h2 className="mt-1 text-xl font-black tracking-tight">{meta.title}</h2>
             <p className="text-sm text-white/75">{meta.subtitle}</p>
+            {dateRangeLabel ? (
+              <p className="mt-1 text-xs font-semibold text-white/90">
+                Período contabilizado: {dateRangeLabel}
+              </p>
+            ) : null}
             <p className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold text-white">
               {items.length} extintor{items.length !== 1 ? "es" : ""}
             </p>
@@ -255,7 +264,9 @@ function ExtintorManutencaoModal({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((e) => {
-                  const days = diasRestantes(e, modalKey === "vencidos" ? "nivel2" : "earliest");
+                  const days = showManutencaoCols
+                    ? diasRestantesNivel2(e.manutencao_2_nivel, today)
+                    : null;
                   return (
                     <tr key={e.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-semibold text-slate-900">{e.codigo}</td>
@@ -271,7 +282,10 @@ function ExtintorManutencaoModal({
                       {showManutencaoCols ? (
                         <>
                           <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_2_nivel)}</td>
-                          <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_3_nivel)}</td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <p>{formatDatePt(e.manutencao_3_nivel)}</p>
+                            <Nivel3AvisoBadge extintor={e} />
+                          </td>
                           <td className="px-4 py-3">
                             {days !== null ? (
                               <span
@@ -327,7 +341,6 @@ function AlertTable({
   items,
   exportLabel,
   exportHighlight,
-  diasReferencia = "earliest",
 }: {
   title: string;
   subtitle: string;
@@ -335,9 +348,9 @@ function AlertTable({
   items: ExtintorRow[];
   exportLabel: string;
   exportHighlight: AlertaVencimentoRowHighlight;
-  diasReferencia?: "earliest" | "nivel2";
 }) {
   if (items.length === 0) return null;
+  const today = startOfTodayLocal();
 
   return (
     <div className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
@@ -369,7 +382,7 @@ function AlertTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((e) => {
-              const days = diasRestantes(e, diasReferencia);
+              const days = diasRestantesNivel2(e.manutencao_2_nivel, today);
               return (
                 <tr key={e.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-semibold text-slate-900">{e.codigo}</td>
@@ -379,7 +392,10 @@ function AlertTable({
                   </td>
                   <td className="px-4 py-3 text-slate-600">{e.tipo} {e.tamanho}</td>
                   <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_2_nivel)}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_3_nivel)}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <p>{formatDatePt(e.manutencao_3_nivel)}</p>
+                    <Nivel3AvisoBadge extintor={e} />
+                  </td>
                   <td className="px-4 py-3">
                     {days !== null ? (
                       <span
@@ -468,11 +484,20 @@ export default function AdminDashboardPage() {
     return () => window.clearTimeout(timer);
   }, [loadDashboard, ready, activeBaseId]);
 
-  const today = useMemo(() => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }, []);
+  const today = useMemo(() => startOfTodayLocal(), []);
+
+  const faixaLabels = useMemo(
+    () => ({
+      vencidos: faixaDateRangeLabel("vencidos", today),
+      alerta30: faixaDateRangeLabel("alerta30", today),
+      alerta60: faixaDateRangeLabel("alerta60", today),
+      alerta90: faixaDateRangeLabel("alerta90", today),
+      alerta120: faixaDateRangeLabel("alerta120", today),
+      alerta180: faixaDateRangeLabel("alerta180", today),
+      alerta360: faixaDateRangeLabel("alerta360", today),
+    }),
+    [today],
+  );
 
   const effectiveEmpresaTab: EmpresaTab = showEmpresaTabs ? empresaTab : "todos";
 
@@ -487,90 +512,75 @@ export default function AdminDashboardPage() {
   );
 
   const stats = useMemo<Stats>(() => {
-    const in30 = addDays(today, 30);
-    const in60 = addDays(today, 60);
-    const in90 = addDays(today, 90);
-    const in120 = addDays(today, 120);
-    let vencidos = 0, alerta30 = 0, alerta60 = 0, alerta90 = 0, alerta120 = 0, semPosicao = 0;
+    let vencidos = 0;
+    let alerta30 = 0;
+    let alerta60 = 0;
+    let alerta90 = 0;
+    let alerta120 = 0;
+    let alerta180 = 0;
+    let alerta360 = 0;
+    let semPosicao = 0;
 
     for (const e of extintoresVisiveis) {
       if (e.coord_x == null) semPosicao++;
-      if (isManutencaoNivel2Vencida(e)) {
+      if (dataNivel2NaFaixa(e.manutencao_2_nivel, "vencidos", today)) {
         vencidos++;
         continue;
       }
-      const d = earliestDate(e);
-      if (!d) continue;
-      const dt = parseCalendarDateAsLocal(d);
-      if (!dt) continue;
-      dt.setHours(0, 0, 0, 0);
-      if (dt <= in30) alerta30++;
-      else if (dt <= in60) alerta60++;
-      else if (dt <= in90) alerta90++;
-      else if (dt <= in120) alerta120++;
+      if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta30", today)) alerta30++;
+      else if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta60", today)) alerta60++;
+      else if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta90", today)) alerta90++;
+      else if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta120", today)) alerta120++;
+      else if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta180", today)) alerta180++;
+      else if (dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta360", today)) alerta360++;
     }
-    return { total: extintoresVisiveis.length, vencidos, alerta30, alerta60, alerta90, alerta120, semPosicao };
+    return {
+      total: extintoresVisiveis.length,
+      vencidos,
+      alerta30,
+      alerta60,
+      alerta90,
+      alerta120,
+      alerta180,
+      alerta360,
+      semPosicao,
+    };
   }, [extintoresVisiveis, today]);
 
   const vencidosList = useMemo(
-    () => extintoresVisiveis.filter((e) => isManutencaoNivel2Vencida(e)),
-    [extintoresVisiveis],
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "vencidos", today)),
+    [extintoresVisiveis, today],
   );
 
-  const alerta30List = useMemo(() => {
-    const in30 = addDays(today, 30);
-    return extintoresVisiveis.filter((e) => {
-      if (isManutencaoNivel2Vencida(e)) return false;
-      const d = earliestDate(e);
-      if (!d) return false;
-      const dt = parseCalendarDateAsLocal(d);
-      if (!dt) return false;
-      dt.setHours(0, 0, 0, 0);
-      return dt >= today && dt <= in30;
-    });
-  }, [extintoresVisiveis, today]);
+  const alerta30List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta30", today)),
+    [extintoresVisiveis, today],
+  );
 
-  const alerta60List = useMemo(() => {
-    const in30 = addDays(today, 30);
-    const in60 = addDays(today, 60);
-    return extintoresVisiveis.filter((e) => {
-      if (isManutencaoNivel2Vencida(e)) return false;
-      const d = earliestDate(e);
-      if (!d) return false;
-      const dt = parseCalendarDateAsLocal(d);
-      if (!dt) return false;
-      dt.setHours(0, 0, 0, 0);
-      return dt > in30 && dt <= in60;
-    });
-  }, [extintoresVisiveis, today]);
+  const alerta60List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta60", today)),
+    [extintoresVisiveis, today],
+  );
 
-  const alerta90List = useMemo(() => {
-    const in60 = addDays(today, 60);
-    const in90 = addDays(today, 90);
-    return extintoresVisiveis.filter((e) => {
-      if (isManutencaoNivel2Vencida(e)) return false;
-      const d = earliestDate(e);
-      if (!d) return false;
-      const dt = parseCalendarDateAsLocal(d);
-      if (!dt) return false;
-      dt.setHours(0, 0, 0, 0);
-      return dt > in60 && dt <= in90;
-    });
-  }, [extintoresVisiveis, today]);
+  const alerta90List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta90", today)),
+    [extintoresVisiveis, today],
+  );
 
-  const alerta120List = useMemo(() => {
-    const in90 = addDays(today, 90);
-    const in120 = addDays(today, 120);
-    return extintoresVisiveis.filter((e) => {
-      if (isManutencaoNivel2Vencida(e)) return false;
-      const d = earliestDate(e);
-      if (!d) return false;
-      const dt = parseCalendarDateAsLocal(d);
-      if (!dt) return false;
-      dt.setHours(0, 0, 0, 0);
-      return dt > in90 && dt <= in120;
-    });
-  }, [extintoresVisiveis, today]);
+  const alerta120List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta120", today)),
+    [extintoresVisiveis, today],
+  );
+
+  const alerta180List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta180", today)),
+    [extintoresVisiveis, today],
+  );
+
+  const alerta360List = useMemo(
+    () => extintoresVisiveis.filter((e) => dataNivel2NaFaixa(e.manutencao_2_nivel, "alerta360", today)),
+    [extintoresVisiveis, today],
+  );
 
   const semPosicaoList = useMemo(
     () =>
@@ -589,8 +599,25 @@ export default function AdminDashboardPage() {
     if (manutencaoModal === "alerta60") return sortByCodigo(alerta60List);
     if (manutencaoModal === "alerta90") return sortByCodigo(alerta90List);
     if (manutencaoModal === "alerta120") return sortByCodigo(alerta120List);
+    if (manutencaoModal === "alerta180") return sortByCodigo(alerta180List);
+    if (manutencaoModal === "alerta360") return sortByCodigo(alerta360List);
     return semPosicaoList;
-  }, [manutencaoModal, vencidosList, alerta30List, alerta60List, alerta90List, alerta120List, semPosicaoList]);
+  }, [
+    manutencaoModal,
+    vencidosList,
+    alerta30List,
+    alerta60List,
+    alerta90List,
+    alerta120List,
+    alerta180List,
+    alerta360List,
+    semPosicaoList,
+  ]);
+
+  const manutencaoModalRange =
+    manutencaoModal && manutencaoModal !== "semPosicao"
+      ? faixaLabels[manutencaoModal]
+      : undefined;
 
   const ultimoChecklistExtintor = useMemo(
     () => buildUltimoPorExtintor(checklistsExtMes),
@@ -710,7 +737,7 @@ export default function AdminDashboardPage() {
           <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Vencimento de manutenção</h2>
         </div>
         <p className="text-xs font-medium text-slate-500">
-          Manutenção de 2º e 3º nível conforme datas cadastradas no extintor.
+          Cards baseados no vencimento anual de 2º nível. Se o 3º nível vence no mesmo ano, aparece aviso na lista.
         </p>
       </div>
 
@@ -723,6 +750,7 @@ export default function AdminDashboardPage() {
         />
         <DashboardStatCard
           label="Manutenção de 2º nível vencida"
+          subtitle={faixaLabels.vencidos}
           value={stats.vencidos}
           color="#dc2626"
           onClick={() => setManutencaoModal("vencidos")}
@@ -730,6 +758,7 @@ export default function AdminDashboardPage() {
         />
         <DashboardStatCard
           label="Vencendo em 30 dias"
+          subtitle={faixaLabels.alerta30}
           value={stats.alerta30}
           color="#f59e0b"
           onClick={() => setManutencaoModal("alerta30")}
@@ -737,6 +766,7 @@ export default function AdminDashboardPage() {
         />
         <DashboardStatCard
           label="Vencendo em 60 dias"
+          subtitle={faixaLabels.alerta60}
           value={stats.alerta60}
           color="#eab308"
           onClick={() => setManutencaoModal("alerta60")}
@@ -744,6 +774,7 @@ export default function AdminDashboardPage() {
         />
         <DashboardStatCard
           label="Vencendo em 90 dias"
+          subtitle={faixaLabels.alerta90}
           value={stats.alerta90}
           color="#84cc16"
           onClick={() => setManutencaoModal("alerta90")}
@@ -751,10 +782,27 @@ export default function AdminDashboardPage() {
         />
         <DashboardStatCard
           label="Vencendo em 120 dias"
+          subtitle={faixaLabels.alerta120}
           value={stats.alerta120}
           color="#22c55e"
           onClick={() => setManutencaoModal("alerta120")}
           icon={<DashboardStatIcon name="alerta120" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 180 dias"
+          subtitle={faixaLabels.alerta180}
+          value={stats.alerta180}
+          color="#14b8a6"
+          onClick={() => setManutencaoModal("alerta180")}
+          icon={<DashboardStatIcon name="alerta180" />}
+        />
+        <DashboardStatCard
+          label="Vencendo em 360 dias"
+          subtitle={faixaLabels.alerta360}
+          value={stats.alerta360}
+          color="#0ea5e9"
+          onClick={() => setManutencaoModal("alerta360")}
+          icon={<DashboardStatIcon name="alerta360" />}
         />
         <DashboardStatCard
           label="Sem posição no mapa"
@@ -769,6 +817,7 @@ export default function AdminDashboardPage() {
         <ExtintorManutencaoModal
           modalKey={manutencaoModal}
           items={manutencaoModalItems}
+          dateRangeLabel={manutencaoModalRange}
           onClose={() => setManutencaoModal(null)}
         />
       )}
@@ -883,7 +932,9 @@ export default function AdminDashboardPage() {
           <p className="page-eyebrow">Planejamento</p>
           <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Manutenção programada</h2>
         </div>
-        <p className="text-xs font-medium text-slate-500">Extintores por vencimento de manutenção (2º e 3º nível).</p>
+        <p className="text-xs font-medium text-slate-500">
+          Extintores por vencimento da manutenção de 2º nível (anual).
+        </p>
       </div>
 
       {/* Summary bar */}
@@ -892,7 +943,7 @@ export default function AdminDashboardPage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-black text-[var(--ink)]">Distribuição de manutenção</p>
-              <p className="text-xs font-medium text-slate-500">Percentual dos extintores por faixa de vencimento.</p>
+              <p className="text-xs font-medium text-slate-500">Percentual dos extintores por faixa de vencimento (2º nível).</p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
               {stats.total} extintor{stats.total !== 1 ? "es" : ""}
@@ -934,6 +985,20 @@ export default function AdminDashboardPage() {
                 style={{ width: `${(stats.alerta120 / stats.total) * 100}%` }}
               />
             )}
+            {stats.alerta180 > 0 && (
+              <div
+                title={`Alerta 180d: ${stats.alerta180}`}
+                className="h-full bg-teal-400"
+                style={{ width: `${(stats.alerta180 / stats.total) * 100}%` }}
+              />
+            )}
+            {stats.alerta360 > 0 && (
+              <div
+                title={`Alerta 360d: ${stats.alerta360}`}
+                className="h-full bg-sky-400"
+                style={{ width: `${(stats.alerta360 / stats.total) * 100}%` }}
+              />
+            )}
             <div className="h-full flex-1 bg-green-400" />
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-slate-500">
@@ -942,6 +1007,8 @@ export default function AdminDashboardPage() {
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-300" />Alerta 60d</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-lime-400" />Alerta 90d</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-300" />Alerta 120d</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-teal-400" />Alerta 180d</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" />Alerta 360d</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />Em dia</span>
           </div>
         </div>
@@ -950,16 +1017,15 @@ export default function AdminDashboardPage() {
       {/* Alert tables */}
       <AlertTable
         title="Manutenção de 2º nível vencida"
-        subtitle="Próximo teste nível 2 com data já ultrapassada"
+        subtitle={faixaLabels.vencidos}
         color="#dc2626"
         items={vencidosList}
         exportLabel="Nivel_2_vencidos"
         exportHighlight="vencido"
-        diasReferencia="nivel2"
       />
       <AlertTable
         title="Extintores vencendo nos próximos 30 dias"
-        subtitle="Agendar manutenção urgente"
+        subtitle={faixaLabels.alerta30}
         color="#f59e0b"
         items={alerta30List}
         exportLabel="Vencendo_30_dias"
@@ -967,7 +1033,7 @@ export default function AdminDashboardPage() {
       />
       <AlertTable
         title="Extintores vencendo nos próximos 60 dias"
-        subtitle="Planejar manutenção preventiva"
+        subtitle={faixaLabels.alerta60}
         color="#eab308"
         items={alerta60List}
         exportLabel="Vencendo_60_dias"
@@ -975,7 +1041,7 @@ export default function AdminDashboardPage() {
       />
       <AlertTable
         title="Extintores vencendo nos próximos 90 dias"
-        subtitle="Antecipar agendamento de manutenção"
+        subtitle={faixaLabels.alerta90}
         color="#84cc16"
         items={alerta90List}
         exportLabel="Vencendo_90_dias"
@@ -983,10 +1049,26 @@ export default function AdminDashboardPage() {
       />
       <AlertTable
         title="Extintores vencendo nos próximos 120 dias"
-        subtitle="Incluir no planejamento trimestral"
+        subtitle={faixaLabels.alerta120}
         color="#22c55e"
         items={alerta120List}
         exportLabel="Vencendo_120_dias"
+        exportHighlight="alerta"
+      />
+      <AlertTable
+        title="Extintores vencendo nos próximos 180 dias"
+        subtitle={faixaLabels.alerta180}
+        color="#14b8a6"
+        items={alerta180List}
+        exportLabel="Vencendo_180_dias"
+        exportHighlight="alerta"
+      />
+      <AlertTable
+        title="Extintores vencendo nos próximos 360 dias"
+        subtitle={faixaLabels.alerta360}
+        color="#0ea5e9"
+        items={alerta360List}
+        exportLabel="Vencendo_360_dias"
         exportHighlight="alerta"
       />
 
@@ -996,6 +1078,8 @@ export default function AdminDashboardPage() {
         stats.alerta60 === 0 &&
         stats.alerta90 === 0 &&
         stats.alerta120 === 0 &&
+        stats.alerta180 === 0 &&
+        stats.alerta360 === 0 &&
         stats.total > 0 && (
         <div className="flex items-center gap-4 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 shadow-sm shadow-emerald-100">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-200">
@@ -1006,7 +1090,7 @@ export default function AdminDashboardPage() {
           <div>
             <p className="text-sm font-black text-emerald-900">Tudo em dia!</p>
             <p className="text-xs font-medium text-emerald-700">
-              Nenhum extintor com manutenção nível 2 vencida ou próxima do vencimento.
+              Nenhum extintor com manutenção de 2º nível vencida ou próxima do vencimento (até 360 dias).
             </p>
           </div>
         </div>
