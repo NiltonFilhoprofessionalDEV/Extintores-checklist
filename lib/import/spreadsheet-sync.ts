@@ -92,6 +92,7 @@ function extintorInsertPayload(row: ExtintorImportRecord) {
     setor: row.setor,
     local_detalhado: row.local_detalhado,
     num_inmetro: row.num_inmetro,
+    num_cilindro: row.num_cilindro?.trim() || null,
     tipo: row.tipo,
     tamanho: row.tamanho,
     capacidade_extintora: row.capacidade_extintora,

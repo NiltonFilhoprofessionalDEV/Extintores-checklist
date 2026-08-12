@@ -66,6 +66,7 @@ export type InspecaoExtintorCabecalho = {
   pavimento: string | null;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro?: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;

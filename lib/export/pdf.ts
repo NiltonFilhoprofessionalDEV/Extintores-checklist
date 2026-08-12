@@ -43,6 +43,7 @@ function extintorInventoryRows(items: ExtintorRow[]): PdfRow[] {
       Setor: item.setor,
       "Local detalhado": item.local_detalhado,
       "Nº INMETRO": item.num_inmetro,
+      "Nº do cilindro": item.num_cilindro ?? "",
       Tipo: item.tipo,
       Tamanho: item.tamanho,
       "Capacidade extintora": item.capacidade_extintora,

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { parseSpreadsheet, REQUIRED_HEADERS, type ExtintorImportRecord } from "@/lib/rf01/import-parser";
+import { parseSpreadsheet, REQUIRED_HEADERS, downloadExtintorImportTemplate, type ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import {
   parseHidranteSpreadsheet,
   HIDRANTE_REQUIRED_HEADERS,
@@ -298,6 +298,21 @@ export default function ImportacaoPage() {
           <label htmlFor="spreadsheet" className="mb-3 block text-sm font-medium text-slate-700">
             Selecione a planilha
           </label>
+          {destino === "extintores" && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                onClick={() => downloadExtintorImportTemplate()}
+                disabled={disabled}
+              >
+                Download planilha padrão
+              </button>
+              <p className="text-xs text-slate-500">
+                Baixe o modelo oficial, preencha os dados e faça o upload abaixo.
+              </p>
+            </div>
+          )}
           <input
             id="spreadsheet"
             name="spreadsheet"
@@ -309,7 +324,7 @@ export default function ImportacaoPage() {
           />
 
           <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
-            <p className="text-sm font-semibold text-slate-800">Campos obrigatórios (cabeçalhos)</p>
+            <p className="text-sm font-semibold text-slate-800">Campos do modelo (cabeçalhos)</p>
             <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-600 md:grid-cols-2">
               {(destino === "extintores"
                 ? REQUIRED_HEADERS
@@ -320,6 +335,9 @@ export default function ImportacaoPage() {
             </ul>
             <p className="mt-2 text-xs text-slate-500">
               Coluna Pavimento: o cabeçalho Setor em planilhas antigas continua sendo aceito.
+              {destino === "extintores"
+                ? " «Nº do Cilindro» é opcional em planilhas antigas; no modelo novo já vem incluído."
+                : ""}
             </p>
             {destino === "hidrantes" && (
               <p className="mt-3 text-xs text-slate-500">
@@ -362,13 +380,14 @@ export default function ImportacaoPage() {
           <h2 className="text-lg font-black text-[var(--ink)]">Pré-visualização ({readyCount})</h2>
           <div className="mt-4 overflow-x-auto">
             {destino === "extintores" ? (
-              <table className="modern-table min-w-[900px]">
+              <table className="modern-table min-w-[1000px]">
                 <thead>
                   <tr>
                     <th className="px-2 py-2">Código</th>
                     <th className="px-2 py-2">Pavimento</th>
                     <th className="px-2 py-2">Local Detalhado</th>
                     <th className="px-2 py-2">Número Inmetro</th>
+                    <th className="px-2 py-2">Nº do Cilindro</th>
                     <th className="px-2 py-2">Tipo</th>
                     <th className="px-2 py-2">Tamanho</th>
                     <th className="px-2 py-2">Capacidade Extintora</th>
@@ -381,6 +400,7 @@ export default function ImportacaoPage() {
                       <td className="px-2 py-2">{row.setor}</td>
                       <td className="px-2 py-2">{row.local_detalhado}</td>
                       <td className="px-2 py-2">{row.num_inmetro}</td>
+                      <td className="px-2 py-2">{row.num_cilindro || "—"}</td>
                       <td className="px-2 py-2">{row.tipo}</td>
                       <td className="px-2 py-2">{row.tamanho}</td>
                       <td className="px-2 py-2">{row.capacidade_extintora}</td>
@@ -388,7 +408,7 @@ export default function ImportacaoPage() {
                   ))}
                   {rowsExtintor.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-2 py-6 text-center text-zinc-500">
+                      <td colSpan={8} className="px-2 py-6 text-center text-zinc-500">
                         Nenhum dado carregado.
                       </td>
                     </tr>

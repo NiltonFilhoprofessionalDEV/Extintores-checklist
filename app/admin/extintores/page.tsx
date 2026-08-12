@@ -24,6 +24,7 @@ type ExtintorRow = {
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -55,6 +56,7 @@ const EMPTY_FORM: FormData = {
   setor: "",
   local_detalhado: "",
   num_inmetro: "",
+  num_cilindro: "",
   tipo: "",
   tamanho: "",
   capacidade_extintora: "",
@@ -260,14 +262,34 @@ export default function AdminExtintoresPage() {
   const load = useCallback(async () => {
     if (!ready || !activeBaseId) return;
     setLoading(true);
-    const [extRes, hidRes, floors] = await Promise.all([
-      supabase
+
+    const selectWithCilindro =
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at";
+    const selectLegacy =
+      "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at";
+
+    let extData: ExtintorRow[] | null = null;
+    const primary = await supabase
+      .from("extintores")
+      .select(selectWithCilindro)
+      .eq("base_id", activeBaseId)
+      .order("codigo", { ascending: true });
+
+    if (primary.error && /num_cilindro|schema cache|column/i.test(primary.error.message)) {
+      const fallback = await supabase
         .from("extintores")
-        .select(
-          "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at",
-        )
+        .select(selectLegacy)
         .eq("base_id", activeBaseId)
-        .order("codigo", { ascending: true }),
+        .order("codigo", { ascending: true });
+      extData = ((fallback.data ?? []) as ExtintorRow[]).map((row) => ({
+        ...row,
+        num_cilindro: row.num_cilindro ?? null,
+      }));
+    } else {
+      extData = (primary.data ?? []) as ExtintorRow[];
+    }
+
+    const [hidRes, floors] = await Promise.all([
       supabase
         .from("hidrantes")
         .select(
@@ -279,7 +301,7 @@ export default function AdminExtintoresPage() {
     ]);
     const floorLabels = floors.map((f) => f.label).filter(Boolean);
     setSetores(floorLabels.length > 0 ? floorLabels : [...SETORES_FALLBACK]);
-    const rows = ((extRes.data ?? []) as ExtintorRow[]).sort((a, b) =>
+    const rows = [...(extData ?? [])].sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
     const hidRows = ((hidRes.data ?? []) as HidranteRow[]).sort((a, b) =>
@@ -317,6 +339,7 @@ export default function AdminExtintoresPage() {
         e.setor.toLowerCase().includes(q) ||
         e.local_detalhado.toLowerCase().includes(q) ||
         e.num_inmetro.toLowerCase().includes(q) ||
+        (e.num_cilindro ?? "").toLowerCase().includes(q) ||
         e.tipo.toLowerCase().includes(q),
     );
   }, [extintores, filter]);
@@ -354,6 +377,7 @@ export default function AdminExtintoresPage() {
       setor: toUppercaseLabel(e.setor),
       local_detalhado: e.local_detalhado,
       num_inmetro: e.num_inmetro,
+      num_cilindro: e.num_cilindro ?? "",
       tipo: toUppercaseLabel(e.tipo),
       tamanho: e.tamanho,
       capacidade_extintora: e.capacidade_extintora,
@@ -446,6 +470,7 @@ export default function AdminExtintoresPage() {
       setor: setorLabel,
       local_detalhado: form.local_detalhado.trim(),
       num_inmetro: form.num_inmetro.trim(),
+      num_cilindro: form.num_cilindro?.trim() || null,
       tipo: toUppercaseLabel(form.tipo),
       tamanho: form.tamanho.trim(),
       capacidade_extintora: form.capacidade_extintora.trim(),
@@ -858,6 +883,15 @@ export default function AdminExtintoresPage() {
                   <input required className={inputCls} placeholder="Número do INMETRO" value={form.num_inmetro} onChange={(e) => set("num_inmetro", e.target.value)} />
                 </Field>
 
+                <Field label={COLUNAS_PADRAO.numCilindro}>
+                  <input
+                    className={inputCls}
+                    placeholder="Número do cilindro"
+                    value={form.num_cilindro ?? ""}
+                    onChange={(e) => set("num_cilindro", e.target.value)}
+                  />
+                </Field>
+
                 <Field label="Setor" required>
                   <select
                     required
@@ -1191,6 +1225,10 @@ export default function AdminExtintoresPage() {
                   />
                   <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.numCilindro}
+                    value={detalheView.item.num_cilindro || "—"}
+                  />
                   <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
                   <DetalheCampo

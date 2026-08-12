@@ -449,7 +449,7 @@ export default function AdminDashboardPage() {
       supabase
         .from("extintores")
         .select(
-          "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at",
+          "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at",
         )
         .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true }),
