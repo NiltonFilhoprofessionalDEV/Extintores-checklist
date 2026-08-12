@@ -4,22 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
-  AUDIT_ACTION_LABELS,
-  AUDIT_ENTITY_LABELS,
-  roleLabelPt,
-} from "@/lib/audit/write-audit-log";
-
-type AuditLogRow = {
-  id: string;
-  actor_nome: string | null;
-  actor_role: string | null;
-  action: string;
-  entity_type: string;
-  entity_label: string | null;
-  summary: string;
-  details: Record<string, unknown> | null;
-  created_at: string;
-};
+  AuditoriaDetailModal,
+  AuditoriaRow,
+  type AuditLogRow,
+} from "./AuditoriaUi";
 
 const FILTROS_ACAO: { value: string; label: string }[] = [
   { value: "", label: "Todas as ações" },
@@ -37,67 +25,6 @@ const FILTROS_ACAO: { value: string; label: string }[] = [
   { value: "config", label: "Configurações" },
 ];
 
-function formatQuando(iso: string): { data: string; hora: string; relativo: string } {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    return { data: iso, hora: "", relativo: "" };
-  }
-  const data = d.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-  const agora = Date.now();
-  const diffMs = agora - d.getTime();
-  const min = Math.floor(diffMs / 60000);
-  let relativo = "";
-  if (min < 1) relativo = "agora mesmo";
-  else if (min < 60) relativo = `há ${min} min`;
-  else if (min < 60 * 24) relativo = `há ${Math.floor(min / 60)} h`;
-  else if (min < 60 * 48) relativo = "ontem";
-  else relativo = `há ${Math.floor(min / (60 * 24))} dias`;
-
-  return { data, hora, relativo };
-}
-
-function acaoTom(action: string): { bg: string; text: string; border: string } {
-  if (action === "soft_delete" || action === "user_delete" || action === "map_remove") {
-    return { bg: "#fef2f2", text: "#b91c1c", border: "#fecaca" };
-  }
-  if (action === "restore" || action === "create" || action === "user_create") {
-    return { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0" };
-  }
-  if (action === "update" || action === "user_update" || action === "config") {
-    return { bg: "#fff7ed", text: "#c2410c", border: "#fed7aa" };
-  }
-  return { bg: "#f1f5f9", text: "#334155", border: "#e2e8f0" };
-}
-
-function detalhesLegiveis(details: Record<string, unknown> | null): string[] {
-  if (!details || typeof details !== "object") return [];
-  const linhas: string[] = [];
-  const codigos = details.codigos;
-  if (Array.isArray(codigos) && codigos.length > 0) {
-    linhas.push(`Itens: ${codigos.map(String).join(", ")}`);
-  }
-  if (typeof details.count === "number") {
-    linhas.push(`Quantidade: ${details.count}`);
-  }
-  if (typeof details.mode === "string") {
-    const modeLabel =
-      details.mode === "soft_delete"
-        ? "Remoção da lista"
-        : details.mode === "restore"
-          ? "Recuperação"
-          : String(details.mode);
-    linhas.push(`Tipo de operação: ${modeLabel}`);
-  }
-  return linhas.slice(0, 4);
-}
-
 export default function AdminAuditoriaPage() {
   const { activeBaseId, activeBase } = useActiveBase();
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -107,6 +34,7 @@ export default function AdminAuditoriaPage() {
   const [buscaInput, setBuscaInput] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroAcao, setFiltroAcao] = useState("");
+  const [selectedLog, setSelectedLog] = useState<AuditLogRow | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -153,8 +81,8 @@ export default function AdminAuditoriaPage() {
         <p className="page-eyebrow">Controle</p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Auditoria</h1>
         <p className="mt-2 max-w-2xl text-sm font-medium text-[var(--muted-foreground)]">
-          Aqui você vê, em português claro, o que cada pessoa fez nesta base
-          {activeBase?.nome ? ` (${activeBase.nome})` : ""}. Quem fez, o que fez e quando.
+          Registros compactos do que aconteceu nesta base
+          {activeBase?.nome ? ` (${activeBase.nome})` : ""}. Use o olho para ver os detalhes.
         </p>
       </div>
 
@@ -219,77 +147,21 @@ export default function AdminAuditoriaPage() {
           <div className="px-4 py-16 text-center">
             <p className="text-base font-semibold text-slate-800">Nenhum registro encontrado</p>
             <p className="mt-1 text-sm text-slate-500">
-              Quando alguém cadastrar, alterar ou remover itens, a ação aparece aqui em linguagem simples.
+              Quando alguém cadastrar, alterar ou remover itens, a ação aparece aqui.
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {logs.map((log) => {
-              const quando = formatQuando(log.created_at);
-              const tom = acaoTom(log.action);
-              const acaoLabel = AUDIT_ACTION_LABELS[log.action] ?? log.action;
-              const tipoLabel = AUDIT_ENTITY_LABELS[log.entity_type] ?? log.entity_type;
-              const quem = log.actor_nome?.trim() || "Usuário do sistema";
-              const cargo = roleLabelPt(log.actor_role);
-              const extras = detalhesLegiveis(log.details);
-
-              return (
-                <li key={log.id} className="px-4 py-4 sm:px-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className="inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide"
-                          style={{
-                            background: tom.bg,
-                            color: tom.text,
-                            borderColor: tom.border,
-                          }}
-                        >
-                          {acaoLabel}
-                        </span>
-                        <span className="text-xs font-medium text-slate-500">{tipoLabel}</span>
-                      </div>
-
-                      <p className="text-base font-semibold leading-snug text-slate-900">
-                        {log.summary}
-                      </p>
-
-                      <p className="text-sm text-slate-600">
-                        Feito por <span className="font-semibold text-slate-800">{quem}</span>
-                        <span className="text-slate-400"> · </span>
-                        {cargo}
-                        {log.entity_label ? (
-                          <>
-                            <span className="text-slate-400"> · </span>
-                            Item: <span className="font-medium text-slate-800">{log.entity_label}</span>
-                          </>
-                        ) : null}
-                      </p>
-
-                      {extras.length > 0 && (
-                        <ul className="space-y-0.5 text-xs text-slate-500">
-                          {extras.map((linha) => (
-                            <li key={linha}>{linha}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    <div className="shrink-0 text-left sm:text-right">
-                      <p className="text-sm font-semibold capitalize text-slate-800">{quando.data}</p>
-                      <p className="text-sm text-slate-600">às {quando.hora}</p>
-                      {quando.relativo && (
-                        <p className="mt-0.5 text-xs font-medium text-slate-400">{quando.relativo}</p>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
+            {logs.map((log) => (
+              <AuditoriaRow key={log.id} log={log} onOpen={() => setSelectedLog(log)} />
+            ))}
           </ul>
         )}
       </div>
+
+      {selectedLog && (
+        <AuditoriaDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+      )}
     </div>
   );
 }
