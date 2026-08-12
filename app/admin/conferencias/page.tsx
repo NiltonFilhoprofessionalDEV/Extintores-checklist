@@ -634,7 +634,7 @@ export default function AdminConferenciasPage() {
               <ConferenciaCard
                 key={`${item.tipo}-${item.id}`}
                 item={item}
-                teamLabel={equipeLabelForCodigo(item.codigo, item.tipo)}
+                questions={item.tipo === "extintor" ? extintorQuestions : hidranteQuestions}
                 onOpen={() => setSelectedItem(item)}
               />
             ))}
