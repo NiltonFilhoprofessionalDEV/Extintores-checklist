@@ -3,11 +3,16 @@
 import { CHECKLIST_EXPORT_COLUMN_LABELS } from "@/lib/checklist/export-labels";
 import {
   HIDRANTE_ACTIVE_ITEM_KEYS,
+  HIDRANTE_ITEM_KEYS,
   HIDRANTE_ITEM_LABELS,
 } from "@/lib/checklist/hidrante-types";
-import { CHECKLIST_ITEM_KEYS } from "@/lib/checklist/types";
+import { CHECKLIST_ITEM_KEYS, type ChecklistItemKey, type ChecklistValue } from "@/lib/checklist/types";
 import type { ChecklistQuestion } from "@/lib/checklist/default-questions";
-import { parseChecklistValuesFromObservacoes } from "@/lib/checklist/parse-legacy-observacoes";
+import { extrairBlocosNaoConformidadeObservacoes } from "@/lib/checklist/observacao-conferencia";
+import {
+  fillChecklistItemsFromObservacoes,
+  parseChecklistValuesFromObservacoes,
+} from "@/lib/checklist/parse-legacy-observacoes";
 import type { ConferenciaExportStatus } from "@/lib/export/conferencia-historico";
 import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 import {
@@ -86,10 +91,21 @@ function formatKey(key: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizeAnswerValue(value: unknown): ChecklistValue | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase().replace(/\s+/g, "_");
+  if (v === "conforme") return "conforme";
+  if (v === "nao_conforme" || v === "não_conforme" || v === "nao-conforme") return "nao_conforme";
+  if (v === "nao_aplica" || v === "não_aplica" || v === "n/a" || v === "na") return "nao_aplica";
+  return null;
+}
+
 function answerLabel(value: unknown): { text: string; className: string } {
-  if (value === "conforme") return { text: "Conforme", className: "bg-emerald-50 text-emerald-700" };
-  if (value === "nao_conforme") return { text: "Não conforme", className: "bg-rose-50 text-rose-700" };
-  if (value === "nao_aplica") return { text: "Não se aplica", className: "bg-slate-100 text-slate-600" };
+  const normalized = normalizeAnswerValue(value);
+  if (normalized === "conforme") return { text: "Conforme", className: "bg-emerald-50 text-emerald-700" };
+  if (normalized === "nao_conforme") return { text: "Não conforme", className: "bg-rose-50 text-rose-700" };
+  if (normalized === "nao_aplica") return { text: "Não se aplica", className: "bg-slate-100 text-slate-600" };
   return { text: "Não informado", className: "bg-slate-100 text-slate-500" };
 }
 
@@ -133,54 +149,182 @@ function parseAnswersJson(value: unknown): Record<string, unknown> {
   }
 }
 
-function getAnswerRows(item: ConferenciaItem, questions: ChecklistQuestion[]) {
-  const raw = item.checklistRaw;
-  const extras = parseAnswersJson(raw.answers_json);
-  const legacy =
-    item.tipo === "extintor"
-      ? parseChecklistValuesFromObservacoes(String(raw.observacoes ?? ""))
-      : {};
-  const fallbackQuestions = (
-    item.tipo === "extintor" ? CHECKLIST_ITEM_KEYS : HIDRANTE_ACTIVE_ITEM_KEYS
-  ).map((key, index) => ({
+function firstDefinedAnswer(...candidates: unknown[]): ChecklistValue | null {
+  for (const candidate of candidates) {
+    const normalized = normalizeAnswerValue(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function matchBlocoToKey(
+  titulo: string,
+  questions: ChecklistQuestion[],
+  kind: TipoEquipamento,
+): string | null {
+  const t = titulo.toLowerCase().trim();
+  if (!t) return null;
+
+  for (const question of questions) {
+    const label = configuredLabel(question, kind).toLowerCase();
+    const rawLabel = question.label.toLowerCase();
+    if (t.includes(label) || label.includes(t) || t.includes(rawLabel.slice(0, 40)) || rawLabel.includes(t)) {
+      return question.item_key;
+    }
+  }
+
+  if (kind === "extintor") {
+    for (const key of CHECKLIST_ITEM_KEYS) {
+      const short = CHECKLIST_EXPORT_COLUMN_LABELS[key].toLowerCase();
+      if (t.includes(short) || short.includes(t)) return key;
+    }
+  } else {
+    for (const key of HIDRANTE_ITEM_KEYS) {
+      const short = (HIDRANTE_SHORT_LABELS[key] ?? HIDRANTE_ITEM_LABELS[key]).toLowerCase();
+      if (t.includes(short.slice(0, 40)) || short.includes(t)) return key;
+    }
+  }
+  return null;
+}
+
+function visibleQuestionsFor(item: ConferenciaItem, questions: ChecklistQuestion[]): ChecklistQuestion[] {
+  if (questions.length > 0) return questions;
+  const keys = item.tipo === "extintor" ? CHECKLIST_ITEM_KEYS : HIDRANTE_ACTIVE_ITEM_KEYS;
+  return keys.map((key, index) => ({
     item_key: key,
     label:
       item.tipo === "extintor"
-        ? CHECKLIST_EXPORT_COLUMN_LABELS[key as keyof typeof CHECKLIST_EXPORT_COLUMN_LABELS]
+        ? CHECKLIST_EXPORT_COLUMN_LABELS[key as ChecklistItemKey]
         : HIDRANTE_ITEM_LABELS[key as keyof typeof HIDRANTE_ITEM_LABELS],
     active: true,
     sort_order: index,
   }));
-  const visibleQuestions = questions.length > 0 ? questions : fallbackQuestions;
+}
 
-  return visibleQuestions.map((question) => {
+function resolveAnswerMap(
+  item: ConferenciaItem,
+  questions: ChecklistQuestion[],
+): Record<string, ChecklistValue | null> {
+  const raw = item.checklistRaw;
+  const extras = parseAnswersJson(raw.answers_json);
+  const observacoes = String(raw.observacoes ?? "");
+  const legacy =
+    item.tipo === "extintor" ? parseChecklistValuesFromObservacoes(observacoes) : {};
+
+  const filledColumns =
+    item.tipo === "extintor"
+      ? fillChecklistItemsFromObservacoes(
+          {
+            local_correto: (raw.local_correto as string | null) ?? null,
+            dados_corretos: (raw.dados_corretos as string | null) ?? null,
+            sinalizacao_correta: (raw.sinalizacao_correta as string | null) ?? null,
+            mangueira_status: (raw.mangueira_status as string | null) ?? null,
+            bico_difusor_status: (raw.bico_difusor_status as string | null) ?? null,
+            alca_gatilho_status: (raw.alca_gatilho_status as string | null) ?? null,
+            medidor_pressao_status: (raw.medidor_pressao_status as string | null) ?? null,
+            cilindro_status: (raw.cilindro_status as string | null) ?? null,
+          },
+          observacoes,
+        )
+      : {};
+
+  const resolved: Record<string, ChecklistValue | null> = {};
+  for (const question of questions) {
     const key = question.item_key;
-    let value = extras[key] ?? raw[key] ?? legacy[key as keyof typeof legacy];
-    if (value == null && item.exportStatus === "conforme") value = "conforme";
-    return {
-      key,
-      label: configuredLabel(question, item.tipo) || formatKey(key),
-      ...answerLabel(value),
-    };
-  });
+    resolved[key] = firstDefinedAnswer(
+      extras[key],
+      raw[key],
+      (filledColumns as Record<string, unknown>)[key],
+      legacy[key as ChecklistItemKey],
+    );
+  }
+
+  const blocos = extrairBlocosNaoConformidadeObservacoes(observacoes);
+  for (const bloco of blocos) {
+    const key = matchBlocoToKey(bloco.titulo, questions, item.tipo);
+    if (key) resolved[key] = "nao_conforme";
+  }
+
+  const hasAnyAnswer = Object.values(resolved).some((value) => value != null);
+  const shouldAssumeAnswered =
+    hasAnyAnswer ||
+    blocos.length > 0 ||
+    item.exportStatus === "conforme" ||
+    item.exportStatus === "alerta" ||
+    item.exportStatus === "vencido";
+
+  if (shouldAssumeAnswered) {
+    for (const question of questions) {
+      if (resolved[question.item_key] == null) {
+        resolved[question.item_key] = "conforme";
+      }
+    }
+  }
+
+  return resolved;
+}
+
+function getAnswerRows(item: ConferenciaItem, questions: ChecklistQuestion[]) {
+  const visibleQuestions = visibleQuestionsFor(item, questions);
+  const resolved = resolveAnswerMap(item, visibleQuestions);
+
+  return visibleQuestions.map((question) => ({
+    key: question.item_key,
+    label: configuredLabel(question, item.tipo) || formatKey(question.item_key),
+    ...answerLabel(resolved[question.item_key]),
+  }));
+}
+
+/** Tipos de não conformidade para o rodapé do card (minimizado). */
+export function listarTiposNaoConformidade(
+  item: ConferenciaItem,
+  questions: ChecklistQuestion[],
+): string[] {
+  const visibleQuestions = visibleQuestionsFor(item, questions);
+  const resolved = resolveAnswerMap(item, visibleQuestions);
+
+  const tipos = visibleQuestions
+    .filter((question) => resolved[question.item_key] === "nao_conforme")
+    .map((question) => configuredLabel(question, item.tipo));
+
+  if (tipos.length > 0) return tipos;
+
+  const blocos = extrairBlocosNaoConformidadeObservacoes(String(item.checklistRaw.observacoes ?? ""));
+  if (blocos.length > 0) return blocos.map((b) => b.titulo);
+
+  if (item.exportStatus === "vencido") {
+    return item.tipo === "extintor" ? ["Manutenção vencida"] : ["Teste hidrostático vencido"];
+  }
+
+  if (item.exportStatus === "alerta") return ["Não conformidade registrada"];
+  return [];
 }
 
 function localDescription(item: ConferenciaItem): string {
-  return item.tipo === "extintor"
-    ? subtituloLocalExtintor(item.setor, item.local_detalhado)
-    : subtituloLocalHidrante(item.pavimento ?? null, item.local_detalhado);
+  if (item.tipo === "extintor") {
+    const pavimento = (item.pavimento || item.setor || "").trim();
+    return subtituloLocalExtintor(pavimento, item.local_detalhado);
+  }
+  return subtituloLocalHidrante(item.pavimento ?? null, item.local_detalhado);
 }
 
 export function ConferenciaCard({
   item,
-  teamLabel,
+  questions,
   onOpen,
 }: {
   item: ConferenciaItem;
-  teamLabel: string;
+  questions: ChecklistQuestion[];
   onOpen: () => void;
 }) {
   const status = STATUS_META[item.exportStatus];
+  const tiposNc = listarTiposNaoConformidade(item, questions);
+  const ncResumo =
+    tiposNc.length === 0
+      ? "—"
+      : tiposNc.length === 1
+        ? tiposNc[0]
+        : `${tiposNc[0]} +${tiposNc.length - 1}`;
 
   return (
     <button
@@ -217,8 +361,15 @@ export function ConferenciaCard({
           <p className="mt-1 truncate text-xs font-bold text-slate-700">{item.conferente || "Não informado"}</p>
         </div>
         <div>
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Equipe</p>
-          <p className="mt-1 text-xs font-bold text-slate-700">{teamLabel || "Não definida"}</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Não conformidade</p>
+          <p
+            className={`mt-1 text-xs font-bold ${
+              tiposNc.length > 0 ? "text-rose-700" : "text-slate-700"
+            }`}
+            title={tiposNc.join(" · ") || "Nenhuma"}
+          >
+            {tiposNc.length > 0 ? ncResumo : "Nenhuma"}
+          </p>
         </div>
       </div>
     </button>
@@ -247,6 +398,7 @@ export function ConferenciaDetailModal({
 }) {
   const status = STATUS_META[item.exportStatus];
   const answers = getAnswerRows(item, questions);
+  const tiposNc = listarTiposNaoConformidade(item, questions);
 
   return (
     <div
@@ -270,7 +422,14 @@ export function ConferenciaDetailModal({
             </h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">{localDescription(item)}</p>
           </div>
-          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-[var(--muted)] text-xl text-slate-600" aria-label="Fechar detalhes">×</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 place-items-center rounded-full bg-[var(--muted)] text-xl text-slate-600"
+            aria-label="Fechar detalhes"
+          >
+            ×
+          </button>
         </header>
 
         <div className="overflow-y-auto px-5 py-5 sm:px-6">
@@ -281,6 +440,11 @@ export function ConferenciaDetailModal({
               <DetailField label="Conferente" value={item.conferente || "Não informado"} />
               <DetailField label="Equipe" value={teamLabel || "Não definida"} />
             </div>
+            {tiposNc.length > 0 && (
+              <div className="mt-2">
+                <DetailField label="Tipo(s) de não conformidade" value={tiposNc.join(" · ")} />
+              </div>
+            )}
           </section>
 
           <section className="mt-6">
@@ -289,12 +453,20 @@ export function ConferenciaDetailModal({
               {item.tipo === "extintor" ? (
                 <>
                   <DetailField label="Código" value={item.codigo} />
-                  <DetailField label="Setor" value={item.setor} />
+                  <DetailField
+                    label="Pavimento"
+                    value={(item.pavimento || item.setor || "").trim() || "Não informado"}
+                  />
                   <DetailField label="Local detalhado" value={item.local_detalhado} />
-                  <DetailField label="Pavimento" value={item.pavimento ?? "Não informado"} />
                   <DetailField label="Nº do INMETRO" value={item.numInmetro ?? "Não informado"} />
-                  <DetailField label="Tipo / tamanho" value={[item.tipoEquip, item.tamanho].filter(Boolean).join(" · ")} />
-                  <DetailField label="Capacidade extintora" value={item.capacidadeExtintora ?? "Não informado"} />
+                  <DetailField
+                    label="Tipo / tamanho"
+                    value={[item.tipoEquip, item.tamanho].filter(Boolean).join(" · ")}
+                  />
+                  <DetailField
+                    label="Capacidade extintora"
+                    value={item.capacidadeExtintora ?? "Não informado"}
+                  />
                   <DetailField label="Manutenção 2º nível" value={formatDate(item.manutencao_2_nivel)} />
                   <DetailField label="Manutenção 3º nível" value={formatDate(item.manutencao_3_nivel)} />
                 </>
@@ -303,13 +475,34 @@ export function ConferenciaDetailModal({
                   <DetailField label="Código" value={item.codigo} />
                   <DetailField label="Pavimento" value={item.pavimento ?? "Não informado"} />
                   <DetailField label="Local detalhado" value={item.local_detalhado} />
-                  <DetailField label="Mangueiras" value={String(item.hidrante?.quantidade_mangueiras ?? "Não informado")} />
-                  <DetailField label="Chaves Storz" value={String(item.hidrante?.quantidade_chaves_storz ?? "Não informado")} />
-                  <DetailField label="Esguichos" value={String(item.hidrante?.quantidade_esguichos ?? "Não informado")} />
-                  <DetailField label="Teste hidrostático M-1" value={formatDate(item.hidrante?.teste_hidrostatico_m1)} />
-                  <DetailField label="Teste hidrostático M-2" value={formatDate(item.hidrante?.teste_hidrostatico_m2)} />
-                  <DetailField label="Teste hidrostático M-3" value={formatDate(item.hidrante?.teste_hidrostatico_m3)} />
-                  <DetailField label="Teste hidrostático M-4" value={formatDate(item.hidrante?.teste_hidrostatico_m4)} />
+                  <DetailField
+                    label="Mangueiras"
+                    value={String(item.hidrante?.quantidade_mangueiras ?? "Não informado")}
+                  />
+                  <DetailField
+                    label="Chaves Storz"
+                    value={String(item.hidrante?.quantidade_chaves_storz ?? "Não informado")}
+                  />
+                  <DetailField
+                    label="Esguichos"
+                    value={String(item.hidrante?.quantidade_esguichos ?? "Não informado")}
+                  />
+                  <DetailField
+                    label="Teste hidrostático M-1"
+                    value={formatDate(item.hidrante?.teste_hidrostatico_m1)}
+                  />
+                  <DetailField
+                    label="Teste hidrostático M-2"
+                    value={formatDate(item.hidrante?.teste_hidrostatico_m2)}
+                  />
+                  <DetailField
+                    label="Teste hidrostático M-3"
+                    value={formatDate(item.hidrante?.teste_hidrostatico_m3)}
+                  />
+                  <DetailField
+                    label="Teste hidrostático M-4"
+                    value={formatDate(item.hidrante?.teste_hidrostatico_m4)}
+                  />
                 </>
               )}
             </div>
@@ -338,7 +531,9 @@ export function ConferenciaDetailModal({
         </div>
 
         <footer className="border-t border-[var(--border)] p-4">
-          <button type="button" className="btn-primary w-full" onClick={onClose}>Fechar</button>
+          <button type="button" className="btn-primary w-full" onClick={onClose}>
+            Fechar
+          </button>
         </footer>
       </article>
     </div>
