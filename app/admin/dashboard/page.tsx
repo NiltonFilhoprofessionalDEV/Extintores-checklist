@@ -23,6 +23,7 @@ import { EMPRESA_TABS, filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboar
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
 import ExportActions from "@/src/components/ExportActions";
+import { COLUNAS_EXTINTOR, COLUNA_TITULO_CLASS } from "@/lib/inventario/equipamento-padrao";
 
 type Stats = {
   total: number;
@@ -234,37 +235,21 @@ function ExtintorManutencaoModal({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 shadow-sm shadow-slate-200/60">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Código
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.codigo}</th>
+                  <th className={COLUNA_TITULO_CLASS}>
+                    {COLUNAS_EXTINTOR.pavimento} / {COLUNAS_EXTINTOR.localDetalhado}
                   </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Setor / local
-                  </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Pavimento
-                  </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Tipo
-                  </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Nº INMETRO
-                  </th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.pavimento}</th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.tipo}</th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.numInmetro}</th>
                   {showManutencaoCols ? (
                     <>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Vencto. N2
-                      </th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Vencto. N3
-                      </th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Dias
-                      </th>
+                      <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao2}</th>
+                      <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao3}</th>
+                      <th className={COLUNA_TITULO_CLASS}>Dias</th>
                     </>
                   ) : (
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Capacidade
-                    </th>
+                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.capacidadeExtintora}</th>
                   )}
                 </tr>
               </thead>
@@ -372,12 +357,14 @@ function AlertTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-y border-slate-100 bg-slate-50/80">
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Código</th>
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Pavimento / local</th>
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipo</th>
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Vencto. Nível 2</th>
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Vencto. Nível 3</th>
-              <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Dias restantes</th>
+              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.codigo}</th>
+              <th className={COLUNA_TITULO_CLASS}>
+                {COLUNAS_EXTINTOR.pavimento} / {COLUNAS_EXTINTOR.localDetalhado}
+              </th>
+              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.tipo}</th>
+              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao2}</th>
+              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao3}</th>
+              <th className={COLUNA_TITULO_CLASS}>Dias restantes</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

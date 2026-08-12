@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { codigoPertenceEquipe, type EquipeConferenciaId } from "@/lib/equipes/conferencia-filtro";
-import { COLUNAS_PADRAO } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_EXTINTOR, COLUNAS_PADRAO } from "@/lib/inventario/equipamento-padrao";
 import {
   corLinhaConferenciaExport,
   resolveExtintorConferenciaExport,
@@ -376,17 +376,17 @@ export type HidranteVencimentoExportRow = {
 /** Export 1: All extintores with basic data */
 export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
   const rows = sortExtintoresByCodigo(extintores).map((e) => ({
-    "Código": e.codigo,
-    "Pavimento": e.setor,
-    "Local Detalhado": e.local_detalhado,
-    "Nº INMETRO": e.num_inmetro,
-    "Nº do Cilindro": e.num_cilindro ?? "",
-    "Tipo": e.tipo,
-    "Tamanho": e.tamanho,
-    "Capacidade Extintora": e.capacidade_extintora,
+    [COLUNAS_EXTINTOR.codigo]: e.codigo,
+    [COLUNAS_EXTINTOR.pavimento]: e.setor,
+    [COLUNAS_EXTINTOR.localDetalhado]: e.local_detalhado,
+    [COLUNAS_EXTINTOR.numInmetro]: e.num_inmetro,
+    [COLUNAS_EXTINTOR.numCilindro]: e.num_cilindro ?? "",
+    [COLUNAS_EXTINTOR.tipo]: e.tipo,
+    [COLUNAS_EXTINTOR.tamanho]: e.tamanho,
+    [COLUNAS_EXTINTOR.capacidadeExtintora]: e.capacidade_extintora,
     "Pavimento na planta": e.pavimento ?? "",
-    "Vencto. Manutenção Nível 2": formatDate(e.manutencao_2_nivel),
-    "Vencto. Manutenção Nível 3": formatDate(e.manutencao_3_nivel),
+    [COLUNAS_EXTINTOR.manutencao2]: formatDate(e.manutencao_2_nivel),
+    [COLUNAS_EXTINTOR.manutencao3]: formatDate(e.manutencao_3_nivel),
     "Posicionado no Mapa": e.coord_x != null ? "Sim" : "Não",
     "Cadastrado em": formatDate(e.created_at),
   }));
@@ -423,17 +423,17 @@ function buildExtintorInventarioExport(extintores: ExtintorRow[]): {
     (e) => isDataVencida(e.manutencao_2_nivel) || isDataVencida(e.manutencao_3_nivel),
   );
   const rows = sorted.map((e) => ({
-    Código: e.codigo,
-    Setor: e.setor,
-    "Local Detalhado": e.local_detalhado,
-    "Nº INMETRO": e.num_inmetro,
-    "Nº do Cilindro": e.num_cilindro ?? "",
-    Tipo: e.tipo,
-    Tamanho: e.tamanho,
-    "Capacidade Extintora": e.capacidade_extintora,
+    [COLUNAS_EXTINTOR.codigo]: e.codigo,
+    [COLUNAS_EXTINTOR.pavimento]: e.setor,
+    [COLUNAS_EXTINTOR.localDetalhado]: e.local_detalhado,
+    [COLUNAS_EXTINTOR.numInmetro]: e.num_inmetro,
+    [COLUNAS_EXTINTOR.numCilindro]: e.num_cilindro ?? "",
+    [COLUNAS_EXTINTOR.tipo]: e.tipo,
+    [COLUNAS_EXTINTOR.tamanho]: e.tamanho,
+    [COLUNAS_EXTINTOR.capacidadeExtintora]: e.capacidade_extintora,
     "Pavimento na planta": e.pavimento ?? "",
-    "Vencto. Manutenção Nível 2": formatDate(e.manutencao_2_nivel),
-    "Vencto. Manutenção Nível 3": formatDate(e.manutencao_3_nivel),
+    [COLUNAS_EXTINTOR.manutencao2]: formatDate(e.manutencao_2_nivel),
+    [COLUNAS_EXTINTOR.manutencao3]: formatDate(e.manutencao_3_nivel),
   }));
   return { rows, vencidoPorLinha };
 }
@@ -657,16 +657,16 @@ export function exportAlertasVencimento(
   rowHighlight: AlertaVencimentoRowHighlight = "none",
 ): void {
   const rows = sortExtintoresByCodigo(extintores).map((e) => ({
-    "Código": e.codigo,
-    "Pavimento": e.setor,
-    "Local Detalhado": e.local_detalhado,
-    "Nº INMETRO": e.num_inmetro,
-    "Nº do Cilindro": e.num_cilindro ?? "",
-    "Tipo": e.tipo,
-    "Tamanho": e.tamanho,
+    [COLUNAS_EXTINTOR.codigo]: e.codigo,
+    [COLUNAS_EXTINTOR.pavimento]: e.setor,
+    [COLUNAS_EXTINTOR.localDetalhado]: e.local_detalhado,
+    [COLUNAS_EXTINTOR.numInmetro]: e.num_inmetro,
+    [COLUNAS_EXTINTOR.numCilindro]: e.num_cilindro ?? "",
+    [COLUNAS_EXTINTOR.tipo]: e.tipo,
+    [COLUNAS_EXTINTOR.tamanho]: e.tamanho,
     "Pavimento na planta": e.pavimento ?? "",
-    "Vencto. Manutenção Nível 2": formatDate(e.manutencao_2_nivel),
-    "Vencto. Manutenção Nível 3": formatDate(e.manutencao_3_nivel),
+    [COLUNAS_EXTINTOR.manutencao2]: formatDate(e.manutencao_2_nivel),
+    [COLUNAS_EXTINTOR.manutencao3]: formatDate(e.manutencao_3_nivel),
   }));
 
   const ws = jsonToSheet(rows);
@@ -752,12 +752,12 @@ export function exportConferenciasHistorico(
     return {
       [COLUNAS_PADRAO.equipe]: r.equipe || resolveEquipeLabel(r.codigo, "extintor"),
       [COLUNAS_PADRAO.codigo]: r.codigo,
-      [COLUNAS_PADRAO.setor]: r.setor,
+      [COLUNAS_PADRAO.pavimento]: r.setor,
       [COLUNAS_PADRAO.localDetalhado]: r.local_detalhado,
       [COLUNAS_PADRAO.tipo]: r.tipo,
       [COLUNAS_PADRAO.tamanho]: r.tamanho,
-      "Vencto. manutenção 2º nível": formatDate(r.manutencao_2_nivel),
-      "Vencto. manutenção 3º nível": formatDate(r.manutencao_3_nivel),
+      [COLUNAS_PADRAO.venctoN2]: formatDate(r.manutencao_2_nivel),
+      [COLUNAS_PADRAO.venctoN3]: formatDate(r.manutencao_3_nivel),
       [COLUNAS_PADRAO.dataConferencia]: formatDateTime(r.data_conferencia),
       [COLUNAS_PADRAO.conferente]: r.conferente,
       [COLUNAS_PADRAO.observacao]: observacao,
