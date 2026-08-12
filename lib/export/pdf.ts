@@ -15,6 +15,7 @@ import {
   type PdfExportResult,
   type PdfRow,
 } from "@/lib/export/pdf-report-renderer";
+import { COLUNAS_EXTINTOR } from "@/lib/inventario/equipamento-padrao";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "";
@@ -39,17 +40,17 @@ function extintorInventoryRows(items: ExtintorRow[]): PdfRow[] {
   return [...items]
     .sort((a, b) => a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true }))
     .map((item) => ({
-      Código: item.codigo,
-      Setor: item.setor,
-      "Local detalhado": item.local_detalhado,
-      "Nº INMETRO": item.num_inmetro,
-      "Nº do cilindro": item.num_cilindro ?? "",
-      Tipo: item.tipo,
-      Tamanho: item.tamanho,
-      "Capacidade extintora": item.capacidade_extintora,
-      Pavimento: item.pavimento ?? "",
-      "Manutenção nível 2": formatDate(item.manutencao_2_nivel),
-      "Manutenção nível 3": formatDate(item.manutencao_3_nivel),
+      [COLUNAS_EXTINTOR.codigo]: item.codigo,
+      [COLUNAS_EXTINTOR.pavimento]: item.setor,
+      [COLUNAS_EXTINTOR.localDetalhado]: item.local_detalhado,
+      [COLUNAS_EXTINTOR.numInmetro]: item.num_inmetro,
+      [COLUNAS_EXTINTOR.numCilindro]: item.num_cilindro ?? "",
+      [COLUNAS_EXTINTOR.tipo]: item.tipo,
+      [COLUNAS_EXTINTOR.tamanho]: item.tamanho,
+      [COLUNAS_EXTINTOR.capacidadeExtintora]: item.capacidade_extintora,
+      "Pavimento na planta": item.pavimento ?? "",
+      [COLUNAS_EXTINTOR.manutencao2]: formatDate(item.manutencao_2_nivel),
+      [COLUNAS_EXTINTOR.manutencao3]: formatDate(item.manutencao_3_nivel),
     }));
 }
 
@@ -105,13 +106,13 @@ function conferenciaExtintorRows(items: ConferenciaHistoricoExtintorRow[]): PdfR
       item.manutencao_3_nivel,
     );
     return {
-      Código: item.codigo,
+      [COLUNAS_EXTINTOR.codigo]: item.codigo,
       Status: item.exportStatus ?? resolved.status,
       Equipe: item.equipe,
-      Setor: item.setor,
-      Local: item.local_detalhado,
-      Tipo: item.tipo,
-      Tamanho: item.tamanho,
+      [COLUNAS_EXTINTOR.pavimento]: item.setor,
+      [COLUNAS_EXTINTOR.localDetalhado]: item.local_detalhado,
+      [COLUNAS_EXTINTOR.tipo]: item.tipo,
+      [COLUNAS_EXTINTOR.tamanho]: item.tamanho,
       Data: formatDateTime(item.data_conferencia),
       Conferente: item.conferente,
       Observação: item.observacao ?? resolved.observacao,

@@ -1,25 +1,18 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { formatDateOnlyIso } from "@/lib/date/date-only";
+import {
+  COLUNAS_EXTINTOR,
+  EXTINTOR_IMPORT_HEADERS,
+} from "@/lib/inventario/equipamento-padrao";
 
 /** Cabeçalhos oficiais da planilha de importação (template + validação). */
-const REQUIRED_HEADERS = [
-  "Código",
-  "Pavimento",
-  "Local Detalhado",
-  "Número Inmetro",
-  "Nº do Cilindro",
-  "Tipo",
-  "Tamanho",
-  "Capacidade Extintora",
-  "Vencimento Manutenção 2º Nível",
-  "Vencimento Manutenção 3º Nível",
-] as const;
+const REQUIRED_HEADERS = EXTINTOR_IMPORT_HEADERS;
 
 /**
  * Colunas que planilhas antigas podem omitir sem falhar a importação.
  * Ainda entram no template oficial e são gravadas quando presentes.
  */
-const OPTIONAL_HEADERS = ["Nº do Cilindro"] as const;
+const OPTIONAL_HEADERS = [COLUNAS_EXTINTOR.numCilindro] as const;
 
 type RequiredHeader = (typeof REQUIRED_HEADERS)[number];
 type OptionalHeader = (typeof OPTIONAL_HEADERS)[number];
@@ -44,13 +37,34 @@ export type ExtintorImportRecord = {
 };
 
 const HEADER_ALIASES: Record<KnownHeader, string[]> = {
-  Código: ["Código", "CODIGO"],
-  /** Cabeçalho oficial Pavimento; planilhas antigas com Setor continuam válidas (grava em `setor` no banco). */
-  Pavimento: ["Pavimento", "PAVIMENTO", "Setor", "SETOR"],
-  "Local Detalhado": ["Local Detalhado"],
-  "Número Inmetro": ["Número Inmetro", "Número do Inmetro", "NUMERO INMETRO", "NUMERO DO INMETRO"],
-  "Nº do Cilindro": [
-    "Nº do Cilindro",
+  [COLUNAS_EXTINTOR.codigo]: [
+    COLUNAS_EXTINTOR.codigo,
+    "Código",
+    "Codigo",
+    "CODIGO",
+    "Código de controle",
+  ],
+  [COLUNAS_EXTINTOR.pavimento]: [
+    COLUNAS_EXTINTOR.pavimento,
+    "PAVIMENTO",
+    "Setor",
+    "SETOR",
+  ],
+  [COLUNAS_EXTINTOR.localDetalhado]: [
+    COLUNAS_EXTINTOR.localDetalhado,
+    "Local Detalhado",
+    "LOCAL DETALHADO",
+  ],
+  [COLUNAS_EXTINTOR.numInmetro]: [
+    COLUNAS_EXTINTOR.numInmetro,
+    "Nº INMETRO",
+    "Número Inmetro",
+    "Número do Inmetro",
+    "NUMERO INMETRO",
+    "NUMERO DO INMETRO",
+  ],
+  [COLUNAS_EXTINTOR.numCilindro]: [
+    COLUNAS_EXTINTOR.numCilindro,
     "Nº do cilindro",
     "Numero do Cilindro",
     "Número do Cilindro",
@@ -58,18 +72,38 @@ const HEADER_ALIASES: Record<KnownHeader, string[]> = {
     "Nº Cilindro",
     "Num Cilindro",
   ],
-  Tipo: ["Tipo"],
-  Tamanho: ["Tamanho"],
-  "Capacidade Extintora": ["Capacidade Extintora"],
-  "Vencimento Manutenção 2º Nível": [
+  [COLUNAS_EXTINTOR.tipo]: [
+    COLUNAS_EXTINTOR.tipo,
+    "Tipo",
+    "TIPO",
+    "Tipo de agente",
+  ],
+  [COLUNAS_EXTINTOR.tamanho]: [
+    COLUNAS_EXTINTOR.tamanho,
+    "Tamanho",
+    "TAMANHO",
+    "Carga Nominal",
+  ],
+  [COLUNAS_EXTINTOR.capacidadeExtintora]: [
+    COLUNAS_EXTINTOR.capacidadeExtintora,
+    "Capacidade Extintora",
+    "CAPACIDADE EXTINTORA",
+  ],
+  [COLUNAS_EXTINTOR.manutencao2]: [
+    COLUNAS_EXTINTOR.manutencao2,
     "Vencimento Manutenção 2º Nível",
     "Vencimento Manutenção Nível 2",
     "Vencimento Manutenção Nivel 2",
+    "Vencto. Manutenção Nível 2",
+    "Próx. Manutenção 2º Nível",
   ],
-  "Vencimento Manutenção 3º Nível": [
+  [COLUNAS_EXTINTOR.manutencao3]: [
+    COLUNAS_EXTINTOR.manutencao3,
     "Vencimento Manutenção 3º Nível",
     "Vencimento Manutenção Nível 3",
     "Vencimento Manutenção Nivel 3",
+    "Vencto. Manutenção Nível 3",
+    "Próx. Manutenção 3º Nível",
   ],
 };
 
@@ -115,16 +149,16 @@ function dateOrNull(iso: string): string | null {
 
 function normalizeRecord(row: Record<KnownHeader, unknown>): ExtintorImportRecord {
   return {
-    codigo: String(row["Código"] ?? "").trim(),
-    setor: String(row["Pavimento"] ?? "").trim(),
-    local_detalhado: String(row["Local Detalhado"] ?? "").trim(),
-    num_inmetro: String(row["Número Inmetro"] ?? "").trim(),
-    num_cilindro: String(row["Nº do Cilindro"] ?? "").trim(),
-    tipo: String(row["Tipo"] ?? "").trim(),
-    tamanho: String(row["Tamanho"] ?? "").trim(),
-    capacidade_extintora: String(row["Capacidade Extintora"] ?? "").trim(),
-    manutencao_2_nivel: dateOrNull(formatDate(row["Vencimento Manutenção 2º Nível"])),
-    manutencao_3_nivel: dateOrNull(formatDate(row["Vencimento Manutenção 3º Nível"])),
+    codigo: String(row[COLUNAS_EXTINTOR.codigo] ?? "").trim(),
+    setor: String(row[COLUNAS_EXTINTOR.pavimento] ?? "").trim(),
+    local_detalhado: String(row[COLUNAS_EXTINTOR.localDetalhado] ?? "").trim(),
+    num_inmetro: String(row[COLUNAS_EXTINTOR.numInmetro] ?? "").trim(),
+    num_cilindro: String(row[COLUNAS_EXTINTOR.numCilindro] ?? "").trim(),
+    tipo: String(row[COLUNAS_EXTINTOR.tipo] ?? "").trim(),
+    tamanho: String(row[COLUNAS_EXTINTOR.tamanho] ?? "").trim(),
+    capacidade_extintora: String(row[COLUNAS_EXTINTOR.capacidadeExtintora] ?? "").trim(),
+    manutencao_2_nivel: dateOrNull(formatDate(row[COLUNAS_EXTINTOR.manutencao2])),
+    manutencao_3_nivel: dateOrNull(formatDate(row[COLUNAS_EXTINTOR.manutencao3])),
   };
 }
 
@@ -211,14 +245,37 @@ export function parseSpreadsheet(file: File): Promise<ParsedSpreadsheetResult> {
   });
 }
 
+const TEMPLATE_HEADER_STYLE = {
+  font: { bold: true, color: { rgb: "FFF97316" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: {
+    top: { style: "thin", color: { rgb: "FFFDBA74" } },
+    bottom: { style: "thin", color: { rgb: "FFFDBA74" } },
+    left: { style: "thin", color: { rgb: "FFFDBA74" } },
+    right: { style: "thin", color: { rgb: "FFFDBA74" } },
+  },
+};
+
 /** Gera e baixa a planilha-modelo (.xlsx) com os cabeçalhos oficiais de extintores. */
 export function downloadExtintorImportTemplate(): void {
   const headers = [...REQUIRED_HEADERS];
-  const exampleRow = headers.map(() => "");
+  const exampleRow = headers.map((header) =>
+    header === COLUNAS_EXTINTOR.capacidadeExtintora ? "2-A 20-B:C" : "",
+  );
   const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
   ws["!cols"] = headers.map((header) => ({
-    wch: Math.max(14, Math.min(36, header.length + 4)),
+    wch: Math.max(16, Math.min(42, header.length + 2)),
   }));
+  ws["!rows"] = [{ hpt: 32 }];
+
+  headers.forEach((_, col) => {
+    const address = XLSX.utils.encode_cell({ r: 0, c: col });
+    const cell = ws[address] ?? { t: "s", v: headers[col] };
+    ws[address] = {
+      ...cell,
+      s: TEMPLATE_HEADER_STYLE,
+    };
+  });
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Extintores");

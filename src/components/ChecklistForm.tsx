@@ -61,34 +61,34 @@ function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
           <dd className="text-right font-medium text-slate-800">{info.local_detalhado || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Nº INMETRO</dt>
+          <dt className="shrink-0 text-slate-500">Nº do INMETRO</dt>
           <dd className="text-right font-medium text-slate-800">{info.num_inmetro || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Nº do cilindro</dt>
+          <dt className="shrink-0 text-slate-500">Nº do Cilindro</dt>
           <dd className="text-right font-medium text-slate-800">{info.num_cilindro?.trim() || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Tipo</dt>
+          <dt className="shrink-0 text-slate-500">Tipo de agente extintor</dt>
           <dd className="text-right font-medium text-slate-800">{info.tipo || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Tamanho</dt>
+          <dt className="shrink-0 text-slate-500">Carga nominal</dt>
           <dd className="text-right font-medium text-slate-800">{info.tamanho || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Capacidade extintora</dt>
+          <dt className="shrink-0 text-slate-500">Capacidade Extintora (Ex: 2-A 20-B:C)</dt>
           <dd className="text-right font-medium text-slate-800">{info.capacidade_extintora || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Próximo teste nível 2</dt>
+          <dt className="shrink-0 text-slate-500">Próx. Manutenção 2º Nível (Recarga)</dt>
           <dd className={`text-right font-semibold ${v2 ? "text-red-600" : "text-slate-800"}`}>
             {formatDateOnlyPt(info.manutencao_2_nivel)}
             {v2 ? " (vencido)" : ""}
           </dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Próximo teste nível 3</dt>
+          <dt className="shrink-0 text-slate-500">Próx. Manutenção 3º Nível (Teste hidrostático)</dt>
           <dd className={`text-right font-semibold ${v3 ? "text-red-600" : "text-slate-800"}`}>
             {formatDateOnlyPt(info.manutencao_3_nivel)}
             {v3 ? " (vencido)" : ""}

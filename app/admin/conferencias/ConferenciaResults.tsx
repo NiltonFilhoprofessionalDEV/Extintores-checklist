@@ -292,7 +292,7 @@ export function ConferenciaDetailModal({
                   <DetailField label="Setor" value={item.setor} />
                   <DetailField label="Local detalhado" value={item.local_detalhado} />
                   <DetailField label="Pavimento" value={item.pavimento ?? "Não informado"} />
-                  <DetailField label="Nº INMETRO" value={item.numInmetro ?? "Não informado"} />
+                  <DetailField label="Nº do INMETRO" value={item.numInmetro ?? "Não informado"} />
                   <DetailField label="Tipo / tamanho" value={[item.tipoEquip, item.tamanho].filter(Boolean).join(" · ")} />
                   <DetailField label="Capacidade extintora" value={item.capacidadeExtintora ?? "Não informado"} />
                   <DetailField label="Manutenção 2º nível" value={formatDate(item.manutencao_2_nivel)} />

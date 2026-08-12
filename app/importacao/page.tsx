@@ -10,6 +10,10 @@ import {
 } from "@/lib/rf01/hidrante-import-parser";
 import { importSpreadsheetViaApi } from "@/lib/import/import-api-client";
 import { formatSyncResultMessage, type ImportMode } from "@/lib/import/spreadsheet-sync";
+import {
+  COLUNAS_EXTINTOR,
+  COLUNA_TITULO_CLASS_COMPACT,
+} from "@/lib/inventario/equipamento-padrao";
 import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import AuthGuard from "@/src/components/AuthGuard";
@@ -336,7 +340,7 @@ export default function ImportacaoPage() {
             <p className="mt-2 text-xs text-slate-500">
               Coluna Pavimento: o cabeçalho Setor em planilhas antigas continua sendo aceito.
               {destino === "extintores"
-                ? " «Nº do Cilindro» é opcional em planilhas antigas; no modelo novo já vem incluído."
+                ? " Cabeçalhos antigos (Código, Tipo, Tamanho, etc.) também são aceitos. «Nº do Cilindro» é opcional em planilhas antigas."
                 : ""}
             </p>
             {destino === "hidrantes" && (
@@ -380,17 +384,17 @@ export default function ImportacaoPage() {
           <h2 className="text-lg font-black text-[var(--ink)]">Pré-visualização ({readyCount})</h2>
           <div className="mt-4 overflow-x-auto">
             {destino === "extintores" ? (
-              <table className="modern-table min-w-[1000px]">
+              <table className="modern-table min-w-[1100px]">
                 <thead>
                   <tr>
-                    <th className="px-2 py-2">Código</th>
-                    <th className="px-2 py-2">Pavimento</th>
-                    <th className="px-2 py-2">Local Detalhado</th>
-                    <th className="px-2 py-2">Número Inmetro</th>
-                    <th className="px-2 py-2">Nº do Cilindro</th>
-                    <th className="px-2 py-2">Tipo</th>
-                    <th className="px-2 py-2">Tamanho</th>
-                    <th className="px-2 py-2">Capacidade Extintora</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.codigo}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.pavimento}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.localDetalhado}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.numInmetro}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.numCilindro}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.tipo}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.tamanho}</th>
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>{COLUNAS_EXTINTOR.capacidadeExtintora}</th>
                   </tr>
                 </thead>
                 <tbody>

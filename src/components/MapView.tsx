@@ -2009,7 +2009,7 @@ export default function MapView() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-500">Tipo / Tamanho</span>
+                  <span className="text-xs text-zinc-500">Tipo de agente / Carga nominal</span>
                   <span className="text-xs font-medium text-zinc-700">
                     {[infoMarker.tipo, infoMarker.tamanho].filter(Boolean).join(" · ") || "—"}
                   </span>
