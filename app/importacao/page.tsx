@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { parseSpreadsheet, REQUIRED_HEADERS, downloadExtintorImportTemplate, type ExtintorImportRecord } from "@/lib/rf01/import-parser";
+import { parseSpreadsheet, downloadExtintorImportTemplate, type ExtintorImportRecord } from "@/lib/rf01/import-parser";
 import {
   parseHidranteSpreadsheet,
-  HIDRANTE_REQUIRED_HEADERS,
   type HidranteImportRow,
 } from "@/lib/rf01/hidrante-import-parser";
 import { importSpreadsheetViaApi } from "@/lib/import/import-api-client";
@@ -17,11 +16,12 @@ import {
 import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import AuthGuard from "@/src/components/AuthGuard";
+import { PreviewPagination, SegmentedOption } from "@/src/components/importacao/ImportacaoUi";
 
 const ACCEPTED_FILES = ".xlsx,.csv";
+const PREVIEW_PAGE_SIZE = 10;
 
 type ImportStatus = "idle" | "parsing" | "ready" | "uploading" | "success" | "error";
-
 type DestinoImport = "extintores" | "hidrantes";
 
 function isDuplicateError(message: string): boolean {
@@ -53,11 +53,23 @@ export default function ImportacaoPage() {
   const [missingHeaders, setMissingHeaders] = useState<string[]>([]);
   const [hidranteSkipped, setHidranteSkipped] = useState(0);
   const [message, setMessage] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [previewPage, setPreviewPage] = useState(1);
 
   const disabled = status === "parsing" || status === "uploading";
+  const readyCount = destino === "extintores" ? rowsExtintor.length : rowsHidrante.length;
+  const totalPages = Math.max(1, Math.ceil(readyCount / PREVIEW_PAGE_SIZE));
+  const safePage = Math.min(previewPage, totalPages);
 
-  const previewExtintores = useMemo(() => rowsExtintor.slice(0, 8), [rowsExtintor]);
-  const previewHidrantes = useMemo(() => rowsHidrante.slice(0, 8), [rowsHidrante]);
+  const previewExtintores = useMemo(() => {
+    const start = (safePage - 1) * PREVIEW_PAGE_SIZE;
+    return rowsExtintor.slice(start, start + PREVIEW_PAGE_SIZE);
+  }, [rowsExtintor, safePage]);
+
+  const previewHidrantes = useMemo(() => {
+    const start = (safePage - 1) * PREVIEW_PAGE_SIZE;
+    return rowsHidrante.slice(start, start + PREVIEW_PAGE_SIZE);
+  }, [rowsHidrante, safePage]);
 
   async function resolveBaseId(): Promise<string | null> {
     if (activeBaseCtx?.activeBaseId) return activeBaseCtx.activeBaseId;
@@ -71,6 +83,15 @@ export default function ImportacaoPage() {
     setRowsExtintor([]);
     setRowsHidrante([]);
     setHidranteSkipped(0);
+    setPreviewPage(1);
+  }
+
+  function clearImportState() {
+    setStatus("idle");
+    resetRows();
+    setMissingHeaders([]);
+    setMessage("");
+    setFileName("");
   }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -81,6 +102,7 @@ export default function ImportacaoPage() {
     setMissingHeaders([]);
     resetRows();
     setMessage("");
+    setFileName(file.name);
 
     try {
       if (destino === "extintores") {
@@ -96,6 +118,7 @@ export default function ImportacaoPage() {
           return;
         }
         setRowsExtintor(parsed.records);
+        setPreviewPage(1);
         setStatus("ready");
         setMessage(
           `${parsed.records.length} extintores prontos para ${modo === "cadastro" ? "cadastro" : "atualização em lote"}.`,
@@ -120,6 +143,7 @@ export default function ImportacaoPage() {
       }
       setRowsHidrante(parsed.records);
       setHidranteSkipped(parsed.skippedSemCodigo);
+      setPreviewPage(1);
       setStatus("ready");
       let msg = `${parsed.records.length} hidrantes prontos para ${modo === "cadastro" ? "cadastro" : "atualização em lote"}.`;
       if (parsed.skippedSemCodigo > 0) {
@@ -207,182 +231,195 @@ export default function ImportacaoPage() {
     );
   }
 
-  const readyCount = destino === "extintores" ? rowsExtintor.length : rowsHidrante.length;
-
   return (
     <AuthGuard allowedRoles={["admin", "admin_corporativo"]}>
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-8">
+      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-6 py-8">
         <header className="page-hero p-6">
           <div className="page-hero-content">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">RF01 - Importação de Dados</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Importar planilha</h1>
-          <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
-            <strong>Extintores:</strong> modelo RF01 com colunas de extintores.{" "}
-            <strong>Hidrantes:</strong> planilha própria com os cabeçalhos padronizados listados abaixo (.xlsx ou .csv).{" "}
-            Use <strong>Atualizar em lote</strong> para reimportar a planilha com dados alterados — o código do equipamento é a chave.
-          </p>
-          {activeBaseCtx?.activeBase && (
-            <p className="mt-3 text-sm font-semibold text-[var(--neon)]">
-              Base ativa para importação: {activeBaseCtx.activeBase.nome}
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">
+              RF01 - Importação de Dados
             </p>
-          )}
-          </div>
-        </header>
-
-        <section className="section-card p-6">
-          <p className="mb-2 text-sm font-black text-[var(--ink)]">Destino da importação</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                destino === "extintores" ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25" : "border border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-              onClick={() => {
-                setDestino("extintores");
-                setStatus("idle");
-                resetRows();
-                setMissingHeaders([]);
-                setMessage("");
-              }}
-            >
-              Extintores
-            </button>
-            <button
-              type="button"
-              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                destino === "hidrantes" ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25" : "border border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-              onClick={() => {
-                setDestino("hidrantes");
-                setStatus("idle");
-                resetRows();
-                setMissingHeaders([]);
-                setMessage("");
-              }}
-            >
-              Hidrantes
-            </button>
-          </div>
-        </section>
-
-        <section className="section-card p-6">
-          <p className="mb-2 text-sm font-black text-[var(--ink)]">Modo de importação</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                modo === "cadastro"
-                  ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25"
-                  : "border border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-              onClick={() => setModo("cadastro")}
-            >
-              Cadastrar novos
-            </button>
-            <button
-              type="button"
-              className={`rounded-2xl px-4 py-2 text-sm font-bold ${
-                modo === "atualizacao"
-                  ? "brand-gradient text-[var(--neon-ink)] shadow-lg shadow-[var(--neon)]/25"
-                  : "border border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-              onClick={() => setModo("atualizacao")}
-            >
-              Atualizar em lote
-            </button>
-          </div>
-          <p className="mt-3 text-xs text-slate-500">
-            {modo === "cadastro"
-              ? "Insere apenas registros novos. Falha se o código já existir no banco."
-              : "Atualiza registros existentes pelo código. Códigos novos são cadastrados automaticamente. Coordenadas do mapa e histórico de conferências são preservados."}
-          </p>
-        </section>
-
-        <section className="section-card p-6">
-          <label htmlFor="spreadsheet" className="mb-3 block text-sm font-medium text-slate-700">
-            Selecione a planilha
-          </label>
-          {destino === "extintores" && (
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                onClick={() => downloadExtintorImportTemplate()}
-                disabled={disabled}
-              >
-                Download planilha padrão
-              </button>
-              <p className="text-xs text-slate-500">
-                Baixe o modelo oficial, preencha os dados e faça o upload abaixo.
-              </p>
-            </div>
-          )}
-          <input
-            id="spreadsheet"
-            name="spreadsheet"
-            type="file"
-            accept={ACCEPTED_FILES}
-            className="field-control block file:mr-4 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
-            onChange={handleFileChange}
-            disabled={disabled}
-          />
-
-          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
-            <p className="text-sm font-semibold text-slate-800">Campos do modelo (cabeçalhos)</p>
-            <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-600 md:grid-cols-2">
-              {(destino === "extintores"
-                ? REQUIRED_HEADERS
-                : [...HIDRANTE_REQUIRED_HEADERS]
-              ).map((header) => (
-                <li key={header}>- {header}</li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-slate-500">
-              Coluna Pavimento: o cabeçalho Setor em planilhas antigas continua sendo aceito.
-              {destino === "extintores"
-                ? " Cabeçalhos antigos (Código, Tipo, Tamanho, etc.) também são aceitos. «Nº do Cilindro» é opcional em planilhas antigas."
-                : ""}
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Importar planilha</h1>
+            <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
+              Baixe o modelo, preencha e envie o arquivo (.xlsx ou .csv). Em{" "}
+              <strong>Atualizar em lote</strong>, o código do equipamento é a chave.
             </p>
-            {destino === "hidrantes" && (
-              <p className="mt-3 text-xs text-slate-500">
-                Datas podem vir como célula de data do Excel ou texto. Quantidades como número ou texto com dígitos.
-                Traço no cabeçalho das datas de teste hidrostático pode ser hífen (-) ou travessão (–).
-                Também aceitamos os cabeçalhos curtos do export do Google Forms (ex.: CÓDIGO, PAVIMENTO, LOCAL DETALHADO, datas M-1 a M-4, QUANTIDADE DE ESGUICHO). Colunas extras (Carimbo de data/hora, Observação) são ignoradas.
+            {activeBaseCtx?.activeBase && (
+              <p className="mt-3 text-sm font-semibold text-[var(--neon)]">
+                Base ativa para importação: {activeBaseCtx.activeBase.nome}
               </p>
             )}
           </div>
+        </header>
+
+        <section className="section-card p-4 sm:p-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Destino
+              </p>
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <SegmentedOption
+                  value="extintores"
+                  current={destino}
+                  label="Extintores"
+                  onSelect={(value) => {
+                    setDestino(value);
+                    clearImportState();
+                  }}
+                />
+                <SegmentedOption
+                  value="hidrantes"
+                  current={destino}
+                  label="Hidrantes"
+                  onSelect={(value) => {
+                    setDestino(value);
+                    clearImportState();
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Modo
+              </p>
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <SegmentedOption
+                  value="cadastro"
+                  current={modo}
+                  label="Cadastrar novos"
+                  onSelect={setModo}
+                />
+                <SegmentedOption
+                  value="atualizacao"
+                  current={modo}
+                  label="Atualizar em lote"
+                  onSelect={setModo}
+                />
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                {modo === "cadastro"
+                  ? "Insere só registros novos. Falha se o código já existir."
+                  : "Atualiza pelo código; códigos novos são cadastrados. Mapa e histórico são preservados."}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="section-card p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+            {destino === "extintores" && (
+              <div className="flex min-w-[200px] flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:max-w-[240px]">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    Modelo
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">Planilha padrão</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Cabeçalhos oficiais prontos para preencher.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary mt-3 w-full text-sm"
+                  onClick={() => downloadExtintorImportTemplate()}
+                  disabled={disabled}
+                >
+                  Download
+                </button>
+              </div>
+            )}
+
+            <div className="flex min-w-0 flex-1 flex-col">
+              <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Arquivo
+              </p>
+              <label
+                htmlFor="spreadsheet"
+                className={`group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center transition hover:border-[var(--neon)] hover:bg-[var(--neon)]/5 ${
+                  disabled ? "pointer-events-none opacity-60" : ""
+                }`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (disabled) return;
+                  const file = event.dataTransfer.files?.[0];
+                  if (!file) return;
+                  const input = document.getElementById("spreadsheet") as HTMLInputElement | null;
+                  if (!input) return;
+                  const transfer = new DataTransfer();
+                  transfer.items.add(file);
+                  input.files = transfer.files;
+                  void handleFileChange({
+                    target: input,
+                  } as React.ChangeEvent<HTMLInputElement>);
+                }}
+              >
+                <input
+                  id="spreadsheet"
+                  name="spreadsheet"
+                  type="file"
+                  accept={ACCEPTED_FILES}
+                  className="sr-only"
+                  onChange={handleFileChange}
+                  disabled={disabled}
+                />
+                <span className="text-sm font-bold text-slate-800 group-hover:text-[var(--ink)]">
+                  {fileName || "Escolher arquivo"}
+                </span>
+                <span className="mt-1 text-xs text-slate-500">
+                  {fileName ? "Clique para trocar · .xlsx ou .csv" : "Arraste ou clique · .xlsx ou .csv"}
+                </span>
+              </label>
+            </div>
+          </div>
 
           {missingHeaders.length > 0 && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               Colunas ausentes: {missingHeaders.join(", ")}
             </div>
           )}
 
           {message && (
-            <div className="mt-4 whitespace-pre-line rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <div className="mt-4 whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
               {message}
             </div>
           )}
 
-          <button
-            type="button"
-            className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={status !== "ready"}
-            onClick={() => void handleImport()}
-          >
-            {status === "uploading"
-              ? modo === "atualizacao"
-                ? "Atualizando..."
-                : "Importando..."
-              : modo === "atualizacao"
-                ? "Atualizar em lote"
-                : "Cadastrar novos"}
-          </button>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={status !== "ready"}
+              onClick={() => void handleImport()}
+            >
+              {status === "uploading"
+                ? modo === "atualizacao"
+                  ? "Atualizando..."
+                  : "Importando..."
+                : modo === "atualizacao"
+                  ? "Atualizar em lote"
+                  : "Cadastrar novos"}
+            </button>
+            {status === "parsing" && (
+              <span className="text-xs font-medium text-slate-500">Lendo planilha…</span>
+            )}
+          </div>
         </section>
 
-        <section className="section-card p-6">
-          <h2 className="text-lg font-black text-[var(--ink)]">Pré-visualização ({readyCount})</h2>
-          <div className="mt-4 overflow-x-auto">
+        <section className="section-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-lg font-black text-[var(--ink)]">Pré-visualização</h2>
+            <p className="text-xs font-semibold text-slate-500">
+              {readyCount} {readyCount === 1 ? "linha" : "linhas"}
+            </p>
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
             {destino === "extintores" ? (
               <table className="modern-table min-w-[1100px]">
                 <thead>
@@ -463,6 +500,14 @@ export default function ImportacaoPage() {
               </table>
             )}
           </div>
+
+          <PreviewPagination
+            page={safePage}
+            totalPages={totalPages}
+            totalRows={readyCount}
+            pageSize={PREVIEW_PAGE_SIZE}
+            onPageChange={setPreviewPage}
+          />
         </section>
 
         <footer className="text-sm text-slate-500">
