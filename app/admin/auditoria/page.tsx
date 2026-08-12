@@ -26,7 +26,7 @@ const FILTROS_ACAO: { value: string; label: string }[] = [
 ];
 
 export default function AdminAuditoriaPage() {
-  const { activeBaseId, activeBase } = useActiveBase();
+  const { ready, profile, accessibleBases, activeBaseId } = useActiveBase();
   const supabase = useMemo(() => getSupabaseClient(), []);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,9 +34,41 @@ export default function AdminAuditoriaPage() {
   const [buscaInput, setBuscaInput] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroAcao, setFiltroAcao] = useState("");
+  const [filtroBaseId, setFiltroBaseId] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLogRow | null>(null);
 
+  useEffect(() => {
+    if (!ready) return;
+    if (filtroBaseId && accessibleBases.some((base) => base.id === filtroBaseId)) return;
+    const preferred =
+      (activeBaseId && accessibleBases.some((base) => base.id === activeBaseId)
+        ? activeBaseId
+        : null) ||
+      accessibleBases[0]?.id ||
+      "";
+    setFiltroBaseId(preferred);
+  }, [ready, accessibleBases, activeBaseId, filtroBaseId]);
+
+  const baseSelecionada = useMemo(
+    () => accessibleBases.find((base) => base.id === filtroBaseId) ?? null,
+    [accessibleBases, filtroBaseId],
+  );
+
   const carregar = useCallback(async () => {
+    if (!ready) return;
+    if (profile?.role !== "admin_corporativo") {
+      setLogs([]);
+      setLoading(false);
+      setError("Apenas administradores corporativos podem ver a auditoria.");
+      return;
+    }
+    if (!filtroBaseId) {
+      setLogs([]);
+      setLoading(false);
+      setError(accessibleBases.length === 0 ? "Nenhuma base disponível." : "Selecione uma base.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -44,16 +76,18 @@ export default function AdminAuditoriaPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão não encontrada.");
-      if (!activeBaseId) throw new Error("Selecione uma base ativa.");
 
-      const params = new URLSearchParams({ limit: "200" });
+      const params = new URLSearchParams({
+        limit: "200",
+        base_id: filtroBaseId,
+      });
       if (busca.trim()) params.set("q", busca.trim());
       if (filtroAcao) params.set("action", filtroAcao);
 
       const response = await fetch(`/api/admin/auditoria?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
-          "X-Active-Base-Id": activeBaseId,
+          "X-Active-Base-Id": filtroBaseId,
         },
       });
       const payload = (await response.json()) as { logs?: AuditLogRow[]; error?: string };
@@ -65,7 +99,15 @@ export default function AdminAuditoriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeBaseId, busca, filtroAcao, supabase]);
+  }, [
+    ready,
+    profile?.role,
+    filtroBaseId,
+    accessibleBases.length,
+    busca,
+    filtroAcao,
+    supabase,
+  ]);
 
   useEffect(() => {
     void carregar();
@@ -78,16 +120,71 @@ export default function AdminAuditoriaPage() {
   return (
     <div className="space-y-5">
       <div className="professional-card reveal-up p-5 sm:p-6">
-        <p className="page-eyebrow">Controle</p>
+        <p className="page-eyebrow">Controle corporativo</p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Auditoria</h1>
         <p className="mt-2 max-w-2xl text-sm font-medium text-[var(--muted-foreground)]">
-          Registros compactos do que aconteceu nesta base
-          {activeBase?.nome ? ` (${activeBase.nome})` : ""}. Use o olho para ver os detalhes.
+          Cada base tem o próprio histórico. Selecione a base no filtro para ver só os registros dela.
+          Use o olho para abrir os detalhes.
         </p>
       </div>
 
-      <div className="professional-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
+      <div className="professional-card flex flex-col gap-3 p-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <label className="block min-w-0">
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Base
+            </span>
+            <select
+              className="field-control w-full border-[var(--neon)]/40 bg-[var(--neon)]/5 font-semibold text-[var(--ink)]"
+              value={filtroBaseId}
+              onChange={(e) => {
+                setFiltroBaseId(e.target.value);
+                setSelectedLog(null);
+              }}
+              disabled={!ready || accessibleBases.length === 0}
+            >
+              {accessibleBases.length === 0 ? (
+                <option value="">Nenhuma base</option>
+              ) : (
+                accessibleBases.map((base) => (
+                  <option key={base.id} value={base.id}>
+                    {base.nome}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+
+          <label className="block min-w-0">
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Ação
+            </span>
+            <select
+              className="field-control w-full"
+              value={filtroAcao}
+              onChange={(e) => setFiltroAcao(e.target.value)}
+            >
+              {FILTROS_ACAO.map((opt) => (
+                <option key={opt.value || "all"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="btn-secondary shrink-0 sm:mb-0.5"
+            onClick={() => {
+              aplicarBusca();
+              if (buscaInput.trim() === busca) void carregar();
+            }}
+          >
+            Atualizar
+          </button>
+        </div>
+
+        <div className="relative min-w-0">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             fill="none"
@@ -108,27 +205,13 @@ export default function AdminAuditoriaPage() {
             }}
           />
         </div>
-        <select
-          className="field-control sm:w-56"
-          value={filtroAcao}
-          onChange={(e) => setFiltroAcao(e.target.value)}
-        >
-          {FILTROS_ACAO.map((opt) => (
-            <option key={opt.value || "all"} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="btn-secondary shrink-0"
-          onClick={() => {
-            aplicarBusca();
-            if (buscaInput.trim() === busca) void carregar();
-          }}
-        >
-          Atualizar
-        </button>
+
+        {baseSelecionada && (
+          <p className="text-xs font-semibold text-slate-500">
+            Exibindo auditoria da base{" "}
+            <span className="text-[var(--ink)]">{baseSelecionada.nome}</span>
+          </p>
+        )}
       </div>
 
       {error && (
@@ -147,7 +230,9 @@ export default function AdminAuditoriaPage() {
           <div className="px-4 py-16 text-center">
             <p className="text-base font-semibold text-slate-800">Nenhum registro encontrado</p>
             <p className="mt-1 text-sm text-slate-500">
-              Quando alguém cadastrar, alterar ou remover itens, a ação aparece aqui.
+              {baseSelecionada
+                ? `Ainda não há ações registradas na base ${baseSelecionada.nome}.`
+                : "Quando alguém cadastrar, alterar ou remover itens, a ação aparece aqui."}
             </p>
           </div>
         ) : (

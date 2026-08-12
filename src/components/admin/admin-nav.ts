@@ -43,7 +43,7 @@ export const SECONDARY_NAV_ITEMS: AdminNavItem[] = [
     href: "/admin/auditoria",
     label: "Auditoria",
     icon: "audit",
-    adminLikeOnly: true,
+    adminCorporativoOnly: true,
   },
   {
     href: "/admin/configuracoes",
