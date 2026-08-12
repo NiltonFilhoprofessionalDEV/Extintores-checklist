@@ -6,6 +6,7 @@ import AuthGuard from "@/src/components/AuthGuard";
 import AdminAreaGuard from "@/src/components/AdminAreaGuard";
 import AdminDock from "@/src/components/AdminDock";
 import AdminSidebar from "@/src/components/AdminSidebar";
+import FlaticonCredits from "@/src/components/FlaticonCredits";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,7 +27,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {isMapeamento ? (
                 <div className="admin-shell__map">{children}</div>
               ) : (
-                <main className="admin-shell__main">{children}</main>
+                <main className="admin-shell__main">
+                  {children}
+                  <FlaticonCredits className="mt-8 px-1 pb-2" />
+                </main>
               )}
             </div>
           </div>

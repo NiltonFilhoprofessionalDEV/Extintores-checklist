@@ -56,3 +56,12 @@ Somente **Administrador Corporativo** acessa a página **Bases** e pode atribuir
 - Mapeamento em planta em `app/mapeamento/page.tsx` (Leaflet + CRS.Simple)
 - Gestão de usuários admin em `app/admin/usuarios/page.tsx`
 - Conferência mobile em `app/mobile/conferencia/page.tsx`
+
+## Atribuição de ícones
+
+Ícones de equipamento (inventário, checklist e mapa) por **Magnific** via Flaticon:
+
+- [Fogo ícones criados por Magnific - Flaticon](https://www.flaticon.com/br/icones-gratis/fogo)
+- [Hidrante ícones criados por Magnific - Flaticon](https://www.flaticon.com/br/icones-gratis/hidrante)
+
+Arquivos em `public/icons/` (`extintor-magnific.png`, `hidrante-magnific.png`). Detalhes em `public/icons/ATTRIBUTION.md`.

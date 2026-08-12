@@ -7,32 +7,41 @@ type EquipmentIconProps = {
 
 type EquipmentKind = "extintor" | "hidrante";
 
-/** Assets reais em public/icons — substitua pelos PNGs enviados pelo usuário. */
+/**
+ * Ícones Magnific (Flaticon) — uso com atribuição obrigatória no app/README.
+ * Extintor: https://www.flaticon.com/br/icones-gratis/fogo
+ * Hidrante: https://www.flaticon.com/br/icones-gratis/hidrante
+ */
 export const EQUIPMENT_ICON_SRC: Record<EquipmentKind, string> = {
-  extintor: "/icons/extintor.png",
-  hidrante: "/icons/hidrante.png",
+  extintor: "/icons/extintor-magnific.png",
+  hidrante: "/icons/hidrante-magnific.png",
 };
 
-function equipmentMaskStyle(kind: EquipmentKind, size: number, color: string): CSSProperties {
-  const src = EQUIPMENT_ICON_SRC[kind];
+export const EQUIPMENT_ICON_ATTRIBUTION_HTML = [
+  '<a href="https://www.flaticon.com/br/icones-gratis/fogo" title="fogo ícones">Fogo ícones criados por Magnific - Flaticon</a>',
+  '<a href="https://www.flaticon.com/br/icones-gratis/hidrante" title="hidrante ícones">Hidrante ícones criados por Magnific - Flaticon</a>',
+] as const;
+
+function imageStyle(size: number): CSSProperties {
   return {
     width: size,
     height: size,
     display: "inline-block",
     flexShrink: 0,
-    backgroundColor: color,
-    WebkitMask: `url(${src}) center / contain no-repeat`,
-    mask: `url(${src}) center / contain no-repeat`,
+    objectFit: "contain",
+    verticalAlign: "middle",
   };
 }
 
+/** Markup para Leaflet divIcon — ícone colorido Magnific. */
 export function equipmentIconMarkup(
   kind: EquipmentKind,
   size: number,
-  color = "currentColor",
+  _color = "currentColor",
 ): string {
   const src = EQUIPMENT_ICON_SRC[kind];
-  return `<span aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;background:${color};-webkit-mask:url(${src}) center/contain no-repeat;mask:url(${src}) center/contain no-repeat;"></span>`;
+  const alt = kind === "extintor" ? "Extintor" : "Hidrante";
+  return `<img src="${src}" width="${size}" height="${size}" alt="${alt}" aria-hidden="true" style="display:block;width:${size}px;height:${size}px;object-fit:contain;" />`;
 }
 
 function EquipmentImageIcon({
@@ -41,10 +50,14 @@ function EquipmentImageIcon({
   className,
 }: EquipmentIconProps & { kind: EquipmentKind }) {
   return (
-    <span
+    // eslint-disable-next-line @next/next/no-img-element -- asset estático em /public
+    <img
+      src={EQUIPMENT_ICON_SRC[kind]}
+      alt=""
       aria-hidden
       className={className}
-      style={equipmentMaskStyle(kind, size, "currentColor")}
+      style={imageStyle(size)}
+      draggable={false}
     />
   );
 }
@@ -81,21 +94,20 @@ export function EquipmentStatusIcon({
 }) {
   const palette =
     variant === "alerta"
-      ? { background: "#fff1f2", color: "#e11d48", ring: "#fecdd3" }
+      ? { background: "#fff1f2", ring: "#fecdd3" }
       : variant === "pendente"
-        ? { background: "#fff7ed", color: "#ea580c", ring: "#fed7aa" }
-        : { background: "#ecfdf5", color: "#059669", ring: "#a7f3d0" };
+        ? { background: "#fff7ed", ring: "#fed7aa" }
+        : { background: "#ecfdf5", ring: "#a7f3d0" };
 
   return (
     <span
       className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border shadow-sm"
       style={{
         background: palette.background,
-        color: palette.color,
         borderColor: palette.ring,
       }}
     >
-      <EquipmentImageIcon kind={kind} size={26} />
+      <EquipmentImageIcon kind={kind} size={28} />
     </span>
   );
 }
