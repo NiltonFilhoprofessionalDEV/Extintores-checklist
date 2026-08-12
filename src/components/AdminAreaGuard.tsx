@@ -47,15 +47,17 @@ export default function AdminAreaGuard({ children }: { children: React.ReactNode
           return;
         }
 
-        if (pathname?.startsWith("/admin/bases") && profile.role !== "admin_corporativo") {
+        if (
+          (pathname?.startsWith("/admin/bases") || pathname?.startsWith("/admin/auditoria")) &&
+          profile.role !== "admin_corporativo"
+        ) {
           router.replace(getHomePathForRole(profile.role));
           return;
         }
 
         if (
           (pathname?.startsWith("/admin/mapas-setores") ||
-            pathname?.startsWith("/admin/configuracoes") ||
-            pathname?.startsWith("/admin/auditoria")) &&
+            pathname?.startsWith("/admin/configuracoes")) &&
           profile.role !== "admin" &&
           profile.role !== "admin_corporativo"
         ) {
