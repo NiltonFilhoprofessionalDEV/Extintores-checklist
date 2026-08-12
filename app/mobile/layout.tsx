@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getCurrentSession, getProfileBySession } from "@/lib/auth/profile";
 import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
 import BrandLogo from "@/src/components/BrandLogo";
+import FlaticonCredits from "@/src/components/FlaticonCredits";
 
 const NAV_LINKS = [
   {
@@ -182,6 +183,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             }
           >
             {children}
+            {!isMapaRoute ? <FlaticonCredits className="mt-6 pb-2" /> : null}
           </main>
         </div>
       </ActiveBaseProvider>
