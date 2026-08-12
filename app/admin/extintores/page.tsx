@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_PADRAO, COLUNA_TITULO_CLASS, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 import { exportInventarioPdf } from "@/lib/export/pdf";
 
@@ -688,14 +688,24 @@ export default function AdminExtintoresPage() {
             <table className="modern-table">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigo}</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.setor} / {COLUNAS_PADRAO.localDetalhado}</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">{COLUNAS_PADRAO.tipo} / {COLUNAS_PADRAO.tamanho}</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.numInmetro}</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{COLUNAS_PADRAO.venctoN2}</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">{COLUNAS_PADRAO.mapa}</th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.codigo}</th>
+                  <th className={COLUNA_TITULO_CLASS}>
+                    {COLUNAS_PADRAO.pavimento} / {COLUNAS_PADRAO.localDetalhado}
+                  </th>
+                  <th className={`hidden md:table-cell ${COLUNA_TITULO_CLASS}`}>
+                    {COLUNAS_PADRAO.tipo} / {COLUNAS_PADRAO.tamanho}
+                  </th>
+                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
+                    {COLUNAS_PADRAO.numInmetro}
+                  </th>
+                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
+                    {COLUNAS_PADRAO.venctoN2}
+                  </th>
+                  <th className={`hidden xl:table-cell ${COLUNA_TITULO_CLASS}`}>
+                    {COLUNAS_PADRAO.mapa}
+                  </th>
                   {!readOnly && (
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.acoes}</th>
                   )}
                 </tr>
               </thead>
@@ -788,7 +798,7 @@ export default function AdminExtintoresPage() {
             <table className="modern-table">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigo}</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigoCurto}</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.pavimento}</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.localDetalhado}</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">
@@ -875,11 +885,11 @@ export default function AdminExtintoresPage() {
             <form onSubmit={handleSubmit} className="max-h-[75vh] overflow-y-auto px-6 py-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-                <Field label="Código" required>
+                <Field label={COLUNAS_PADRAO.codigo} required>
                   <input required className={inputCls} placeholder="Ex: EXT-001" value={form.codigo} onChange={(e) => set("codigo", e.target.value)} />
                 </Field>
 
-                <Field label="Nº INMETRO" required>
+                <Field label={COLUNAS_PADRAO.numInmetro} required>
                   <input required className={inputCls} placeholder="Número do INMETRO" value={form.num_inmetro} onChange={(e) => set("num_inmetro", e.target.value)} />
                 </Field>
 
@@ -892,14 +902,14 @@ export default function AdminExtintoresPage() {
                   />
                 </Field>
 
-                <Field label="Setor" required>
+                <Field label={COLUNAS_PADRAO.pavimento} required>
                   <select
                     required
                     className={`${inputCls} uppercase`}
                     value={form.setor}
                     onChange={(e) => set("setor", e.target.value)}
                   >
-                    <option value="">Selecione o setor...</option>
+                    <option value="">Selecione o pavimento...</option>
                     {setores.map((setor) => (
                       <option key={setor} value={setor}>
                         {setor}
@@ -908,11 +918,11 @@ export default function AdminExtintoresPage() {
                   </select>
                 </Field>
 
-                <Field label="Local Detalhado" required>
+                <Field label={COLUNAS_PADRAO.localDetalhado} required>
                   <input required className={`${inputCls} sm:col-span-2`} placeholder="Descrição detalhada do local" value={form.local_detalhado} onChange={(e) => set("local_detalhado", e.target.value)} />
                 </Field>
 
-                <Field label="Tipo" required>
+                <Field label={COLUNAS_PADRAO.tipo} required>
                   <select
                     required
                     className={`${inputCls} uppercase`}
@@ -925,7 +935,7 @@ export default function AdminExtintoresPage() {
                       }))
                     }
                   >
-                    <option value="">Selecione o tipo...</option>
+                    <option value="">Selecione o tipo de agente...</option>
                     {TIPOS_EXTINTOR.map((tipo) => (
                       <option key={tipo} value={tipo}>
                         {tipo}
@@ -934,7 +944,7 @@ export default function AdminExtintoresPage() {
                   </select>
                 </Field>
 
-                <Field label="Tamanho" required>
+                <Field label={COLUNAS_PADRAO.tamanho} required>
                   <select
                     required
                     className={inputCls}
@@ -943,7 +953,7 @@ export default function AdminExtintoresPage() {
                     disabled={!form.tipo}
                   >
                     <option value="">
-                      {form.tipo ? "Selecione o tamanho..." : "Selecione um tipo primeiro"}
+                      {form.tipo ? "Selecione a carga nominal..." : "Selecione um tipo primeiro"}
                     </option>
                     {(TAMANHOS_POR_TIPO[form.tipo] ?? []).map((item) => (
                       <option key={item} value={item}>
@@ -953,7 +963,7 @@ export default function AdminExtintoresPage() {
                   </select>
                 </Field>
 
-                <Field label="Capacidade Extintora" required>
+                <Field label={COLUNAS_PADRAO.capacidadeExtintora} required>
                   <input
                     required
                     readOnly={modalMode === "edit"}
@@ -962,7 +972,7 @@ export default function AdminExtintoresPage() {
                         ? `${inputCls} cursor-not-allowed bg-slate-50 text-slate-500`
                         : inputCls
                     }
-                    placeholder="Ex: 4kg ABC"
+                    placeholder="Ex: 2-A 20-B:C"
                     value={form.capacidade_extintora}
                     onChange={(e) => set("capacidade_extintora", e.target.value)}
                   />
@@ -976,7 +986,7 @@ export default function AdminExtintoresPage() {
                   </div>
                 </div>
 
-                <Field label="Vencimento Manutenção Nível 2">
+                <Field label={COLUNAS_PADRAO.venctoN2}>
                   <input
                     type="date"
                     className={inputCls}
@@ -985,7 +995,7 @@ export default function AdminExtintoresPage() {
                   />
                 </Field>
 
-                <Field label="Vencimento Manutenção Nível 3">
+                <Field label={COLUNAS_PADRAO.venctoN3}>
                   <input
                     type="date"
                     className={inputCls}
@@ -1217,13 +1227,15 @@ export default function AdminExtintoresPage() {
               {detalheView.tipo === "extintor" ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
-                  <DetalheCampo label={COLUNAS_PADRAO.setor} value={detalheView.item.setor || "—"} />
+                  <DetalheCampo
+                    label={COLUNAS_PADRAO.pavimento}
+                    value={detalheView.item.setor || detalheView.item.pavimento || "—"}
+                  />
                   <DetalheCampo
                     label={COLUNAS_PADRAO.localDetalhado}
                     value={detalheView.item.local_detalhado || "—"}
                     className="sm:col-span-2"
                   />
-                  <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
                   <DetalheCampo
                     label={COLUNAS_PADRAO.numCilindro}
@@ -1232,7 +1244,7 @@ export default function AdminExtintoresPage() {
                   <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
                   <DetalheCampo
-                    label="Capacidade Extintora"
+                    label={COLUNAS_PADRAO.capacidadeExtintora}
                     value={detalheView.item.capacidade_extintora || "—"}
                   />
                   <DetalheCampo
@@ -1241,7 +1253,7 @@ export default function AdminExtintoresPage() {
                     valueClassName={isExpired(detalheView.item.manutencao_2_nivel) ? "text-red-700" : ""}
                   />
                   <DetalheCampo
-                    label="Vencto. manutenção N3"
+                    label={COLUNAS_PADRAO.venctoN3}
                     value={formatDate(detalheView.item.manutencao_3_nivel)}
                     valueClassName={isExpired(detalheView.item.manutencao_3_nivel) ? "text-red-700" : ""}
                   />
@@ -1249,7 +1261,7 @@ export default function AdminExtintoresPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
+                  <DetalheCampo label={COLUNAS_PADRAO.codigoCurto} value={detalheView.item.codigo} />
                   <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
                   <DetalheCampo
                     label={COLUNAS_PADRAO.localDetalhado}
