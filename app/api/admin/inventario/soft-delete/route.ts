@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminLikeRole } from "@/lib/auth/roles";
+import { canManageInactiveInventory, isAdminLikeRole } from "@/lib/auth/roles";
 import { getInventoryManagerFromRequest } from "@/lib/auth/inventory-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { SOFT_DELETE_CONFIRM_PHRASE, writeAuditLog } from "@/lib/audit/write-audit-log";
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     if (!isAdminLikeRole(manager.role)) {
       return NextResponse.json(
-        { error: "Apenas administradores podem inativar ou recuperar itens." },
+        { error: "Apenas administradores podem inativar itens." },
         { status: 403 },
       );
     }
@@ -31,6 +31,13 @@ export async function POST(request: Request) {
 
     if (!tipo) return NextResponse.json({ error: "Informe tipo: extintor ou hidrante." }, { status: 400 });
     if (ids.length === 0) return NextResponse.json({ error: "Selecione ao menos um item." }, { status: 400 });
+
+    if (mode === "restore" && !canManageInactiveInventory(manager.role)) {
+      return NextResponse.json(
+        { error: "Apenas o administrador corporativo pode ver e recuperar itens inativos." },
+        { status: 403 },
+      );
+    }
 
     if (mode === "soft_delete") {
       const confirmacao = String(body.confirmacao ?? "")

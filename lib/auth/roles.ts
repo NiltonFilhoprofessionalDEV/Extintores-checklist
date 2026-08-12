@@ -36,6 +36,11 @@ export function isAdminLikeRole(role: UserRole): boolean {
   return role === "admin" || role === "admin_corporativo";
 }
 
+/** Só o admin corporativo vê Status/Inativos e pode recuperar itens. */
+export function canManageInactiveInventory(role: UserRole): boolean {
+  return role === "admin_corporativo";
+}
+
 export function isUserManager(role: UserRole): boolean {
   return MANAGER_ROLES.includes(role);
 }
