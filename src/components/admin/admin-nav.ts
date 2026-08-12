@@ -15,6 +15,7 @@ export type AdminIconName =
   | "bases"
   | "import"
   | "settings"
+  | "audit"
   | "menu"
   | "logout";
 
@@ -38,6 +39,12 @@ export const SECONDARY_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin/usuarios", label: "Usuários", icon: "users" },
   { href: "/admin/bases", label: "Bases", icon: "bases", adminCorporativoOnly: true },
   { href: "/admin/importacao", label: "Importar dados", icon: "import" },
+  {
+    href: "/admin/auditoria",
+    label: "Auditoria",
+    icon: "audit",
+    adminLikeOnly: true,
+  },
   {
     href: "/admin/configuracoes",
     label: "Configurações da base",

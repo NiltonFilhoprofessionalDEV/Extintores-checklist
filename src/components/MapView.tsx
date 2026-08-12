@@ -679,8 +679,23 @@ export default function MapView() {
       )
       .order("codigo", { ascending: true });
     if (activeBaseId) query = query.eq("base_id", activeBaseId);
+    query = query.eq("active", true);
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    // Compat: bases ainda sem coluna active (antes da migration).
+    if (error && /active|schema cache|column/i.test(error.message)) {
+      let fallback = supabase
+        .from("extintores")
+        .select(
+          "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento",
+        )
+        .order("codigo", { ascending: true });
+      if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
+      const retry = await fallback;
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       setMessage(`Erro ao carregar extintores: ${error.message}`);
@@ -710,11 +725,22 @@ export default function MapView() {
       .from("hidrantes")
       .select(
         "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y",
-      );
+      )
+      .eq("active", true);
     if (activeBaseId) hidrantesQuery = hidrantesQuery.eq("base_id", activeBaseId);
 
-    const [h, marcadoresRows] = await Promise.all([
-      hidrantesQuery,
+    let h = await hidrantesQuery;
+    if (h.error && /active|schema cache|column/i.test(h.error.message)) {
+      let fallback = supabase
+        .from("hidrantes")
+        .select(
+          "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y",
+        );
+      if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
+      h = await fallback;
+    }
+
+    const [marcadoresRows] = await Promise.all([
       fetchMarcadoresEmergenciaForMap(supabase, activeBaseId),
     ]);
     if (!h.error) setHidrantes((h.data ?? []) as HidranteRow[]);

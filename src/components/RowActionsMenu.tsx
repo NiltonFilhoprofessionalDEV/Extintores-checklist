@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 type RowActionsMenuProps = {
   label: string;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 };
 
 type MenuPosition = { top: number; left: number };
@@ -46,7 +46,7 @@ export default function RowActionsMenu({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const menuWidth = 168;
-    const menuHeight = 96;
+    const menuHeight = onDelete ? 96 : 56;
     const top = rect.bottom + menuHeight > window.innerHeight
       ? Math.max(8, rect.top - menuHeight - 6)
       : rect.bottom + 6;
@@ -77,18 +77,20 @@ export default function RowActionsMenu({
         <span aria-hidden>✎</span>
         Editar
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setPosition(null);
-          onDelete();
-        }}
-        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-rose-700 hover:bg-rose-50"
-      >
-        <span aria-hidden>⌫</span>
-        Excluir
-      </button>
+      {onDelete ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setPosition(null);
+            onDelete();
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-rose-700 hover:bg-rose-50"
+        >
+          <span aria-hidden>⌫</span>
+          Apagar
+        </button>
+      ) : null}
     </div>
   ) : null;
 

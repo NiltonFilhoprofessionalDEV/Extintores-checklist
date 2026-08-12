@@ -452,6 +452,7 @@ export default function AdminDashboardPage() {
           "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento,created_at",
         )
         .eq("base_id", activeBaseId)
+        .eq("active", true)
         .order("codigo", { ascending: true }),
       supabase
         .from("hidrantes")
@@ -459,6 +460,7 @@ export default function AdminDashboardPage() {
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,coord_x,coord_y",
         )
         .eq("base_id", activeBaseId)
+        .eq("active", true)
         .order("codigo", { ascending: true }),
       fetchChecklistsExtintoresDoMes(supabase, startIso, endInclusiveIso, activeBaseId),
       fetchChecklistsHidrantesDoMes(supabase, startIso, endInclusiveIso, activeBaseId),
