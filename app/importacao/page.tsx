@@ -346,7 +346,7 @@ export default function ImportacaoPage() {
 
             <div className="flex min-w-0 flex-1 flex-col">
               <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Arquivo
+                {destino === "extintores" ? "Passo 2 · Arquivo" : "Arquivo"}
               </p>
               <label
                 htmlFor="spreadsheet"
