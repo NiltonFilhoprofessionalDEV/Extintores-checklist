@@ -82,32 +82,54 @@ import {
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MapErrorBoundary extends Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; resetKey: number; autoRecovered: boolean }
 > {
+  private recoverTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, resetKey: 0, autoRecovered: false };
   }
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+  componentDidCatch() {
+    // Recuperação automática uma vez: remonta o mapa limpo (evita “tela morta”
+    // após crash de zoom extremo / WebGL/GPU). Se falhar de novo, mostra o botão.
+    if (this.state.autoRecovered) return;
+    this.recoverTimer = setTimeout(() => {
+      this.setState((prev) => ({
+        hasError: false,
+        resetKey: prev.resetKey + 1,
+        autoRecovered: true,
+      }));
+    }, 120);
+  }
+  componentWillUnmount() {
+    if (this.recoverTimer) clearTimeout(this.recoverTimer);
   }
   render() {
     if (this.state.hasError) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-4 bg-white p-6 text-center">
-          <div className="text-4xl">🗺️</div>
           <p className="text-sm font-semibold text-zinc-700">O mapa encontrou um erro.</p>
           <button
             type="button"
             className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white"
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() =>
+              this.setState((prev) => ({
+                hasError: false,
+                resetKey: prev.resetKey + 1,
+                autoRecovered: false,
+              }))
+            }
           >
             Tentar novamente
           </button>
         </div>
       );
     }
-    return this.props.children;
+    return <div key={this.state.resetKey} className="h-full w-full">{this.props.children}</div>;
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -456,6 +478,8 @@ function FitBounds({
 
       programmaticRef.current = true;
       map.setMaxBounds(leafletBounds.pad(boundsPad));
+      // Impede overshoot do pinch além do min/max (ajuda no iOS).
+      map.options.bounceAtZoomLimits = true;
       map.fitBounds(leafletBounds, {
         paddingTopLeft: [20, 20],
         paddingBottomRight: [20, 20 + bottomOffset],
@@ -508,6 +532,57 @@ function FitBounds({
       map.off("zoomstart", onUserInteract);
     };
   }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomAbsolute, boundsPad]);
+  return null;
+}
+
+/**
+ * Evita zoom/centro inválidos (NaN ou além dos limites) que no mobile costumam
+ * travar o Leaflet ou forçar reload da aba por estouro de memória/GPU.
+ */
+function ZoomStabilityGuard() {
+  const map = useMap();
+
+  useEffect(() => {
+    let clamping = false;
+
+    const clampIfBroken = () => {
+      if (clamping) return;
+      const zoom = map.getZoom();
+      const min = map.getMinZoom();
+      const max = map.getMaxZoom();
+      const center = map.getCenter();
+      const zoomBroken = !Number.isFinite(zoom) || zoom < min - 0.05 || zoom > max + 0.05;
+      const centerBroken = !Number.isFinite(center.lat) || !Number.isFinite(center.lng);
+      if (!zoomBroken && !centerBroken) return;
+
+      clamping = true;
+      try {
+        const safeZoom = Number.isFinite(zoom) ? Math.min(max, Math.max(min, zoom)) : Math.min(max, Math.max(min, 0));
+        if (centerBroken) {
+          map.setZoom(safeZoom, { animate: false });
+          return;
+        }
+        map.setView(center, safeZoom, { animate: false });
+      } catch {
+        try {
+          map.setZoom(min, { animate: false });
+        } catch {
+          // ignore — ErrorBoundary cobre falha residual
+        }
+      } finally {
+        clamping = false;
+      }
+    };
+
+    map.on("zoomend", clampIfBroken);
+    map.on("moveend", clampIfBroken);
+
+    return () => {
+      map.off("zoomend", clampIfBroken);
+      map.off("moveend", clampIfBroken);
+    };
+  }, [map]);
+
   return null;
 }
 
@@ -1606,36 +1681,39 @@ export default function MapView() {
     }
   }
 
-  const leafletRotateOpts = isMobile
-    ? { rotate: true, touchRotate: true, bearing: 0, rotateControl: false, touchRotateThreshold: 12 }
-    : { rotate: false, rotateControl: false };
+  // Rotação por gesto no mobile conflita com pinch-zoom e causa travamentos.
+  // Mantemos o plugin carregado, mas desligado no uso cotidiano do conferente.
+  const leafletRotateOpts = { rotate: false, rotateControl: false };
 
   const mapContent = (
     <MapContainer
       key={`${pavimento.key}-${mapImageSize.width}x${mapImageSize.height}`}
       crs={L.CRS.Simple}
       preferCanvas
-      zoomSnap={0.25}
-      zoomDelta={0.5}
+      zoomSnap={isMobile ? 0.5 : 0.25}
+      zoomDelta={isMobile ? 1 : 0.5}
       zoomAnimation={false}
       fadeAnimation={false}
       markerZoomAnimation={false}
-      inertia={isMobile}
-      wheelDebounceTime={isMobile ? 80 : 40}
+      inertia={false}
+      wheelDebounceTime={isMobile ? 120 : 40}
+      wheelPxPerZoomLevel={isMobile ? 120 : 60}
       zoomAnimationThreshold={4}
       maxBoundsViscosity={1}
       attributionControl={false}
-      style={{ height: "100%", width: "100%" }}
+      style={{ height: "100%", width: "100%", background: "#e8eaed" }}
       {...(leafletRotateOpts as Record<string, unknown>)}
     >
       <FitBounds
         bounds={mapBounds}
-        maxZoomExtra={isMobile ? 36 : 32}
+        /* Zoom extremo (+36) com planta 14k×9k estoura memória no celular e “recarrega” a aba */
+        maxZoomExtra={isMobile ? 8 : 24}
         bottomOffset={0}
         initialZoomOut={0}
-        minZoomAbsolute={isMobile ? -22 : -16}
-        boundsPad={isMobile ? 2.8 : 0.15}
+        minZoomAbsolute={isMobile ? -6 : -12}
+        boundsPad={isMobile ? 0.35 : 0.15}
       />
+      <ZoomStabilityGuard />
       {floorHasMap(pavimento.imageBase) && mapImagePath ? (
         <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       ) : null}

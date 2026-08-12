@@ -49,6 +49,8 @@
   --z-modal: 5000;
   --admin-sidebar-width: 16rem;
   --admin-dock-clearance: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+  /* Altura da dock flutuante + folga para o conteúdo não ficar sob o pill */
+  --mobile-dock-clearance: calc(5.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 @theme inline {
@@ -293,12 +295,12 @@ h3,
   color: #027a48;
 }
 
-/* Floating dock (mobile) */
+/* Floating dock (mobile) — acima do Leaflet (panes/controles ~400–1000) */
 .mobile-dock {
   position: fixed;
   left: 50%;
   bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
-  z-index: 40;
+  z-index: var(--z-dock);
   width: min(22rem, calc(100% - 1.5rem));
   transform: translateX(-50%);
   border-radius: 9999px;
@@ -866,10 +868,8 @@ h3,
 .map-plant-overlay {
   image-rendering: auto;
   transform-origin: top left;
-  will-change: transform;
   backface-visibility: hidden;
   pointer-events: none;
-  transform: translateZ(0);
 }
 
 .leaflet-container {
@@ -877,10 +877,37 @@ h3,
   -webkit-tap-highlight-color: transparent;
 }
 
-.leaflet-pane,
-.leaflet-image-layer,
-.leaflet-marker-pane {
-  backface-visibility: hidden;
+/* Em mobile, evita camadas GPU extras (will-change) que estouram memória no pinch-zoom */
+@media (max-width: 768px) {
+  .map-plant-overlay {
+    will-change: auto;
+    transform: none;
+  }
+
+  .leaflet-pane,
+  .leaflet-image-layer,
+  .leaflet-marker-pane {
+    backface-visibility: hidden;
+  }
+
+  /* Durante o gesto de zoom, não repintar labels a cada frame intermediário */
+  .leaflet-zoom-anim .map-marker-mobile__label,
+  .leaflet-dragging .map-marker-mobile__label {
+    visibility: hidden;
+  }
+}
+
+@media (min-width: 769px) {
+  .map-plant-overlay {
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  .leaflet-pane,
+  .leaflet-image-layer,
+  .leaflet-marker-pane {
+    backface-visibility: hidden;
+  }
 }
 
 .map-mobile-marker-icon {
