@@ -59,6 +59,7 @@ type ExtintorMobile = Pick<
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
   capacidade_extintora: string;
+  num_cilindro?: string | null;
 };
 
 type HidranteMobile = HidranteImportRow & { id: string };
@@ -271,7 +272,7 @@ export default function MobileConferenciaPage() {
       const { data, error } = await supabase
         .from("extintores")
         .select(
-          "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,pavimento,manutencao_2_nivel,manutencao_3_nivel,capacidade_extintora",
+          "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,pavimento,manutencao_2_nivel,manutencao_3_nivel,capacidade_extintora",
         )
         .eq("base_id", activeBaseId)
         .order("codigo", { ascending: true });
@@ -963,6 +964,7 @@ export default function MobileConferenciaPage() {
                 pavimento: selected.pavimento,
                 local_detalhado: selected.local_detalhado,
                 num_inmetro: selected.num_inmetro,
+                num_cilindro: selected.num_cilindro ?? null,
                 tipo: selected.tipo,
                 tamanho: selected.tamanho,
                 capacidade_extintora: selected.capacidade_extintora ?? "",

@@ -10,6 +10,7 @@ type ExtintorPayload = {
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -24,6 +25,7 @@ function normalizePayload(body: ExtintorPayload): ExtintorPayload {
     setor: body.setor.trim().toLocaleUpperCase("pt-BR"),
     local_detalhado: body.local_detalhado.trim(),
     num_inmetro: body.num_inmetro.trim(),
+    num_cilindro: body.num_cilindro?.trim() || null,
     tipo: body.tipo.trim().toLocaleUpperCase("pt-BR"),
     tamanho: body.tamanho.trim(),
     capacidade_extintora: body.capacidade_extintora.trim(),

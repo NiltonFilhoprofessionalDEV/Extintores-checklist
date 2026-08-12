@@ -65,6 +65,10 @@ function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
           <dd className="text-right font-medium text-slate-800">{info.num_inmetro || "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-500">Nº do cilindro</dt>
+          <dd className="text-right font-medium text-slate-800">{info.num_cilindro?.trim() || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
           <dt className="shrink-0 text-slate-500">Tipo</dt>
           <dd className="text-right font-medium text-slate-800">{info.tipo || "—"}</dd>
         </div>
@@ -224,6 +228,7 @@ export default function ChecklistForm({
           pavimento: extintor.setor ?? null,
           local_detalhado: extintor.local_detalhado,
           num_inmetro: "—",
+          num_cilindro: null,
           tipo: extintor.tipo ?? "—",
           tamanho: extintor.tamanho ?? "—",
           capacidade_extintora: "—",

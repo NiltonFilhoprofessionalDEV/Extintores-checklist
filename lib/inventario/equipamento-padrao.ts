@@ -18,6 +18,7 @@ export const COLUNAS_PADRAO = {
   conferente: "Conferente",
   observacao: "Observação",
   numInmetro: "Nº INMETRO",
+  numCilindro: "Nº do cilindro",
   venctoN2: "Vencto. manutenção N2",
   mapa: "Mapa",
   mangueiras: "Mangueiras",

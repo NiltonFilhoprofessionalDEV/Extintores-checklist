@@ -9,6 +9,7 @@ create table if not exists public.extintores (
   setor text not null,
   local_detalhado text not null,
   num_inmetro text not null,
+  num_cilindro text,
   tipo text not null,
   tamanho text not null,
   capacidade_extintora text not null,

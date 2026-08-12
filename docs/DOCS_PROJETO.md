@@ -53,6 +53,7 @@ Table extinguidores {
   setor text
   local_detalhado text
   num_inmetro text
+  num_cilindro text
   tipo text
   tamanho text
   capacidade_extintora text

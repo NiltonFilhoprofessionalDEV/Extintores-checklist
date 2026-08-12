@@ -128,6 +128,7 @@ type Extintor = {
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro?: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -674,7 +675,7 @@ export default function MapView() {
     let query = supabase
       .from("extintores")
       .select(
-        "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento",
+        "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento",
       )
       .order("codigo", { ascending: true });
     if (activeBaseId) query = query.eq("base_id", activeBaseId);
@@ -2208,6 +2209,7 @@ export default function MapView() {
                 pavimento: selectedMarker.pavimento,
                 local_detalhado: selectedMarker.local_detalhado,
                 num_inmetro: selectedMarker.num_inmetro,
+                num_cilindro: selectedMarker.num_cilindro ?? null,
                 tipo: selectedMarker.tipo,
                 tamanho: selectedMarker.tamanho,
                 capacidade_extintora: selectedMarker.capacidade_extintora,
@@ -2508,6 +2510,7 @@ export default function MapView() {
               pavimento: selectedMarker.pavimento,
               local_detalhado: selectedMarker.local_detalhado,
               num_inmetro: selectedMarker.num_inmetro,
+              num_cilindro: selectedMarker.num_cilindro ?? null,
               tipo: selectedMarker.tipo,
               tamanho: selectedMarker.tamanho,
               capacidade_extintora: selectedMarker.capacidade_extintora,

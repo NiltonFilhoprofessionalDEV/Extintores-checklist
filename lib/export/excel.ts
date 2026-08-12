@@ -20,6 +20,7 @@ export type ExtintorRow = {
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro?: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -379,6 +380,7 @@ export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
     "Pavimento": e.setor,
     "Local Detalhado": e.local_detalhado,
     "Nº INMETRO": e.num_inmetro,
+    "Nº do Cilindro": e.num_cilindro ?? "",
     "Tipo": e.tipo,
     "Tamanho": e.tamanho,
     "Capacidade Extintora": e.capacidade_extintora,
@@ -393,7 +395,7 @@ export function exportExtintoresBasico(extintores: ExtintorRow[]): void {
 
   // Column widths
   ws["!cols"] = [
-    { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 },
+    { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
     { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 18 },
     { wch: 28 }, { wch: 28 }, { wch: 20 }, { wch: 18 },
   ];
@@ -425,6 +427,7 @@ function buildExtintorInventarioExport(extintores: ExtintorRow[]): {
     Setor: e.setor,
     "Local Detalhado": e.local_detalhado,
     "Nº INMETRO": e.num_inmetro,
+    "Nº do Cilindro": e.num_cilindro ?? "",
     Tipo: e.tipo,
     Tamanho: e.tamanho,
     "Capacidade Extintora": e.capacidade_extintora,
@@ -658,6 +661,7 @@ export function exportAlertasVencimento(
     "Pavimento": e.setor,
     "Local Detalhado": e.local_detalhado,
     "Nº INMETRO": e.num_inmetro,
+    "Nº do Cilindro": e.num_cilindro ?? "",
     "Tipo": e.tipo,
     "Tamanho": e.tamanho,
     "Pavimento na planta": e.pavimento ?? "",
@@ -667,7 +671,7 @@ export function exportAlertasVencimento(
 
   const ws = jsonToSheet(rows);
   ws["!cols"] = [
-    { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 },
+    { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
     { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 28 }, { wch: 28 },
   ];
   applyAlertaVencimentoStyle(ws, rowHighlight);

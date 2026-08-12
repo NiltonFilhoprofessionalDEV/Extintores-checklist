@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 
 const EXTINTOR_EMBED_FULL =
-  "extintores(codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel)";
+  "extintores(codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel)";
 const EXTINTOR_EMBED_BASIC = "extintores(codigo,setor,local_detalhado,tipo,tamanho)";
 
 const CHECKLIST_EXT_ATTEMPTS = [
@@ -37,6 +37,7 @@ export type ExtintorLookupRow = {
   tipo: string;
   tamanho: string;
   num_inmetro: string;
+  num_cilindro?: string | null;
   capacidade_extintora: string;
   pavimento: string | null;
   manutencao_2_nivel: string | null;
@@ -102,6 +103,7 @@ async function loadExtintorLookup(
 ): Promise<Map<string, ExtintorLookupRow>> {
   const map = new Map<string, ExtintorLookupRow>();
   const selects = [
+    "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel",
@@ -134,6 +136,7 @@ async function loadExtintorLookup(
         tipo: row.tipo ?? "",
         tamanho: row.tamanho ?? "",
         num_inmetro: row.num_inmetro ?? "",
+        num_cilindro: row.num_cilindro ?? null,
         capacidade_extintora: row.capacidade_extintora ?? "",
         pavimento: row.pavimento ?? null,
         manutencao_2_nivel: row.manutencao_2_nivel ?? null,
@@ -211,6 +214,7 @@ export function resolveExtintorFromRow(
       tipo: embedded.tipo ?? fromLookup?.tipo ?? "",
       tamanho: embedded.tamanho ?? fromLookup?.tamanho ?? "",
       num_inmetro: embedded.num_inmetro ?? fromLookup?.num_inmetro ?? "",
+      num_cilindro: embedded.num_cilindro ?? fromLookup?.num_cilindro ?? null,
       capacidade_extintora:
         embedded.capacidade_extintora ?? fromLookup?.capacidade_extintora ?? "",
       pavimento: embedded.pavimento ?? fromLookup?.pavimento ?? null,

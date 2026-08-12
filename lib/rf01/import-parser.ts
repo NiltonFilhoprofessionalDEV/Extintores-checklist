@@ -1,11 +1,13 @@
 import * as XLSX from "xlsx";
 import { formatDateOnlyIso } from "@/lib/date/date-only";
 
+/** Cabeçalhos oficiais da planilha de importação (template + validação). */
 const REQUIRED_HEADERS = [
   "Código",
   "Pavimento",
   "Local Detalhado",
   "Número Inmetro",
+  "Nº do Cilindro",
   "Tipo",
   "Tamanho",
   "Capacidade Extintora",
@@ -13,7 +15,15 @@ const REQUIRED_HEADERS = [
   "Vencimento Manutenção 3º Nível",
 ] as const;
 
+/**
+ * Colunas que planilhas antigas podem omitir sem falhar a importação.
+ * Ainda entram no template oficial e são gravadas quando presentes.
+ */
+const OPTIONAL_HEADERS = ["Nº do Cilindro"] as const;
+
 type RequiredHeader = (typeof REQUIRED_HEADERS)[number];
+type OptionalHeader = (typeof OPTIONAL_HEADERS)[number];
+type KnownHeader = RequiredHeader;
 
 type ParsedSpreadsheetResult = {
   records: ExtintorImportRecord[];
@@ -25,6 +35,7 @@ export type ExtintorImportRecord = {
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
+  num_cilindro: string;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -32,12 +43,21 @@ export type ExtintorImportRecord = {
   manutencao_3_nivel: string | null;
 };
 
-const HEADER_ALIASES: Record<RequiredHeader, string[]> = {
-  "Código": ["Código", "CODIGO"],
+const HEADER_ALIASES: Record<KnownHeader, string[]> = {
+  Código: ["Código", "CODIGO"],
   /** Cabeçalho oficial Pavimento; planilhas antigas com Setor continuam válidas (grava em `setor` no banco). */
   Pavimento: ["Pavimento", "PAVIMENTO", "Setor", "SETOR"],
   "Local Detalhado": ["Local Detalhado"],
   "Número Inmetro": ["Número Inmetro", "Número do Inmetro", "NUMERO INMETRO", "NUMERO DO INMETRO"],
+  "Nº do Cilindro": [
+    "Nº do Cilindro",
+    "Nº do cilindro",
+    "Numero do Cilindro",
+    "Número do Cilindro",
+    "NUMERO DO CILINDRO",
+    "Nº Cilindro",
+    "Num Cilindro",
+  ],
   Tipo: ["Tipo"],
   Tamanho: ["Tamanho"],
   "Capacidade Extintora": ["Capacidade Extintora"],
@@ -52,6 +72,10 @@ const HEADER_ALIASES: Record<RequiredHeader, string[]> = {
     "Vencimento Manutenção Nivel 3",
   ],
 };
+
+function isOptionalHeader(header: KnownHeader): header is OptionalHeader {
+  return (OPTIONAL_HEADERS as readonly string[]).includes(header);
+}
 
 function normalizeHeaderText(value: string): string {
   return value
@@ -89,12 +113,13 @@ function dateOrNull(iso: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-function normalizeRecord(row: Record<RequiredHeader, unknown>): ExtintorImportRecord {
+function normalizeRecord(row: Record<KnownHeader, unknown>): ExtintorImportRecord {
   return {
     codigo: String(row["Código"] ?? "").trim(),
     setor: String(row["Pavimento"] ?? "").trim(),
     local_detalhado: String(row["Local Detalhado"] ?? "").trim(),
     num_inmetro: String(row["Número Inmetro"] ?? "").trim(),
+    num_cilindro: String(row["Nº do Cilindro"] ?? "").trim(),
     tipo: String(row["Tipo"] ?? "").trim(),
     tamanho: String(row["Tamanho"] ?? "").trim(),
     capacidade_extintora: String(row["Capacidade Extintora"] ?? "").trim(),
@@ -109,7 +134,7 @@ function resolveHeaders(headers: string[]) {
     normalizedHeaderMap.set(normalizeHeaderText(header), header);
   });
 
-  const resolvedHeaderMap = new Map<RequiredHeader, string>();
+  const resolvedHeaderMap = new Map<KnownHeader, string>();
   const missingHeaders: string[] = [];
 
   REQUIRED_HEADERS.forEach((requiredHeader) => {
@@ -119,6 +144,7 @@ function resolveHeaders(headers: string[]) {
       .find(Boolean);
 
     if (!foundHeader) {
+      if (isOptionalHeader(requiredHeader)) return;
       missingHeaders.push(requiredHeader);
       return;
     }
@@ -148,7 +174,10 @@ export function parseSpreadsheet(file: File): Promise<ParsedSpreadsheetResult> {
         });
 
         if (rows.length === 0) {
-          resolve({ records: [], missingHeaders: [...REQUIRED_HEADERS] });
+          resolve({
+            records: [],
+            missingHeaders: REQUIRED_HEADERS.filter((h) => !isOptionalHeader(h)),
+          });
           return;
         }
 
@@ -164,9 +193,9 @@ export function parseSpreadsheet(file: File): Promise<ParsedSpreadsheetResult> {
           const canonicalRow = Object.fromEntries(
             REQUIRED_HEADERS.map((requiredHeader) => [
               requiredHeader,
-              row[resolvedHeaderMap.get(requiredHeader) ?? ""],
+              row[resolvedHeaderMap.get(requiredHeader) ?? ""] ?? "",
             ]),
-          ) as Record<RequiredHeader, unknown>;
+          ) as Record<KnownHeader, unknown>;
 
           return normalizeRecord(canonicalRow);
         });
@@ -180,6 +209,20 @@ export function parseSpreadsheet(file: File): Promise<ParsedSpreadsheetResult> {
     reader.onerror = () => reject(reader.error);
     reader.readAsArrayBuffer(file);
   });
+}
+
+/** Gera e baixa a planilha-modelo (.xlsx) com os cabeçalhos oficiais de extintores. */
+export function downloadExtintorImportTemplate(): void {
+  const headers = [...REQUIRED_HEADERS];
+  const exampleRow = headers.map(() => "");
+  const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+  ws["!cols"] = headers.map((header) => ({
+    wch: Math.max(14, Math.min(36, header.length + 4)),
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Extintores");
+  XLSX.writeFile(wb, "modelo_importacao_extintores.xlsx");
 }
 
 export { REQUIRED_HEADERS };
