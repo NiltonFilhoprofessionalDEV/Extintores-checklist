@@ -275,6 +275,7 @@ export default function MobileConferenciaPage() {
           "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,pavimento,manutencao_2_nivel,manutencao_3_nivel,capacidade_extintora",
         )
         .eq("base_id", activeBaseId)
+        .eq("active", true)
         .order("codigo", { ascending: true });
 
       if (!error) {
@@ -320,6 +321,7 @@ export default function MobileConferenciaPage() {
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos",
         )
         .eq("base_id", activeBaseId)
+        .eq("active", true)
         .order("codigo", { ascending: true });
 
       if (!hidError) {

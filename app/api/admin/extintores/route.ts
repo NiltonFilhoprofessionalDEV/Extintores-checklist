@@ -3,14 +3,16 @@ import {
   assertInventoryRowInManagerBase,
   getInventoryManagerFromRequest,
 } from "@/lib/auth/inventory-management-server";
+import { isAdminLikeRole } from "@/lib/auth/roles";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { writeAuditLog } from "@/lib/audit/write-audit-log";
 
 type ExtintorPayload = {
   codigo: string;
   setor: string;
   local_detalhado: string;
   num_inmetro: string;
-  num_cilindro: string | null;
+  num_cilindro?: string | null;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
@@ -35,6 +37,16 @@ function normalizePayload(body: ExtintorPayload): ExtintorPayload {
   };
 }
 
+async function actorNome(userId: string): Promise<string | null> {
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("nome")
+    .eq("id", userId)
+    .maybeSingle<{ nome: string | null }>();
+  return data?.nome ?? null;
+}
+
 export async function POST(request: Request) {
   try {
     const manager = await getInventoryManagerFromRequest(request);
@@ -42,12 +54,31 @@ export async function POST(request: Request) {
 
     const body = normalizePayload((await request.json()) as ExtintorPayload);
     const supabaseAdmin = getSupabaseAdminClient();
-    const { error } = await supabaseAdmin.from("extintores").insert({
-      ...body,
-      base_id: manager.base_id,
-    });
+    const { data, error } = await supabaseAdmin
+      .from("extintores")
+      .insert({
+        ...body,
+        base_id: manager.base_id,
+        active: true,
+      })
+      .select("id,codigo")
+      .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await writeAuditLog({
+      baseId: manager.base_id,
+      actorId: manager.id,
+      actorNome: await actorNome(manager.id),
+      actorRole: manager.role,
+      action: "create",
+      entityType: "extintor",
+      entityId: data?.id != null ? String(data.id) : null,
+      entityLabel: data?.codigo != null ? String(data.codigo) : String(body.codigo),
+      summary: `Cadastrou o extintor ${body.codigo}`,
+      details: { codigo: body.codigo, setor: body.setor },
+    });
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
@@ -77,6 +108,20 @@ export async function PATCH(request: Request) {
       .eq("base_id", manager.base_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await writeAuditLog({
+      baseId: manager.base_id,
+      actorId: manager.id,
+      actorNome: await actorNome(manager.id),
+      actorRole: manager.role,
+      action: "update",
+      entityType: "extintor",
+      entityId: body.id,
+      entityLabel: payload.codigo,
+      summary: `Alterou o cadastro do extintor ${payload.codigo}`,
+      details: { codigo: payload.codigo, setor: payload.setor },
+    });
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
@@ -86,29 +131,65 @@ export async function PATCH(request: Request) {
   }
 }
 
+/** Soft-delete: não remove do banco. Prefira /api/admin/inventario/soft-delete para lote. */
 export async function DELETE(request: Request) {
   try {
     const manager = await getInventoryManagerFromRequest(request);
     if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    if (!isAdminLikeRole(manager.role)) {
+      return NextResponse.json(
+        { error: "Apenas administradores podem remover itens da lista." },
+        { status: 403 },
+      );
+    }
 
-    const body = (await request.json()) as { id: string };
+    const body = (await request.json()) as { id: string; confirmacao?: string };
     if (!body.id) return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
 
     const scopeError = await assertInventoryRowInManagerBase("extintores", body.id, manager.base_id);
     if (scopeError) return NextResponse.json({ error: scopeError }, { status: 403 });
 
     const supabaseAdmin = getSupabaseAdminClient();
+    const { data: row } = await supabaseAdmin
+      .from("extintores")
+      .select("id,codigo")
+      .eq("id", body.id)
+      .eq("base_id", manager.base_id)
+      .maybeSingle<{ id: string; codigo: string }>();
+
     const { error } = await supabaseAdmin
       .from("extintores")
-      .delete()
+      .update({
+        active: false,
+        deactivated_at: new Date().toISOString(),
+        deactivated_by: manager.id,
+      })
       .eq("id", body.id)
       .eq("base_id", manager.base_id);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      const msg = error.message.includes("active")
+        ? "Coluna active não existe. Execute docs/migration_soft_delete_auditoria.sql."
+        : error.message;
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    await writeAuditLog({
+      baseId: manager.base_id,
+      actorId: manager.id,
+      actorNome: await actorNome(manager.id),
+      actorRole: manager.role,
+      action: "soft_delete",
+      entityType: "extintor",
+      entityId: body.id,
+      entityLabel: row?.codigo ?? null,
+      summary: `Removeu da lista o extintor ${row?.codigo ?? body.id}`,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Erro interno ao excluir extintor." },
+      { error: error instanceof Error ? error.message : "Erro interno ao inativar extintor." },
       { status: 500 },
     );
   }

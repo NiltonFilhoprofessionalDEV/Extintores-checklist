@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import { COLUNAS_PADRAO, COLUNA_TITULO_CLASS, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_PADRAO, COLUNA_TITULO_CLASS, COLUNA_TITULO_CLASS_COMPACT, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 import { exportInventarioPdf } from "@/lib/export/pdf";
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { SOFT_DELETE_CONFIRM_PHRASE } from "@/lib/audit/write-audit-log";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { fetchBaseFloors } from "@/lib/auth/bases";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
@@ -217,13 +218,17 @@ export default function AdminExtintoresPage() {
   const [formHidrante, setFormHidrante] = useState<HidranteFormData>(EMPTY_HIDRANTE_FORM);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ExtintorRow | null>(null);
-  const [deleteTargetHidrante, setDeleteTargetHidrante] = useState<HidranteRow | null>(null);
   const [detalheView, setDetalheView] = useState<DetalheView | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [actorRole, setActorRole] = useState<UserRole>("admin");
+  const [showInactive, setShowInactive] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [confirmPhrase, setConfirmPhrase] = useState("");
+  const [pendingSoftDeleteIds, setPendingSoftDeleteIds] = useState<string[]>([]);
 
   const readOnly = isInventoryReadOnlyRole(actorRole);
+  const canSoftDelete = isAdminLikeRole(actorRole);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -264,16 +269,28 @@ export default function AdminExtintoresPage() {
     setLoading(true);
 
     const selectWithCilindro =
-      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at";
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at,active";
     const selectLegacy =
       "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at";
 
     let extData: ExtintorRow[] | null = null;
-    const primary = await supabase
+    let extQuery = supabase
       .from("extintores")
       .select(selectWithCilindro)
       .eq("base_id", activeBaseId)
+      .eq("active", !showInactive)
       .order("codigo", { ascending: true });
+
+    let primary = await extQuery;
+
+    if (primary.error && /active|schema cache|column/i.test(primary.error.message)) {
+      // Migration ainda não aplicada: lista tudo.
+      primary = await supabase
+        .from("extintores")
+        .select(selectWithCilindro)
+        .eq("base_id", activeBaseId)
+        .order("codigo", { ascending: true });
+    }
 
     if (primary.error && /num_cilindro|schema cache|column/i.test(primary.error.message)) {
       const fallback = await supabase
@@ -289,28 +306,42 @@ export default function AdminExtintoresPage() {
       extData = (primary.data ?? []) as ExtintorRow[];
     }
 
-    const [hidRes, floors] = await Promise.all([
-      supabase
+    let hidQuery = supabase
+      .from("hidrantes")
+      .select(
+        "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at,active",
+      )
+      .eq("base_id", activeBaseId)
+      .eq("active", !showInactive)
+      .order("codigo", { ascending: true });
+
+    const hidRes = await hidQuery;
+    let hidDataRaw = hidRes.data as Array<Record<string, unknown>> | null;
+    if (hidRes.error && /active|schema cache|column/i.test(hidRes.error.message)) {
+      const hidFallback = await supabase
         .from("hidrantes")
         .select(
           "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at",
         )
         .eq("base_id", activeBaseId)
-        .order("codigo", { ascending: true }),
-      fetchBaseFloors(activeBaseId).catch(() => []),
-    ]);
+        .order("codigo", { ascending: true });
+      hidDataRaw = (hidFallback.data ?? []).map((row) => ({ ...row, active: true }));
+    }
+
+    const floors = await fetchBaseFloors(activeBaseId).catch(() => []);
     const floorLabels = floors.map((f) => f.label).filter(Boolean);
     setSetores(floorLabels.length > 0 ? floorLabels : [...SETORES_FALLBACK]);
     const rows = [...(extData ?? [])].sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
-    const hidRows = ((hidRes.data ?? []) as HidranteRow[]).sort((a, b) =>
+    const hidRows = ((hidDataRaw ?? []) as HidranteRow[]).sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
     setExtintores(rows);
     setHidrantes(hidRows);
+    setSelectedIds([]);
     setLoading(false);
-  }, [supabase, ready, activeBaseId]);
+  }, [supabase, ready, activeBaseId, showInactive]);
 
   useEffect(() => {
     if (!ready || !activeBaseId) return;
@@ -550,40 +581,72 @@ export default function AdminExtintoresPage() {
     setTimeout(() => { closeModal(); setFeedback(null); }, 1200);
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await callInventoryApi("/api/admin/extintores", {
-        method: "DELETE",
-        body: JSON.stringify({ id: deleteTarget.id }),
-      });
-    } catch (err) {
-      setDeleting(false);
-      alert(`Erro ao excluir: ${err instanceof Error ? err.message : "Falha na requisição."}`);
-      return;
-    }
-    setDeleting(false);
-    setDeleteTarget(null);
-    await load();
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  async function handleDeleteHidrante() {
-    if (!deleteTargetHidrante) return;
-    setDeleting(true);
-    try {
-      await callInventoryApi("/api/admin/hidrantes", {
-        method: "DELETE",
-        body: JSON.stringify({ id: deleteTargetHidrante.id }),
-      });
-    } catch (err) {
-      setDeleting(false);
-      alert(`Erro ao excluir: ${err instanceof Error ? err.message : "Falha na requisição."}`);
-      return;
+  function selectAllVisible() {
+    const ids = tipoLista === "extintor" ? filtered.map((e) => e.id) : filteredHidrantes.map((h) => h.id);
+    setSelectedIds(ids);
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+  }
+
+  function openBulkSoftDelete() {
+    if (selectedIds.length === 0) return;
+    setPendingSoftDeleteIds(selectedIds);
+    setConfirmPhrase("");
+    setBulkConfirmOpen(true);
+  }
+
+  async function confirmSoftDeleteOrRestore() {
+    if (pendingSoftDeleteIds.length === 0) return;
+    const mode = showInactive ? "restore" : "soft_delete";
+    if (mode === "soft_delete") {
+      const typed = confirmPhrase.trim().toLocaleUpperCase("pt-BR");
+      if (typed !== SOFT_DELETE_CONFIRM_PHRASE) {
+        setFeedback({
+          type: "err",
+          msg: `Digite exatamente: ${SOFT_DELETE_CONFIRM_PHRASE}`,
+        });
+        return;
+      }
     }
-    setDeleting(false);
-    setDeleteTargetHidrante(null);
-    await load();
+
+    setDeleting(true);
+    setFeedback(null);
+    try {
+      await callInventoryApi("/api/admin/inventario/soft-delete", {
+        method: "POST",
+        body: JSON.stringify({
+          tipo: tipoLista,
+          ids: pendingSoftDeleteIds,
+          mode,
+          confirmacao: mode === "soft_delete" ? SOFT_DELETE_CONFIRM_PHRASE : undefined,
+        }),
+      });
+      setBulkConfirmOpen(false);
+      setPendingSoftDeleteIds([]);
+      setConfirmPhrase("");
+      setSelectedIds([]);
+      setFeedback({
+        type: "ok",
+        msg:
+          mode === "soft_delete"
+            ? "Itens removidos da lista (ficam salvos no banco para recuperação)."
+            : "Itens recuperados com sucesso.",
+      });
+      await load();
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        msg: err instanceof Error ? err.message : "Falha ao processar.",
+      });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function formatDate(d: string | null) {
@@ -648,10 +711,79 @@ export default function AdminExtintoresPage() {
 
       <InventarioTipoTabs
         value={tipoLista}
-        onChange={setTipoLista}
+        onChange={(value) => {
+          setTipoLista(value);
+          setSelectedIds([]);
+        }}
         extintoresCount={extintores.length}
         hidrantesCount={hidrantes.length}
       />
+
+      {canSoftDelete && (
+        <div className="professional-card flex flex-wrap items-center gap-2 px-4 py-3">
+          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                !showInactive ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+              onClick={() => {
+                setShowInactive(false);
+                setSelectedIds([]);
+              }}
+            >
+              Ativos
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                showInactive ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+              onClick={() => {
+                setShowInactive(true);
+                setSelectedIds([]);
+              }}
+            >
+              Removidos (recuperar)
+            </button>
+          </div>
+          <button type="button" className="btn-secondary text-xs" onClick={selectAllVisible}>
+            Selecionar todos
+          </button>
+          {selectedIds.length > 0 && (
+            <>
+              <button type="button" className="btn-secondary text-xs" onClick={clearSelection}>
+                Limpar seleção ({selectedIds.length})
+              </button>
+              <button
+                type="button"
+                className={showInactive ? "btn-primary text-xs" : "rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white"}
+                onClick={() => {
+                  if (showInactive) {
+                    setPendingSoftDeleteIds(selectedIds);
+                    setConfirmPhrase("");
+                    setBulkConfirmOpen(true);
+                  } else {
+                    openBulkSoftDelete();
+                  }
+                }}
+              >
+                {showInactive ? `Recuperar (${selectedIds.length})` : `Apagar selecionados (${selectedIds.length})`}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {feedback && !modalMode && (
+        <p
+          className={`rounded-2xl px-4 py-3 text-sm font-medium ${
+            feedback.type === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+          }`}
+        >
+          {feedback.msg}
+        </p>
+      )}
 
       {tipoLista === "extintor" && (
         <>
@@ -688,6 +820,9 @@ export default function AdminExtintoresPage() {
             <table className="modern-table">
               <thead>
                 <tr className="text-left">
+                  {canSoftDelete && (
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>Sel.</th>
+                  )}
                   <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.codigo}</th>
                   <th className={COLUNA_TITULO_CLASS}>
                     {COLUNAS_PADRAO.pavimento} / {COLUNAS_PADRAO.localDetalhado}
@@ -716,6 +851,16 @@ export default function AdminExtintoresPage() {
                     className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
                     onClick={() => openDetalheExtintor(e)}
                   >
+                    {canSoftDelete && (
+                      <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(e.id)}
+                          onChange={() => toggleSelected(e.id)}
+                          aria-label={`Selecionar ${e.codigo}`}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-bold text-slate-900">{e.codigo}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{e.setor}</p>
@@ -750,7 +895,15 @@ export default function AdminExtintoresPage() {
                         <RowActionsMenu
                           label={`extintor ${e.codigo}`}
                           onEdit={() => openEdit(e)}
-                          onDelete={() => setDeleteTarget(e)}
+                          onDelete={
+                            canSoftDelete && !showInactive
+                              ? () => {
+                                  setPendingSoftDeleteIds([e.id]);
+                                  setConfirmPhrase("");
+                                  setBulkConfirmOpen(true);
+                                }
+                              : undefined
+                          }
                         />
                       )}
                     </td>
@@ -798,17 +951,20 @@ export default function AdminExtintoresPage() {
             <table className="modern-table">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.codigoCurto}</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.pavimento}</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.localDetalhado}</th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">
+                  {canSoftDelete && (
+                    <th className={COLUNA_TITULO_CLASS_COMPACT}>Sel.</th>
+                  )}
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.codigoCurto}</th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.pavimento}</th>
+                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.localDetalhado}</th>
+                  <th className={`hidden md:table-cell ${COLUNA_TITULO_CLASS}`}>
                     {COLUNAS_PADRAO.mangueiras}
                   </th>
-                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">
+                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
                     {COLUNAS_PADRAO.mapa}
                   </th>
                   {!readOnly && (
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{COLUNAS_PADRAO.acoes}</th>
+                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.acoes}</th>
                   )}
                 </tr>
               </thead>
@@ -819,6 +975,16 @@ export default function AdminExtintoresPage() {
                     className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
                     onClick={() => openDetalheHidrante(h)}
                   >
+                    {canSoftDelete && (
+                      <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(h.id)}
+                          onChange={() => toggleSelected(h.id)}
+                          aria-label={`Selecionar ${h.codigo}`}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-bold text-slate-900">{h.codigo}</td>
                     <td className="px-4 py-3 text-slate-600">{h.pavimento ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{h.local_detalhado || "—"}</td>
@@ -840,7 +1006,15 @@ export default function AdminExtintoresPage() {
                         <RowActionsMenu
                           label={`hidrante ${h.codigo}`}
                           onEdit={() => openEditHidrante(h)}
-                          onDelete={() => setDeleteTargetHidrante(h)}
+                          onDelete={
+                            canSoftDelete && !showInactive
+                              ? () => {
+                                  setPendingSoftDeleteIds([h.id]);
+                                  setConfirmPhrase("");
+                                  setBulkConfirmOpen(true);
+                                }
+                              : undefined
+                          }
                         />
                       )}
                     </td>
@@ -1308,76 +1482,94 @@ export default function AdminExtintoresPage() {
         </div>
       )}
 
-      {/* Delete confirmation modal */}
-      {deleteTarget && (
+      {/* Confirmação de apagar / recuperar (soft-delete) */}
+      {bulkConfirmOpen && (
         <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
             <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-full ${
+                  showInactive ? "bg-emerald-100" : "bg-red-100"
+                }`}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke={showInactive ? "#047857" : "var(--forest)"}
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
               </div>
-              <ModalCloseButton onClick={() => setDeleteTarget(null)} />
+              <ModalCloseButton
+                onClick={() => {
+                  setBulkConfirmOpen(false);
+                  setPendingSoftDeleteIds([]);
+                  setConfirmPhrase("");
+                }}
+              />
             </div>
-            <h3 className="text-base font-bold text-slate-900">Excluir extintor?</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              <strong>{deleteTarget.codigo}</strong> — {deleteTarget.local_detalhado}
-            </p>
-            <p className="mt-1 text-xs text-red-600">
-              Todos os checklists deste extintor também serão excluídos. Essa ação não pode ser desfeita.
-            </p>
+            <h3 className="text-base font-bold text-slate-900">
+              {showInactive
+                ? `Recuperar ${pendingSoftDeleteIds.length} item(ns)?`
+                : `Você quer apagar ${pendingSoftDeleteIds.length} item(ns)?`}
+            </h3>
+            {showInactive ? (
+              <p className="mt-2 text-sm text-slate-600">
+                Os itens voltam a aparecer para os usuários desta base.
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-slate-600">
+                  Eles saem da lista ativa desta base. O histórico de inspeções permanece e você pode
+                  recuperá-los depois na aba “Removidos”.
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-800">
+                  Para confirmar que você quer apagar estes itens, digite:
+                </p>
+                <p className="mt-1 rounded-xl bg-slate-100 px-3 py-2 font-mono text-sm font-bold text-red-700">
+                  {SOFT_DELETE_CONFIRM_PHRASE}
+                </p>
+                <input
+                  className="field-control mt-3"
+                  placeholder="Digite a frase de confirmação"
+                  value={confirmPhrase}
+                  onChange={(event) => setConfirmPhrase(event.target.value)}
+                  autoFocus
+                  autoComplete="off"
+                />
+              </>
+            )}
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="btn-primary flex-1"
+                onClick={() => void confirmSoftDeleteOrRestore()}
+                disabled={
+                  deleting ||
+                  (!showInactive &&
+                    confirmPhrase.trim().toLocaleUpperCase("pt-BR") !== SOFT_DELETE_CONFIRM_PHRASE)
+                }
+                className="btn-primary flex-1 disabled:opacity-50"
               >
-                {deleting ? "Excluindo..." : "Sim, excluir"}
+                {deleting
+                  ? "Processando..."
+                  : showInactive
+                    ? "Sim, recuperar"
+                    : "Confirmar: quero apagar estes itens"}
               </button>
               <button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="btn-secondary"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleteTargetHidrante && (
-        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-              <ModalCloseButton onClick={() => setDeleteTargetHidrante(null)} />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">Excluir hidrante?</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              <strong>{deleteTargetHidrante.codigo}</strong> — {deleteTargetHidrante.local_detalhado}
-            </p>
-            <p className="mt-1 text-xs text-red-600">
-              Todas as conferências deste hidrante também serão excluídas. Essa ação não pode ser desfeita.
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={handleDeleteHidrante}
-                disabled={deleting}
-                className="btn-primary flex-1"
-              >
-                {deleting ? "Excluindo..." : "Sim, excluir"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteTargetHidrante(null)}
+                onClick={() => {
+                  setBulkConfirmOpen(false);
+                  setPendingSoftDeleteIds([]);
+                  setConfirmPhrase("");
+                }}
                 className="btn-secondary"
               >
                 Cancelar
