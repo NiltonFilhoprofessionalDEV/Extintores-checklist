@@ -158,7 +158,7 @@ const MANUTENCAO_MODAL_META: Record<
   },
   semPosicao: {
     title: "Extintores sem posição no mapa",
-    subtitle: "Posicionar no módulo de mapeamento",
+    subtitle: "Posicionar em Posicionar equipamentos",
     color: "#6b7280",
     exportLabel: "Sem_posicao_mapa",
   },
