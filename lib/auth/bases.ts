@@ -19,8 +19,11 @@ export type BaseFloor = {
   label: string;
   sort_order: number;
   image_path: string;
+  image_path_preview: string | null;
   image_width: number;
   image_height: number;
+  needs_position_review: boolean;
+  active: boolean;
 };
 
 export type AccessibleBase = BaseRecord;
@@ -121,11 +124,27 @@ export async function fetchAccessibleBasesForUser(
 
 export async function fetchBaseFloors(baseId: string): Promise<BaseFloor[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const fullSelect =
+    "id,base_id,key,label,sort_order,image_path,image_path_preview,image_width,image_height,needs_position_review,active";
+  const legacySelect = "id,base_id,key,label,sort_order,image_path,image_width,image_height";
+
+  let { data, error } = await supabase
     .from("base_floors")
-    .select("id,base_id,key,label,sort_order,image_path,image_width,image_height")
+    .select(fullSelect)
     .eq("base_id", baseId)
     .order("sort_order", { ascending: true });
+
+  if (error && /image_path_preview|needs_position_review|active|schema cache|column/i.test(error.message)) {
+    const retry = await supabase
+      .from("base_floors")
+      .select(legacySelect)
+      .eq("base_id", baseId)
+      .order("sort_order", { ascending: true });
+    if (!retry.error) {
+      data = retry.data as typeof data;
+      error = retry.error;
+    }
+  }
 
   if (error) throw error;
 
@@ -136,14 +155,33 @@ export async function fetchBaseFloors(baseId: string): Promise<BaseFloor[]> {
     label: String(row.label),
     sort_order: Number(row.sort_order ?? 0),
     image_path: String(row.image_path),
+    image_path_preview:
+      "image_path_preview" in row && row.image_path_preview
+        ? String(row.image_path_preview)
+        : null,
     image_width: Number(row.image_width ?? 14042),
     image_height: Number(row.image_height ?? 9934),
+    needs_position_review:
+      "needs_position_review" in row ? Boolean(row.needs_position_review ?? false) : false,
+    active: "active" in row ? Boolean(row.active ?? true) : true,
   }));
 }
 
 /** Resolve image URL for a floor image_path (static /maps/..., URL pública ou path no bucket mapas). */
 export function floorHasMap(imagePath: string | null | undefined): boolean {
   return Boolean(imagePath?.trim());
+}
+
+/** URL da planta para exibição — prefere preview otimizado quando disponível. */
+export function resolveFloorDisplayImageUrl(
+  imagePath: string,
+  imagePathPreview?: string | null,
+  preferWebp = true,
+): string {
+  if (imagePathPreview?.trim()) {
+    return resolveFloorImageUrl(imagePathPreview, preferWebp);
+  }
+  return resolveFloorImageUrl(imagePath, preferWebp);
 }
 
 export function resolveFloorImageUrl(imagePath: string, preferWebp = true): string {

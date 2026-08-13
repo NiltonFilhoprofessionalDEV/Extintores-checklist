@@ -20,8 +20,10 @@ type FloorItem = {
   label: string;
   sort_order: number;
   image_path: string;
+  image_path_preview?: string | null;
   image_width: number;
   image_height: number;
+  needs_position_review?: boolean;
 };
 
 function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
@@ -173,6 +175,17 @@ export default function AdminConfiguracoesPage() {
   async function handleSaveEdit(event: React.FormEvent) {
     event.preventDefault();
     if (!editingId) return;
+
+    const currentFloor = floors.find((f) => f.id === editingId);
+    const replacingMap = Boolean(editFile) && currentFloor && floorHasMap(currentFloor.image_path);
+
+    if (replacingMap) {
+      const ok = window.confirm(
+        "Esta planta possui equipamentos posicionados. Substituir a imagem pode exigir revisão das posições.\n\nSubstituir e revisar pontos?",
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
     setMessage("");
     try {
@@ -184,11 +197,18 @@ export default function AdminConfiguracoesPage() {
         body.set("file", editFile);
         body.set("image_width", String(dims.width));
         body.set("image_height", String(dims.height));
+        if (replacingMap) body.set("confirm_replace", "1");
       }
       await callApi("/api/admin/floors", { method: "PATCH", body });
       setEditingId(null);
       setEditFile(null);
-      setMessage(editFile ? "Setor e mapa atualizados." : "Setor atualizado.");
+      setMessage(
+        editFile
+          ? replacingMap
+            ? "Planta substituída. Revise as posições dos equipamentos no mapeamento."
+            : "Setor e mapa atualizados."
+          : "Setor atualizado.",
+      );
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao atualizar.");
