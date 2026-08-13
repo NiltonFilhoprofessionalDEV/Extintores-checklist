@@ -3,6 +3,8 @@
 type InspecaoDraftPromptProps = {
   equipmentCodigo: string;
   kindLabel: string;
+  answeredCount?: number;
+  totalCount?: number;
   onContinue: () => void;
   onDiscard: () => void;
 };
@@ -10,14 +12,22 @@ type InspecaoDraftPromptProps = {
 export default function InspecaoDraftPrompt({
   equipmentCodigo,
   kindLabel,
+  answeredCount,
+  totalCount,
   onContinue,
   onDiscard,
 }: InspecaoDraftPromptProps) {
+  const hasProgress =
+    answeredCount != null && totalCount != null && totalCount > 0 && answeredCount < totalCount;
+
   return (
     <div className="rounded-[var(--fc-radius-lg)] border border-[var(--fc-primary)]/25 bg-[var(--fc-primary-pale)] px-4 py-3">
-      <p className="text-sm font-bold text-[var(--fc-text-primary)]">
-        Você possui uma inspeção não finalizada.
-      </p>
+      <p className="text-sm font-bold text-[var(--fc-text-primary)]">Inspeção em andamento</p>
+      {hasProgress ? (
+        <p className="mt-1 text-xs font-semibold text-[var(--fc-primary-deep)]">
+          {answeredCount} de {totalCount} itens respondidos
+        </p>
+      ) : null}
       <p className="mt-1 text-xs text-[var(--fc-text-secondary)]">
         {kindLabel} <span className="font-semibold text-[var(--fc-text-primary)]">{equipmentCodigo}</span>
       </p>

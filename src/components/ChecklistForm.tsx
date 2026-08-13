@@ -1,166 +1,25 @@
+import { useMemo, useRef } from "react";
 import type { ChecklistData, ChecklistValue, InspecaoExtintorCabecalho } from "@/lib/checklist/types";
 import {
   CHECKLIST_ITEM_KEYS,
   getChecklistAnswer,
   isBuiltinChecklistItemKey,
   isChecklistValid,
-  isDataVencida,
   type ChecklistItemKey,
 } from "@/lib/checklist/types";
 import { DEFAULT_EXTINTOR_QUESTION_LABELS } from "@/lib/checklist/default-questions";
-import { formatDateOnlyPt } from "@/lib/date/date-only";
-
-type OptionDef = { value: ChecklistValue; label: string; color: string; bg: string; ring: string };
-
-const OPTIONS: OptionDef[] = [
-  {
-    value: "conforme",
-    label: "Conforme",
-    color: "#15803d",
-    bg: "#dcfce7",
-    ring: "#16a34a",
-  },
-  {
-    value: "nao_conforme",
-    label: "Não conforme",
-    color: "#b91c1c",
-    bg: "#fee2e2",
-    ring: "#dc2626",
-  },
-  {
-    value: "nao_aplica",
-    label: "N/A",
-    color: "#4b5563",
-    bg: "#f3f4f6",
-    ring: "#9ca3af",
-  },
-];
+import { computeChecklistProgress } from "@/lib/inspecao/checklist-progress";
+import ChecklistDraftIndicator from "@/src/components/checklist/ChecklistDraftIndicator";
+import ChecklistOperationalBar from "@/src/components/checklist/ChecklistOperationalBar";
+import ChecklistProgressBar from "@/src/components/checklist/ChecklistProgressBar";
+import ChecklistQuestionCard from "@/src/components/checklist/ChecklistQuestionCard";
+import ExtintorCompactHeader from "@/src/components/checklist/ExtintorCompactHeader";
+import MarkAllConformeButton from "@/src/components/checklist/MarkAllConformeButton";
 
 const DEFAULT_FIELDS: { key: string; label: string }[] = CHECKLIST_ITEM_KEYS.map((key) => ({
   key,
   label: DEFAULT_EXTINTOR_QUESTION_LABELS[key],
 }));
-
-function CabecalhoInspecao({ info }: { info: InspecaoExtintorCabecalho }) {
-  const v2 = isDataVencida(info.manutencao_2_nivel);
-  const v3 = isDataVencida(info.manutencao_3_nivel);
-
-  return (
-    <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-      <div className="border-b border-slate-200 bg-white px-4 py-3">
-        <p className="text-lg font-bold text-slate-900">{info.codigo}</p>
-        <p className="text-xs font-medium text-slate-500">Extintor</p>
-      </div>
-      <dl className="grid gap-2 px-4 py-3 text-xs">
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Pavimento</dt>
-          <dd className="text-right font-medium text-slate-800">{info.pavimento?.trim() || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Local detalhado</dt>
-          <dd className="text-right font-medium text-slate-800">{info.local_detalhado || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Nº do INMETRO</dt>
-          <dd className="text-right font-medium text-slate-800">{info.num_inmetro || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Nº do Cilindro</dt>
-          <dd className="text-right font-medium text-slate-800">{info.num_cilindro?.trim() || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Tipo de agente extintor</dt>
-          <dd className="text-right font-medium text-slate-800">{info.tipo || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Carga nominal</dt>
-          <dd className="text-right font-medium text-slate-800">{info.tamanho || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Capacidade Extintora (Ex: 2-A 20-B:C)</dt>
-          <dd className="text-right font-medium text-slate-800">{info.capacidade_extintora || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Próx. Manutenção 2º Nível (Recarga)</dt>
-          <dd className={`text-right font-semibold ${v2 ? "text-red-600" : "text-slate-800"}`}>
-            {formatDateOnlyPt(info.manutencao_2_nivel)}
-            {v2 ? " (vencido)" : ""}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-500">Próx. Manutenção 3º Nível (Teste hidrostático)</dt>
-          <dd className={`text-right font-semibold ${v3 ? "text-red-600" : "text-slate-800"}`}>
-            {formatDateOnlyPt(info.manutencao_3_nivel)}
-            {v3 ? " (vencido)" : ""}
-          </dd>
-        </div>
-      </dl>
-    </div>
-  );
-}
-
-function ToggleField({
-  label,
-  value,
-  onChange,
-  index,
-  detalheNc,
-  onDetalheNcChange,
-}: {
-  label: string;
-  value: ChecklistValue | null;
-  onChange: (v: ChecklistValue) => void;
-  index: number;
-  detalheNc: string;
-  onDetalheNcChange: (text: string) => void;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3.5">
-      <p className="mb-2.5 text-xs font-semibold leading-snug text-gray-700">
-        <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--forest)] text-[10px] font-bold text-white">
-          {index}
-        </span>
-        {label}
-      </p>
-      <div className="flex gap-2">
-        {OPTIONS.map((opt) => {
-          const active = value === opt.value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange(opt.value)}
-              className="flex-1 rounded-lg py-2 text-xs font-bold transition-all"
-              style={{
-                background: active ? opt.bg : "white",
-                color: active ? opt.color : "#9ca3af",
-                border: `1.5px solid ${active ? opt.ring : "#e5e7eb"}`,
-                boxShadow: active ? `0 0 0 2px ${opt.ring}22` : "none",
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      {value === "nao_conforme" && (
-        <div className="mt-3">
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-red-700">
-            Descreva a não conformidade *
-          </label>
-          <textarea
-            required
-            rows={3}
-            placeholder="Obrigatório: descreva o problema encontrado..."
-            className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
-            value={detalheNc}
-            onChange={(e) => onDetalheNcChange(e.target.value)}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 type Props = {
   data: ChecklistData;
@@ -169,8 +28,8 @@ type Props = {
   onCancel: () => void;
   isSaving: boolean;
   cabecalho?: InspecaoExtintorCabecalho;
-  /** Perguntas da base (podem incluir campos customizados). */
   fields?: { key: string; label: string }[];
+  draftSavedVisible?: boolean;
   /** @deprecated use cabecalho */
   extintor?: {
     codigo: string;
@@ -181,6 +40,23 @@ type Props = {
   };
 };
 
+function markAllConforme(data: ChecklistData, fieldKeys: string[]): ChecklistData {
+  const next: ChecklistData = {
+    ...data,
+    extraAnswers: { ...data.extraAnswers },
+    detalhesNaoConformidade: { ...data.detalhesNaoConformidade },
+  };
+  for (const key of fieldKeys) {
+    if (isBuiltinChecklistItemKey(key)) {
+      next[key] = "conforme";
+    } else {
+      next.extraAnswers[key] = "conforme";
+    }
+    delete next.detalhesNaoConformidade[key];
+  }
+  return next;
+}
+
 export default function ChecklistForm({
   data,
   onChange,
@@ -189,11 +65,14 @@ export default function ChecklistForm({
   isSaving,
   cabecalho,
   fields = DEFAULT_FIELDS,
+  draftSavedVisible = false,
   extintor,
 }: Props) {
+  const formRef = useRef<HTMLFormElement>(null);
   const resolvedFields = fields.length > 0 ? fields : DEFAULT_FIELDS;
   const fieldKeys = resolvedFields.map((field) => field.key);
   const valid = isChecklistValid(data, fieldKeys);
+  const progress = useMemo(() => computeChecklistProgress(data, fieldKeys), [data, fieldKeys]);
 
   function setField(key: string, value: ChecklistValue) {
     let next: ChecklistData;
@@ -237,69 +116,108 @@ export default function ChecklistForm({
         }
       : null;
 
+  function scrollToNextUnanswered() {
+    const el = formRef.current?.querySelector('[data-checklist-unanswered="true"]');
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    formRef.current?.querySelector(".checklist-question-card")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function handleFinalize() {
+    if (!formRef.current) return;
+    if (typeof formRef.current.requestSubmit === "function") {
+      formRef.current.requestSubmit();
+    } else {
+      formRef.current.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+  }
+
   return (
-    <form onSubmit={onSubmit}>
-      {headerResolved && <CabecalhoInspecao info={headerResolved} />}
+    <form ref={formRef} onSubmit={onSubmit} className="checklist-form">
+      <div className="checklist-form__layout">
+        <aside className="checklist-form__aside">
+          {headerResolved && <ExtintorCompactHeader info={headerResolved} />}
+          <div className="mt-4 space-y-3">
+            <ChecklistProgressBar progress={progress} />
+            <ChecklistDraftIndicator visible={draftSavedVisible} />
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-[var(--fc-text-secondary)]">
+                Conferente *
+              </label>
+              <input
+                required
+                type="text"
+                placeholder="Nome do responsável"
+                className="field-control field-control--touch"
+                value={data.conferente}
+                onChange={(event) => onChange({ ...data, conferente: event.target.value })}
+              />
+            </div>
+            <MarkAllConformeButton
+              disabled={isSaving}
+              onConfirm={() => onChange(markAllConforme(data, fieldKeys))}
+            />
+          </div>
+        </aside>
 
-      <div className="space-y-3">
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">
-            Conferente *
-          </label>
-          <input
-            required
-            type="text"
-            placeholder="Nome do responsável pela conferência"
-            className="field-control py-3"
-            value={data.conferente}
-            onChange={(e) => onChange({ ...data, conferente: e.target.value })}
-          />
-        </div>
+        <div className="checklist-form__main">
+          <div className="space-y-3">
+            {resolvedFields.map((field, index) => {
+              const value = getChecklistAnswer(data, field.key);
+              return (
+                <ChecklistQuestionCard
+                  key={field.key}
+                  index={index + 1}
+                  label={field.label}
+                  value={value}
+                  unanswered={value === null}
+                  onChange={(v) => setField(field.key, v)}
+                  detalheNc={data.detalhesNaoConformidade[field.key] ?? ""}
+                  onDetalheNcChange={(text) => setDetalheNc(field.key, text)}
+                />
+              );
+            })}
 
-        {resolvedFields.map((field, i) => (
-          <ToggleField
-            key={field.key}
-            index={i + 1}
-            label={field.label}
-            value={getChecklistAnswer(data, field.key)}
-            onChange={(v) => setField(field.key, v)}
-            detalheNc={data.detalhesNaoConformidade[field.key] ?? ""}
-            onDetalheNcChange={(text) => setDetalheNc(field.key, text)}
-          />
-        ))}
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-[var(--fc-text-secondary)]">
+                Observações
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Observações adicionais (opcional)..."
+                className="field-control field-control--touch"
+                value={data.observacoes}
+                onChange={(event) => onChange({ ...data, observacoes: event.target.value })}
+              />
+            </div>
+          </div>
 
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">
-            Observações
-          </label>
-          <textarea
-            rows={3}
-            placeholder="Observações adicionais (opcional)..."
-            className="field-control py-3"
-            value={data.observacoes}
-            onChange={(e) => onChange({ ...data, observacoes: e.target.value })}
-          />
+          {!valid && data.conferente.trim() && (
+            <p className="mt-3 text-center text-xs font-semibold text-amber-700">
+              Responda todos os itens e preencha a descrição em todo item marcado como não conforme.
+            </p>
+          )}
+
+          <div className="mt-4 hidden lg:block">
+            <button type="button" onClick={onCancel} className="btn-secondary w-full py-3">
+              Voltar à lista
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mt-5 flex gap-3">
-        <button
-          type="submit"
-          disabled={isSaving || !valid}
-          className="btn-primary flex-1 py-3.5 disabled:opacity-50"
-        >
-          {isSaving ? "Salvando..." : "Confirmar Inspeção"}
-        </button>
-        <button type="button" onClick={onCancel} className="btn-secondary py-3.5">
-          Cancelar
-        </button>
-      </div>
-
-      {!valid && data.conferente.trim() && (
-        <p className="mt-2 text-center text-xs text-amber-600">
-          Responda todos os itens e preencha a descrição em todo item marcado como não conforme.
-        </p>
-      )}
+      <ChecklistOperationalBar
+        progress={progress}
+        isSaving={isSaving}
+        isValid={valid}
+        onFinalize={handleFinalize}
+        onContinue={scrollToNextUnanswered}
+      />
     </form>
   );
 }

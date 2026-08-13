@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
@@ -55,12 +55,15 @@ import {
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import {
   clearInspecaoDraft,
+  getInspecaoDraftIndexEntry,
   getLatestInspecaoDraft,
+  isDraftIncomplete,
   loadInspecaoDraft,
-  saveInspecaoDraft,
+  type DraftIndexEntry,
   type InspecaoDraftField,
   type InspecaoDraftKind,
 } from "@/lib/inspecao/draft-storage";
+import { useInspecaoDraftPersistence } from "@/lib/inspecao/use-inspecao-draft-persistence";
 import {
   countActiveInspecaoFilters,
   DEFAULT_INSPECAO_FILTERS,
@@ -243,15 +246,54 @@ export default function MobileConferenciaPage() {
   const [activeExtintorFields, setActiveExtintorFields] = useState<ChecklistFieldDef[]>([]);
   const [activeHidranteFields, setActiveHidranteFields] = useState<ChecklistFieldDef[]>([]);
   const [messageIsError, setMessageIsError] = useState(false);
-  const [pendingDraftEntry, setPendingDraftEntry] = useState<{
-    kind: InspecaoDraftKind;
-    equipmentId: string;
-    equipmentCodigo: string;
-    baseId: string;
-  } | null>(null);
+  const [draftSavedVisible, setDraftSavedVisible] = useState(false);
+  const [pendingDraftEntry, setPendingDraftEntry] = useState<DraftIndexEntry | null>(null);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const draftSaveTimerRef = useRef<number | null>(null);
+  const draftSavedTimerRef = useRef<number | null>(null);
+
+  const handleDraftSaved = useCallback(() => {
+    setDraftSavedVisible(true);
+    if (draftSavedTimerRef.current !== null) {
+      window.clearTimeout(draftSavedTimerRef.current);
+    }
+    draftSavedTimerRef.current = window.setTimeout(() => setDraftSavedVisible(false), 2200);
+  }, []);
+
+  useInspecaoDraftPersistence({
+    active: Boolean(selected),
+    userId: currentUserId,
+    baseId: activeBaseId,
+    kind: "extintor",
+    equipmentId: selected?.id ?? null,
+    equipmentCodigo: selected?.codigo ?? null,
+    checklistData: checklist,
+    activeFields: activeExtintorFields,
+    onDraftSaved: handleDraftSaved,
+  });
+
+  useInspecaoDraftPersistence({
+    active: Boolean(selectedHidrante),
+    userId: currentUserId,
+    baseId: activeBaseId,
+    kind: "hidrante",
+    equipmentId: selectedHidrante?.id ?? null,
+    equipmentCodigo: selectedHidrante?.codigo ?? null,
+    checklistData: hidranteChecklist,
+    activeFields: activeHidranteFields,
+    onDraftSaved: handleDraftSaved,
+  });
+
+  useEffect(() => {
+    if (selected || selectedHidrante) {
+      document.body.dataset.inspectionActive = "true";
+    } else {
+      delete document.body.dataset.inspectionActive;
+    }
+    return () => {
+      delete document.body.dataset.inspectionActive;
+    };
+  }, [selected, selectedHidrante]);
 
   useEffect(() => {
     let cancelled = false;
@@ -531,61 +573,6 @@ export default function MobileConferenciaPage() {
     void loadConferente();
   }, [activeBaseId]);
 
-  const scheduleDraftSave = useCallback(
-    (
-      kind: InspecaoDraftKind,
-      equipmentId: string,
-      equipmentCodigo: string,
-      data: ChecklistData | HidranteChecklistData,
-      fields: ChecklistFieldDef[],
-    ) => {
-      if (!currentUserId || !activeBaseId) return;
-      if (draftSaveTimerRef.current !== null) {
-        window.clearTimeout(draftSaveTimerRef.current);
-      }
-      draftSaveTimerRef.current = window.setTimeout(() => {
-        saveInspecaoDraft({
-          version: 1,
-          userId: currentUserId,
-          baseId: activeBaseId,
-          kind,
-          equipmentId,
-          equipmentCodigo,
-          checklistData: data,
-          activeFields: fields,
-          updatedAt: new Date().toISOString(),
-        });
-      }, 450);
-    },
-    [activeBaseId, currentUserId],
-  );
-
-  useEffect(() => {
-    if (!selected || !currentUserId || !activeBaseId) return;
-    scheduleDraftSave("extintor", selected.id, selected.codigo, checklist, activeExtintorFields);
-    return () => {
-      if (draftSaveTimerRef.current !== null) {
-        window.clearTimeout(draftSaveTimerRef.current);
-      }
-    };
-  }, [checklist, selected, currentUserId, activeBaseId, activeExtintorFields, scheduleDraftSave]);
-
-  useEffect(() => {
-    if (!selectedHidrante || !currentUserId || !activeBaseId) return;
-    scheduleDraftSave(
-      "hidrante",
-      selectedHidrante.id,
-      selectedHidrante.codigo,
-      hidranteChecklist,
-      activeHidranteFields,
-    );
-    return () => {
-      if (draftSaveTimerRef.current !== null) {
-        window.clearTimeout(draftSaveTimerRef.current);
-      }
-    };
-  }, [hidranteChecklist, selectedHidrante, currentUserId, activeBaseId, activeHidranteFields, scheduleDraftSave]);
-
   const visiveis = useMemo(() => {
     const q = filter.toLowerCase().trim();
     let list = extintoresOrdenados;
@@ -700,12 +687,42 @@ export default function MobileConferenciaPage() {
     });
   }
 
+  function getEquipmentDraftProgress(kind: InspecaoDraftKind, equipmentId: string) {
+    if (!currentUserId || !activeBaseId) return null;
+    const entry = getInspecaoDraftIndexEntry(currentUserId, kind, equipmentId);
+    if (!entry || entry.baseId !== activeBaseId) return null;
+    if (entry.totalCount <= 0 || entry.answeredCount >= entry.totalCount) return null;
+    return { answered: entry.answeredCount, total: entry.totalCount };
+  }
+
   function closeExtintorModal() {
     setSelected(null);
+    if (currentUserId) {
+      const latest = getLatestInspecaoDraft(currentUserId);
+      if (latest && latest.baseId === activeBaseId) {
+        setPendingDraftEntry(latest);
+        if (isDraftIncomplete(latest)) {
+          setMessage("Inspeção em andamento. Seu progresso foi salvo e poderá ser retomado depois.");
+          setMessageIsError(false);
+          setTimeout(() => setMessage(""), 4500);
+        }
+      }
+    }
   }
 
   function closeHidranteModal() {
     setSelectedHidrante(null);
+    if (currentUserId) {
+      const latest = getLatestInspecaoDraft(currentUserId);
+      if (latest && latest.baseId === activeBaseId) {
+        setPendingDraftEntry(latest);
+        if (isDraftIncomplete(latest)) {
+          setMessage("Inspeção em andamento. Seu progresso foi salvo e poderá ser retomado depois.");
+          setMessageIsError(false);
+          setTimeout(() => setMessage(""), 4500);
+        }
+      }
+    }
   }
 
   function handleContinueDraft() {
@@ -1033,6 +1050,8 @@ export default function MobileConferenciaPage() {
         <InspecaoDraftPrompt
           equipmentCodigo={pendingDraftEntry.equipmentCodigo}
           kindLabel={pendingDraftEntry.kind === "extintor" ? "Extintor" : "Hidrante"}
+          answeredCount={pendingDraftEntry.answeredCount}
+          totalCount={pendingDraftEntry.totalCount}
           onContinue={handleContinueDraft}
           onDiscard={handleDiscardDraft}
         />
@@ -1144,6 +1163,7 @@ export default function MobileConferenciaPage() {
                   manutVencida ? "Atenção: manutenção nível 2 ou 3 vencida" : null
                 }
                 icon={<EquipmentStatusIcon kind="extintor" variant={variant} />}
+                draftProgress={getEquipmentDraftProgress("extintor", item.id)}
                 onClick={() => openExtintor(item)}
               />
             );
@@ -1179,6 +1199,7 @@ export default function MobileConferenciaPage() {
                     : null
                 }
                 icon={<EquipmentStatusIcon kind="hidrante" variant={variant} />}
+                draftProgress={getEquipmentDraftProgress("hidrante", item.id)}
                 onClick={() => openHidrante(item)}
               />
             );
@@ -1199,23 +1220,16 @@ export default function MobileConferenciaPage() {
       />
 
       {selected && (
-        <div className="modal-layer fixed inset-0 flex items-end bg-slate-950/40 backdrop-blur-sm lg:items-center lg:justify-center lg:p-6">
-          <div
-            className="relative w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl lg:max-h-[92vh] lg:max-w-2xl lg:rounded-[1.75rem]"
-            style={{
-              maxHeight: "95vh",
-              overflowY: "auto",
-              paddingBottom: "env(safe-area-inset-bottom, 20px)",
-            }}
-          >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 lg:hidden" />
-            <ModalCloseButton onClick={closeExtintorModal} className="absolute right-4 top-4" />
+        <div className="modal-layer fixed inset-0 z-[var(--z-modal)] flex flex-col bg-white lg:bg-slate-950/40 lg:p-6">
+          <div className="checklist-modal-shell relative flex-1 overflow-y-auto px-4 pb-2 pt-4 lg:px-6 lg:py-5">
+            <ModalCloseButton onClick={closeExtintorModal} className="absolute right-3 top-3 z-10" />
             <ChecklistForm
               data={checklist}
               onChange={setChecklist}
               onSubmit={submitChecklist}
               onCancel={closeExtintorModal}
               isSaving={saving}
+              draftSavedVisible={draftSavedVisible}
               fields={activeExtintorFields}
               cabecalho={{
                 codigo: selected.codigo,
@@ -1235,23 +1249,16 @@ export default function MobileConferenciaPage() {
       )}
 
       {selectedHidrante && (
-        <div className="modal-layer fixed inset-0 flex items-end bg-slate-950/40 backdrop-blur-sm lg:items-center lg:justify-center lg:p-6">
-          <div
-            className="relative w-full rounded-t-3xl bg-white px-5 pt-5 shadow-2xl lg:max-h-[92vh] lg:max-w-2xl lg:rounded-[1.75rem]"
-            style={{
-              maxHeight: "95vh",
-              overflowY: "auto",
-              paddingBottom: "env(safe-area-inset-bottom, 20px)",
-            }}
-          >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 lg:hidden" />
-            <ModalCloseButton onClick={closeHidranteModal} className="absolute right-4 top-4" />
+        <div className="modal-layer fixed inset-0 z-[var(--z-modal)] flex flex-col bg-white lg:bg-slate-950/40 lg:p-6">
+          <div className="checklist-modal-shell relative flex-1 overflow-y-auto px-4 pb-2 pt-4 lg:px-6 lg:py-5">
+            <ModalCloseButton onClick={closeHidranteModal} className="absolute right-3 top-3 z-10" />
             <HidranteChecklistForm
               data={hidranteChecklist}
               onChange={setHidranteChecklist}
               onSubmit={submitHidranteChecklist}
               onCancel={closeHidranteModal}
               isSaving={saving}
+              draftSavedVisible={draftSavedVisible}
               fields={activeHidranteFields}
               hidrante={selectedHidrante}
             />

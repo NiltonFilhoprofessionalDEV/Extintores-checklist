@@ -14,6 +14,8 @@ export type InspecaoDraftRecord = {
   equipmentCodigo: string;
   checklistData: ChecklistData | HidranteChecklistData;
   activeFields: InspecaoDraftField[];
+  answeredCount: number;
+  totalCount: number;
   updatedAt: string;
 };
 
@@ -32,11 +34,13 @@ function draftIndexKey(userId: string): string {
   return `${DRAFT_KEY_PREFIX}:index:${userId}`;
 }
 
-type DraftIndexEntry = {
+export type DraftIndexEntry = {
   kind: InspecaoDraftKind;
   equipmentId: string;
   equipmentCodigo: string;
   baseId: string;
+  answeredCount: number;
+  totalCount: number;
   updatedAt: string;
 };
 
@@ -57,7 +61,7 @@ function writeIndex(userId: string, entries: DraftIndexEntry[]): void {
   try {
     window.localStorage.setItem(draftIndexKey(userId), JSON.stringify(entries));
   } catch {
-    // quota ou modo privado — não bloqueia fluxo
+    // quota ou modo privado
   }
 }
 
@@ -76,6 +80,8 @@ export function saveInspecaoDraft(draft: InspecaoDraftRecord): void {
       equipmentId: draft.equipmentId,
       equipmentCodigo: draft.equipmentCodigo,
       baseId: draft.baseId,
+      answeredCount: draft.answeredCount,
+      totalCount: draft.totalCount,
       updatedAt: draft.updatedAt,
     });
     writeIndex(draft.userId, index);
@@ -95,10 +101,24 @@ export function loadInspecaoDraft(
     if (!raw) return null;
     const parsed = JSON.parse(raw) as InspecaoDraftRecord;
     if (parsed?.version !== 1) return null;
-    return parsed;
+    return {
+      ...parsed,
+      answeredCount: parsed.answeredCount ?? 0,
+      totalCount: parsed.totalCount ?? parsed.activeFields?.length ?? 0,
+    };
   } catch {
     return null;
   }
+}
+
+export function getInspecaoDraftIndexEntry(
+  userId: string,
+  kind: InspecaoDraftKind,
+  equipmentId: string,
+): DraftIndexEntry | null {
+  return readIndex(userId).find(
+    (entry) => entry.kind === kind && entry.equipmentId === equipmentId,
+  ) ?? null;
 }
 
 export function clearInspecaoDraft(
@@ -130,4 +150,8 @@ export function listInspecaoDrafts(userId: string): DraftIndexEntry[] {
   return [...readIndex(userId)].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
+}
+
+export function isDraftIncomplete(entry: DraftIndexEntry): boolean {
+  return entry.totalCount > 0 && entry.answeredCount < entry.totalCount;
 }
