@@ -233,6 +233,10 @@ export default function MapPointPlacementEditor() {
     setPlantStatus("loading");
   }, []);
 
+  const handlePlantStatusChange = useCallback((status: FloorPlantLoadStatus) => {
+    setPlantStatus(status);
+  }, []);
+
   const unplacedExtintores = useMemo(() => {
     if (!selectedFloor) return [];
     return filterUnplacedCandidates(extintores, floorRef);
@@ -744,9 +748,9 @@ export default function MapPointPlacementEditor() {
         ) : (
           <>
           <MapContainer
-            key={`${selectedFloor.id}-${mapImageSize.width}x${mapImageSize.height}`}
+            key={selectedFloor.id}
             crs={L.CRS.Simple}
-            preferCanvas
+            preferCanvas={false}
             zoomAnimation={false}
             fadeAnimation={false}
             markerZoomAnimation={false}
@@ -772,7 +776,7 @@ export default function MapPointPlacementEditor() {
               floorKey={selectedFloor.key}
               bounds={mapBounds}
               retryKey={plantRetryKey}
-              onStatusChange={setPlantStatus}
+              onStatusChange={handlePlantStatusChange}
             />
             <MapClickPlacement enabled={Boolean(selected) && !saving} onClick={handleMapClick} />
 

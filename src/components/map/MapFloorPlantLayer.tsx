@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ImageOverlay } from "react-leaflet";
-import type { LatLngBoundsExpression } from "leaflet";
+import { useEffect, useMemo, useRef } from "react";
+import { useMap } from "react-leaflet";
+import L, { type LatLngBoundsExpression, type LatLngBoundsLiteral } from "leaflet";
 import {
   buildFloorImageCandidates,
   type FloorPlantLoadStatus,
 } from "@/lib/map/floor-image-resolution";
+
+const PLANT_LOAD_TIMEOUT_MS = 12000;
 
 export default function MapFloorPlantLayer({
   imagePath,
@@ -25,62 +27,109 @@ export default function MapFloorPlantLayer({
   retryKey?: number;
   onStatusChange?: (status: FloorPlantLoadStatus) => void;
 }) {
+  const map = useMap();
+  const overlayRef = useRef<L.ImageOverlay | null>(null);
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+
   const candidates = useMemo(
     () => buildFloorImageCandidates(imagePath, imagePathPreview, preferWebp, floorKey),
     [imagePath, imagePathPreview, preferWebp, floorKey, retryKey],
   );
 
-  const [resolvedUrl, setResolvedUrl] = useState("");
-  const generationRef = useRef(0);
+  const candidatesKey = candidates.join("\n");
+  const boundsLiteral = bounds as LatLngBoundsLiteral;
 
   useEffect(() => {
-    const generation = ++generationRef.current;
-    setResolvedUrl("");
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    if (!candidates.length) {
-      onStatusChange?.("error");
-      return;
-    }
+    const report = (status: FloorPlantLoadStatus) => {
+      if (!cancelled) onStatusChangeRef.current?.(status);
+    };
 
-    onStatusChange?.("loading");
+    const removeOverlay = () => {
+      const layer = overlayRef.current;
+      if (!layer) return;
+      layer.off();
+      map.removeLayer(layer);
+      overlayRef.current = null;
+    };
 
-    const tryCandidate = (index: number) => {
-      if (generation !== generationRef.current) return;
+    const tryLoadAt = (index: number) => {
+      if (cancelled) return;
+
       if (index >= candidates.length) {
-        setResolvedUrl("");
-        onStatusChange?.("error");
+        removeOverlay();
+        report("error");
         return;
       }
 
       const url = candidates[index];
-      const probe = new Image();
-      probe.onload = () => {
-        if (generation !== generationRef.current) return;
-        setResolvedUrl(url);
-        onStatusChange?.("ready");
+      report("loading");
+      removeOverlay();
+
+      const leafletBounds = L.latLngBounds(boundsLiteral);
+      const overlay = L.imageOverlay(url, leafletBounds, {
+        className: "map-plant-overlay",
+        interactive: false,
+      });
+
+      let settled = false;
+
+      const finish = (ok: boolean) => {
+        if (cancelled || settled) return;
+        settled = true;
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
+
+        if (!ok) {
+          overlay.off();
+          if (map.hasLayer(overlay)) map.removeLayer(overlay);
+          tryLoadAt(index + 1);
+          return;
+        }
+
+        overlayRef.current = overlay;
+        report("ready");
+
+        map.invalidateSize({ animate: false });
+        requestAnimationFrame(() => {
+          if (!cancelled) map.invalidateSize({ animate: false });
+        });
       };
-      probe.onerror = () => {
-        if (generation !== generationRef.current) return;
-        tryCandidate(index + 1);
-      };
-      probe.src = url;
+
+      overlay.on("error", () => finish(false));
+      overlay.addTo(map);
+
+      const img = overlay.getElement() as HTMLImageElement | null;
+      if (img) {
+        if (img.complete && img.naturalWidth > 0) {
+          finish(true);
+        } else {
+          img.addEventListener("load", () => finish(true), { once: true });
+          img.addEventListener("error", () => finish(false), { once: true });
+        }
+      } else {
+        overlay.once("load", () => finish(true));
+      }
+
+      timeoutId = setTimeout(() => finish(false), PLANT_LOAD_TIMEOUT_MS);
     };
 
-    tryCandidate(0);
+    tryLoadAt(0);
 
     return () => {
-      generationRef.current += 1;
+      cancelled = true;
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      removeOverlay();
     };
-  }, [candidates, onStatusChange]);
+  }, [map, boundsLiteral, candidatesKey, retryKey]);
 
-  if (!resolvedUrl) return null;
+  useEffect(() => {
+    const layer = overlayRef.current;
+    if (!layer) return;
+    layer.setBounds(L.latLngBounds(boundsLiteral));
+  }, [boundsLiteral]);
 
-  return (
-    <ImageOverlay
-      key={resolvedUrl}
-      url={resolvedUrl}
-      bounds={bounds}
-      className="map-plant-overlay"
-    />
-  );
+  return null;
 }

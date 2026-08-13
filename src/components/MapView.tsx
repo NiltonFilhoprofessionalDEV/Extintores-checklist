@@ -817,6 +817,10 @@ export default function MapView() {
     setPlantStatus("loading");
   }, []);
 
+  const handlePlantStatusChange = useCallback((status: FloorPlantLoadStatus) => {
+    setPlantStatus(status);
+  }, []);
+
   const plantStatusOverlay = hasDisplayablePlant ? (
     plantStatus !== "ready" && (
       <MapFloorPlantStatusOverlay
@@ -1572,9 +1576,9 @@ export default function MapView() {
 
   const mapContent = (
     <MapContainer
-      key={`${pavimento.key}-${mapImageSize.width}x${mapImageSize.height}`}
+      key={pavimento.key}
       crs={L.CRS.Simple}
-      preferCanvas
+      preferCanvas={!isMobile}
       zoomSnap={isMobile ? 0.5 : 0.25}
       zoomDelta={isMobile ? 1 : 0.5}
       zoomAnimation={false}
@@ -1611,7 +1615,7 @@ export default function MapView() {
           bounds={mapBounds}
           preferWebp={supportsWebp}
           retryKey={plantRetryKey}
-          onStatusChange={setPlantStatus}
+          onStatusChange={handlePlantStatusChange}
         />
       ) : null}
       <MapClickPlacement enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
