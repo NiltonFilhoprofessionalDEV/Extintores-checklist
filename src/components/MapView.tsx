@@ -1578,7 +1578,8 @@ export default function MapView() {
     <MapContainer
       key={pavimento.key}
       crs={L.CRS.Simple}
-      preferCanvas={!isMobile}
+      preferCanvas={false}
+      className="h-full w-full"
       zoomSnap={isMobile ? 0.5 : 0.25}
       zoomDelta={isMobile ? 1 : 0.5}
       zoomAnimation={false}
@@ -1774,7 +1775,7 @@ export default function MapView() {
 
   if (isMobile) {
     return (
-      <main className="flex min-h-0 flex-1 w-full flex-col bg-[#f4f5f6]">
+      <main className="flex min-h-0 flex-1 w-full flex-col overflow-hidden bg-[#f4f5f6]">
         {/* ── Barra conferente: setor + busca + filtros ── */}
         <div className="shrink-0 border-b border-[var(--border)] bg-white shadow-sm">
           <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-1">
@@ -1967,10 +1968,8 @@ export default function MapView() {
         )}
 
         {/* Mapa ocupa todo o espaço restante */}
-        <div className="map-viewport-root relative min-h-0" style={{ flex: "1 1 0" }}>
-          <div className="absolute inset-0">
-            <MapErrorBoundary>{mapContent}</MapErrorBoundary>
-          </div>
+        <div className="map-viewport-root relative flex-1 min-h-0 w-full overflow-hidden">
+          <MapErrorBoundary>{mapContent}</MapErrorBoundary>
           {plantStatusOverlay}
 
           {/* Toasts flutuantes sobre o mapa — não empurram o layout */}
