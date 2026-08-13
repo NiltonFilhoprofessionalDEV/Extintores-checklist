@@ -49,7 +49,6 @@ import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
-import { equipmentIconMarkup } from "@/src/components/EquipmentIcons";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import {
   CHECKLIST_INITIAL,
@@ -86,6 +85,13 @@ import {
   hidranteMarkerColors,
   type MarkerColors,
 } from "@/lib/map/marker-styles";
+import { effectiveMarkerLod, type MarkerLod } from "@/lib/map/marker-lod";
+import { extinguisherIcon, hydrantIcon } from "@/lib/map/marker-icons";
+import MapZoomControls from "@/src/components/map/MapZoomControls";
+import MapViewportSync from "@/src/components/map/MapViewportSync";
+import MapEquipmentDetailPanel, {
+  type MapEquipmentDetail,
+} from "@/src/components/map/MapEquipmentDetailPanel";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MapErrorBoundary extends Component<
@@ -300,70 +306,6 @@ function getMaintenanceStatus(extintor: Extintor) {
   return "Em dia";
 }
 
-const MARCADOR_RING_PAD = 4;
-
-const markerIconCache = new Map<string, L.DivIcon>();
-
-function getCachedDivIcon(key: string, factory: () => L.DivIcon): L.DivIcon {
-  const cached = markerIconCache.get(key);
-  if (cached) return cached;
-  const icon = factory();
-  markerIconCache.set(key, icon);
-  if (markerIconCache.size > 400) {
-    const first = markerIconCache.keys().next().value;
-    if (first) markerIconCache.delete(first);
-  }
-  return icon;
-}
-
-function escapeMarkerLabel(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    const entities: Record<string, string> = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    };
-    return entities[char] ?? char;
-  });
-}
-
-function extinguisherIcon(colors: MarkerColors, codigo = "", compact = false) {
-  const { bg: statusBg, ring } = colors;
-  const numMatch = codigo.match(/\d+/);
-  const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo;
-  const safeLabel = escapeMarkerLabel(label);
-  const cacheKey = `ext-${statusBg}-${ring}-${safeLabel}-${compact ? "m" : "d"}`;
-  return getCachedDivIcon(cacheKey, () => {
-    if (compact) {
-      return L.divIcon({
-        className: "map-mobile-marker-icon",
-        iconSize: [38, 50],
-        iconAnchor: [19, 16],
-        html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
-        <div class="map-marker-mobile__ring-wrap">
-          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--ext">${equipmentIconMarkup("extintor", 16)}</div>
-        </div>
-        <span class="map-marker-mobile__label">${safeLabel}</span>
-      </div>`,
-      });
-    }
-
-    return L.divIcon({
-      className: "",
-      iconSize: [38, 50],
-      iconAnchor: [19, 16],
-      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-      <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9999px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
-        <div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:#fff;border:2px solid #fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">${equipmentIconMarkup("extintor", 16)}</div>
-      </div>
-      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:3px;padding:1px 4px;white-space:nowrap;letter-spacing:0.02em;line-height:1.4;">${safeLabel}</span>
-    </div>`,
-    });
-  });
-}
-
 function buildUltimoPorExtintor(rows: ChecklistExtintorMesRow[]): Map<string, ChecklistExtintorMesRow> {
   const sorted = [...rows].sort(
     (a, b) => new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
@@ -384,41 +326,6 @@ function buildUltimoPorHidrante(rows: ChecklistHidranteMesRow[]): Map<string, Ch
     if (!map.has(row.hidrante_id)) map.set(row.hidrante_id, row);
   }
   return map;
-}
-
-function hydrantIcon(colors: MarkerColors, codigo: string, compact = false) {
-  const { bg: statusBg, ring } = colors;
-  const numMatch = codigo.match(/\d+/);
-  const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo.slice(0, 6);
-  const safeLabel = escapeMarkerLabel(label);
-  const cacheKey = `hid-${statusBg}-${ring}-${safeLabel}-${compact ? "m" : "d"}`;
-  return getCachedDivIcon(cacheKey, () => {
-    if (compact) {
-      return L.divIcon({
-        className: "map-mobile-marker-icon",
-        iconSize: [34, 44],
-        iconAnchor: [17, 15],
-        html: `<div class="map-marker-mobile" style="--marker-bg:${statusBg};--marker-ring:${ring};">
-        <div class="map-marker-mobile__ring-wrap map-marker-mobile__ring-wrap--square">
-          <div class="map-marker-mobile__symbol map-marker-mobile__symbol--hyd">${equipmentIconMarkup("hidrante", 15)}</div>
-        </div>
-        <span class="map-marker-mobile__label">${safeLabel}</span>
-      </div>`,
-      });
-    }
-
-    return L.divIcon({
-      className: "",
-      iconSize: [34, 44],
-      iconAnchor: [17, 15],
-      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-      <div style="padding:${MARCADOR_RING_PAD}px;border-radius:9px;background:${ring};box-shadow:0 2px 4px rgba(0,0,0,0.28);">
-        <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:#fff;border:2px solid #fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);">${equipmentIconMarkup("hidrante", 15)}</div>
-      </div>
-      <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:9px;font-weight:700;font-family:system-ui,sans-serif;border-radius:2px;padding:1px 4px;white-space:nowrap;">${safeLabel}</span>
-    </div>`,
-    });
-  });
 }
 
 function hidranteCabecalhoForm(h: HidranteRow): Partial<HidranteImportRow> & { codigo: string } {
@@ -715,6 +622,9 @@ export default function MapView() {
   const [filtroEquipe, setFiltroEquipe] = useState<EquipeConferenciaId | "">("");
   const [infoEmergencia, setInfoEmergencia] = useState<MarcadorEmergenciaRow | null>(null);
   const [infoHidrante, setInfoHidrante] = useState<HidranteRow | null>(null);
+  const [markerLod, setMarkerLod] = useState<MarkerLod>("icon");
+  const [buscaEquipamento, setBuscaEquipamento] = useState("");
+  const [filtroPendentes, setFiltroPendentes] = useState(false);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const currentMonthRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
@@ -1000,7 +910,13 @@ export default function MapView() {
             conferente:
               !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
           }));
-          setMode(inspectAllowed ? "inspecao" : "edicao");
+          setMode(() => {
+            const persisted = readMapViewState(profile?.base_id ?? null);
+            if (inspectAllowed && !editAllowed) return "inspecao";
+            if (persisted?.mode === "edicao" && !editAllowed) return "inspecao";
+            if (persisted?.mode) return persisted.mode;
+            return inspectAllowed ? "inspecao" : "edicao";
+          });
           if (inspectAllowed) {
             void loadConferenciasDoMes();
             void loadConferenciasHidrantesDoMes();
@@ -1100,6 +1016,76 @@ export default function MapView() {
     return filtrarPorEquipe(list, filtroEquipe, "hidrante");
   }, [hidrantes, floorRef, filtroEquipe]);
 
+  const highlightedMarkerId = infoMarker?.id ?? infoHidrante?.id ?? null;
+
+  const filteredMarkersDoPavimento = useMemo(() => {
+    const q = buscaEquipamento.trim().toLowerCase();
+    return markersDoPavimento.filter((item) => {
+      if (filtroPendentes && conferidosNoMesIds.has(item.id)) return false;
+      if (!q) return true;
+      const loc = formatExtintorLocalizacao(item).toLowerCase();
+      const tipo = formatExtintorTipoCapacidade(item).toLowerCase();
+      return item.codigo.toLowerCase().includes(q) || loc.includes(q) || tipo.includes(q);
+    });
+  }, [markersDoPavimento, buscaEquipamento, filtroPendentes, conferidosNoMesIds]);
+
+  const filteredHidrantesDoPavimento = useMemo(() => {
+    const q = buscaEquipamento.trim().toLowerCase();
+    return hidrantesDoPavimento.filter((h) => {
+      if (filtroPendentes && conferidosHidranteMesIds.has(h.id)) return false;
+      if (!q) return true;
+      const loc = (h.local_detalhado ?? "").toLowerCase();
+      return h.codigo.toLowerCase().includes(q) || loc.includes(q);
+    });
+  }, [hidrantesDoPavimento, buscaEquipamento, filtroPendentes, conferidosHidranteMesIds]);
+
+  const equipmentDetail = useMemo((): MapEquipmentDetail | null => {
+    if (infoMarker) {
+      const ult = ultimoChecklistExtintorMes.get(infoMarker.id);
+      const nc = ult ? checklistTemNaoConformidade(ult) : false;
+      const conferido = conferidosNoMesIds.has(infoMarker.id);
+      const maint = getMaintenanceStatus(infoMarker);
+      return {
+        kind: "extintor",
+        codigo: infoMarker.codigo,
+        localizacao: formatExtintorLocalizacao(infoMarker),
+        tipoCapacidade: formatExtintorTipoCapacidade(infoMarker),
+        pavimentoLabel: pavimento.label,
+        statusLabel: nc ? "Não conformidade" : conferido ? "Conferido no mês" : "Pendente",
+        statusTone: nc ? "red" : conferido ? "green" : "amber",
+        manutencaoLabel: maint,
+        manutencaoTone:
+          maint === "Vencido"
+            ? "red"
+            : maint === "Próximo de vencer (30 dias)"
+              ? "amber"
+              : "green",
+      };
+    }
+    if (infoHidrante) {
+      const ult = ultimoChecklistHidranteMes.get(infoHidrante.id);
+      const nc = ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false;
+      const conferido = conferidosHidranteMesIds.has(infoHidrante.id);
+      return {
+        kind: "hidrante",
+        codigo: infoHidrante.codigo,
+        localizacao: infoHidrante.local_detalhado || "—",
+        pavimentoLabel: pavimento.label,
+        statusLabel: nc ? "Não conformidade" : conferido ? "Conferido no mês" : "Pendente",
+        statusTone: nc ? "red" : conferido ? "green" : "amber",
+      };
+    }
+    return null;
+  }, [
+    infoMarker,
+    infoHidrante,
+    ultimoChecklistExtintorMes,
+    ultimoChecklistHidranteMes,
+    conferidosNoMesIds,
+    conferidosHidranteMesIds,
+    pavimento.label,
+  ]);
+
   const mostrarFiltroEquipe =
     mode === "inspecao" && canInspect && baseHasEquipesConferencia(activeBase);
 
@@ -1125,21 +1111,6 @@ export default function MapView() {
   function hidranteMarkerStyle(h: HidranteRow): MarkerColors {
     const ult = ultimoChecklistHidranteMes.get(h.id);
     return hidranteMarkerColors(h, conferidosHidranteMesIds.has(h.id), ult as Record<string, string | null> | undefined);
-  }
-
-  /** Legado para painéis que usam uma cor única no indicador. */
-  function extintorIconColor(item: Extintor): "green" | "red" | "amber" {
-    const { bg } = extintorMarkerStyle(item);
-    if (bg === "#16a34a") return "green";
-    if (bg === "#dc2626") return "red";
-    return "amber";
-  }
-
-  function hidranteIconColor(h: HidranteRow): "green" | "red" | "amber" {
-    const { bg } = hidranteMarkerStyle(h);
-    if (bg === "#16a34a") return "green";
-    if (bg === "#dc2626") return "red";
-    return "amber";
   }
 
   /** Luz/placa: âmbar fora do mês; no mês verde (conforme) ou vermelho (NC). */
@@ -1783,26 +1754,37 @@ export default function MapView() {
         boundsPad={isMobile ? 0.2 : 0.12}
       />
       <ZoomStabilityGuard />
+      <MapViewportSync onLodChange={setMarkerLod} enableDoubleTapZoom={isMobile} />
+      <MapZoomControls
+        bounds={mapBounds as LatLngBoundsLiteral}
+        compact={isMobile}
+      />
       {floorHasMap(pavimento.imageBase) && mapImagePath ? (
         <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       ) : null}
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
       {showLayers.extintor &&
-        markersDoPavimento.map((item) => {
+        filteredMarkersDoPavimento.map((item) => {
           const position = resolveLeafletPosition(item, mapImageSize.width, mapImageSize.height);
           if (!position) return null;
+          const lod = effectiveMarkerLod(item.id, markerLod, highlightedMarkerId);
+          const selected = item.id === highlightedMarkerId;
           return (
           <Marker
             key={item.id}
             position={position}
-            icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, isMobile)}
+            icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, lod, selected)}
             eventHandlers={{
               click: () => {
-                if (mode === "inspecao" && canInspect) openChecklistModal(item);
+                if (mode === "inspecao" && canInspect) {
+                  setInfoHidrante(null);
+                  setInfoEmergencia(null);
+                  setInfoMarker(item);
+                }
               },
               contextmenu: () => {
-                if (isMobile) setInfoMarker(item);
+                if (isMobile && mode === "inspecao" && canInspect) setInfoMarker(item);
               },
             }}
           >
@@ -1875,20 +1857,26 @@ export default function MapView() {
         })}
 
       {showLayers.hidrante &&
-        hidrantesDoPavimento.map((h) => {
+        filteredHidrantesDoPavimento.map((h) => {
           const position = resolveLeafletPosition(h, mapImageSize.width, mapImageSize.height);
           if (!position) return null;
+          const lod = effectiveMarkerLod(h.id, markerLod, highlightedMarkerId);
+          const selected = h.id === highlightedMarkerId;
           return (
           <Marker
             key={h.id}
             position={position}
-            icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, isMobile)}
+            icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, lod, selected)}
             eventHandlers={{
               click: () => {
-                if (mode === "inspecao" && canInspect) openHidranteChecklistModal(h);
+                if (mode === "inspecao" && canInspect) {
+                  setInfoMarker(null);
+                  setInfoEmergencia(null);
+                  setInfoHidrante(h);
+                }
               },
               contextmenu: () => {
-                if (isMobile) setInfoHidrante(h);
+                if (isMobile && mode === "inspecao" && canInspect) setInfoHidrante(h);
               },
             }}
           >
@@ -1931,12 +1919,11 @@ export default function MapView() {
   if (isMobile) {
     return (
       <main className="flex min-h-0 flex-1 w-full flex-col bg-[#f4f5f6]">
-        {/* ── Barra única: pavimento + modo + camadas ── */}
+        {/* ── Barra conferente: setor + busca + filtros ── */}
         <div className="shrink-0 border-b border-[var(--border)] bg-white shadow-sm">
-          {/* Linha 1: pavimento + botões de modo */}
           <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-1">
             <select
-              aria-label="Selecionar pavimento"
+              aria-label="Selecionar setor"
               className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[#fafafa] px-3 py-2 text-xs font-semibold text-slate-700"
               value={pavimento.key}
               onChange={(event) => {
@@ -1962,7 +1949,7 @@ export default function MapView() {
                 Edição
               </button>
             )}
-            {canInspect && (
+            {canInspect && canEdit && (
               <button
                 type="button"
                 className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
@@ -1974,6 +1961,28 @@ export default function MapView() {
               </button>
             )}
           </div>
+
+          {canInspect && mode === "inspecao" && (
+            <div className="flex items-center gap-1.5 px-2 pb-1">
+              <input
+                type="search"
+                aria-label="Buscar equipamento"
+                placeholder="Buscar equipamento"
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700"
+                value={buscaEquipamento}
+                onChange={(e) => setBuscaEquipamento(e.target.value)}
+              />
+              <button
+                type="button"
+                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${
+                  filtroPendentes ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+                onClick={() => setFiltroPendentes((prev) => !prev)}
+              >
+                Pendentes
+              </button>
+            </div>
+          )}
 
           {mostrarFiltroEquipe && (
             <div className="px-2 pb-1">
@@ -2102,7 +2111,7 @@ export default function MapView() {
         )}
 
         {/* Mapa ocupa todo o espaço restante */}
-        <div className="relative min-h-0" style={{ flex: "1 1 0" }}>
+        <div className="map-viewport-root relative min-h-0" style={{ flex: "1 1 0" }}>
           <div className="absolute inset-0">
             <MapErrorBoundary>{mapContent}</MapErrorBoundary>
           </div>
@@ -2120,178 +2129,47 @@ export default function MapView() {
           )}
         </div>
 
-        {/* Bottom sheet de informação — aparece ao segurar o dedo (long press) no marcador */}
-        {infoMarker && !selectedMarker && !selectedHidrante && !infoEmergencia && !infoHidrante && (
-          <div
-            className="modal-layer fixed inset-0 flex items-end"
-            style={{ background: "rgba(0,0,0,0.4)" }}
-            onClick={() => setInfoMarker(null)}
-          >
-            <div
-              className="w-full rounded-t-2xl bg-white shadow-2xl"
-              style={{ maxHeight: "60dvh", overflowY: "auto" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Alça visual */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="h-1 w-10 rounded-full bg-zinc-300" />
-              </div>
-
-              {/* Cabeçalho */}
-              <div className="flex items-start justify-between px-5 pt-2 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{
-                        background:
-                          extintorIconColor(infoMarker) === "red"
-                            ? "#dc2626"
-                            : extintorIconColor(infoMarker) === "green"
-                              ? "#16a34a"
-                              : "#d97706",
-                      }}
-                    />
-                    <h3 className="text-lg font-bold text-zinc-900">{infoMarker.codigo}</h3>
-                  </div>
-                  <p className="mt-0.5 text-sm text-zinc-500">{formatExtintorLocalizacao(infoMarker)}</p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400"
-                  onClick={() => setInfoMarker(null)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Status */}
-              <div className="mx-5 mb-4 flex flex-col gap-2 rounded-xl bg-zinc-50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-500">Conferência</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      (() => {
-                        const u = ultimoChecklistExtintorMes.get(infoMarker.id);
-                        if (u && checklistTemNaoConformidade(u)) return "bg-red-100 text-red-800";
-                        return conferidosNoMesIds.has(infoMarker.id)
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-800";
-                      })()
-                    }`}
-                  >
-                    {(() => {
-                      const u = ultimoChecklistExtintorMes.get(infoMarker.id);
-                      if (u && checklistTemNaoConformidade(u)) return "⚠ Não conformidade";
-                      return conferidosNoMesIds.has(infoMarker.id) ? "✓ Conferido no mês" : "⚠ Não conferido";
-                    })()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-500">Tipo de agente / Carga nominal</span>
-                  <span className="text-xs font-medium text-zinc-700">
-                    {[infoMarker.tipo, infoMarker.tamanho].filter(Boolean).join(" · ") || "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-500">Manutenção</span>
-                  <span
-                    className={`text-xs font-semibold ${
-                      getMaintenanceStatus(infoMarker) === "Vencido"
-                        ? "text-red-600"
-                        : getMaintenanceStatus(infoMarker) === "Próximo de vencer (30 dias)"
-                          ? "text-amber-600"
-                          : "text-green-600"
-                    }`}
-                  >
-                    {getMaintenanceStatus(infoMarker)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Ações */}
-              <div className="flex flex-col gap-2 px-5 pb-6">
-                {mode === "inspecao" && canInspect && (
-                  <button
-                    type="button"
-                    className="w-full rounded-xl py-3 text-sm font-bold text-white"
-                    style={{ background: "linear-gradient(90deg,var(--forest),#B51313)" }}
-                    onClick={() => {
-                      setInfoMarker(null);
-                      openChecklistModal(infoMarker);
-                    }}
-                  >
-                    🧯 Realizar Conferência
-                  </button>
-                )}
-
-                {canEdit && mode === "edicao" && (
-                  <button
-                    type="button"
-                    className="w-full rounded-xl border border-red-200 bg-red-50 py-3 text-sm font-bold text-red-600"
-                    onClick={() => {
+        {equipmentDetail &&
+          isMobile &&
+          !selectedMarker &&
+          !selectedHidrante &&
+          !infoEmergencia && (
+            <MapEquipmentDetailPanel
+              detail={equipmentDetail}
+              layout="sheet"
+              canInspect={canInspect}
+              canEdit={canEdit}
+              mode={mode}
+              onClose={() => {
+                setInfoMarker(null);
+                setInfoHidrante(null);
+              }}
+              onOpenInspection={() => {
+                if (infoMarker) {
+                  const item = infoMarker;
+                  setInfoMarker(null);
+                  openChecklistModal(item);
+                } else if (infoHidrante) {
+                  const h = infoHidrante;
+                  setInfoHidrante(null);
+                  openHidranteChecklistModal(h);
+                }
+              }}
+              onRemove={
+                infoMarker
+                  ? () => {
                       if (window.confirm(`Remover marcador de ${infoMarker.codigo} do mapa?`)) {
                         void removeMarker(infoMarker);
                       }
-                    }}
-                  >
-                    🗑 Remover do Mapa
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                    }
+                  : infoHidrante
+                    ? () => void removerHidranteDoMapa(infoHidrante)
+                    : undefined
+              }
+            />
+          )}
 
         {/* Modal de checklist — incluso no branch mobile também */}
-        {infoHidrante && !selectedHidrante && (
-          <div
-            className="modal-layer fixed inset-0 flex items-end bg-black/40"
-            onClick={() => setInfoHidrante(null)}
-          >
-            <div
-              className="w-full rounded-t-2xl bg-white p-5 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" />
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-bold text-zinc-900">{infoHidrante.codigo}</h3>
-                  <p className="text-sm text-zinc-500">Hidrante</p>
-                </div>
-                <ModalCloseButton onClick={() => setInfoHidrante(null)} />
-              </div>
-              <div className="mt-4 flex flex-col gap-2">
-                {mode === "inspecao" && canInspect && (
-                  <button
-                    type="button"
-                    className="w-full rounded-xl bg-blue-700 py-3 text-sm font-bold text-white"
-                    onClick={() => {
-                      setInfoHidrante(null);
-                      openHidranteChecklistModal(infoHidrante);
-                    }}
-                  >
-                    Inspecionar hidrante
-                  </button>
-                )}
-                {canEdit && mode === "edicao" && (
-                  <button
-                    type="button"
-                    className="w-full rounded-xl border border-red-200 bg-red-50 py-3 text-sm font-bold text-red-600"
-                    onClick={() => void removerHidranteDoMapa(infoHidrante)}
-                  >
-                    Remover do mapa
-                  </button>
-                )}
-                <button type="button" className="py-2 text-sm text-zinc-500" onClick={() => setInfoHidrante(null)}>
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {infoEmergencia && !selectedMarker && !selectedHidrante && (
           <div
@@ -2443,7 +2321,7 @@ export default function MapView() {
                 Modo edição
               </button>
             )}
-            {canInspect && (
+            {canInspect && canEdit && (
               <button
                 type="button"
                 className={`rounded-xl px-3 py-2 text-xs font-bold ${
@@ -2502,6 +2380,44 @@ export default function MapView() {
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden lg:flex-row">
         <aside className="professional-card flex shrink-0 flex-col overflow-y-auto p-4 lg:w-[310px] lg:overflow-y-auto">
+          {equipmentDetail && !isMobile && (
+            <div className="mb-4">
+              <MapEquipmentDetailPanel
+                detail={equipmentDetail}
+                layout="panel"
+                canInspect={canInspect}
+                canEdit={canEdit}
+                mode={mode}
+                onClose={() => {
+                  setInfoMarker(null);
+                  setInfoHidrante(null);
+                }}
+                onOpenInspection={() => {
+                  if (infoMarker) {
+                    const item = infoMarker;
+                    setInfoMarker(null);
+                    openChecklistModal(item);
+                  } else if (infoHidrante) {
+                    const h = infoHidrante;
+                    setInfoHidrante(null);
+                    openHidranteChecklistModal(h);
+                  }
+                }}
+                onRemove={
+                  infoMarker
+                    ? () => {
+                        if (window.confirm(`Remover marcador de ${infoMarker.codigo} do mapa?`)) {
+                          void removeMarker(infoMarker);
+                        }
+                      }
+                    : infoHidrante
+                      ? () => void removerHidranteDoMapa(infoHidrante)
+                      : undefined
+                }
+              />
+            </div>
+          )}
+
           <p className="page-eyebrow mb-3">Filtros do mapa</p>
           <label htmlFor="pavimento" className="mb-1.5 block text-xs font-bold text-slate-700">
             Pavimento
@@ -2521,6 +2437,31 @@ export default function MapView() {
               </option>
             ))}
           </select>
+
+          {canInspect && mode === "inspecao" && (
+            <>
+              <label htmlFor="busca-equipamento" className="mb-1 mt-3 block text-xs font-bold text-slate-700">
+                Buscar equipamento
+              </label>
+              <input
+                id="busca-equipamento"
+                type="search"
+                className="field-control !rounded-xl"
+                placeholder="Código ou local"
+                value={buscaEquipamento}
+                onChange={(e) => setBuscaEquipamento(e.target.value)}
+              />
+              <button
+                type="button"
+                className={`mt-2 w-full rounded-xl px-3 py-2 text-xs font-bold ${
+                  filtroPendentes ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+                onClick={() => setFiltroPendentes((prev) => !prev)}
+              >
+                {filtroPendentes ? "Mostrando pendentes" : "Filtrar pendentes"}
+              </button>
+            </>
+          )}
 
           {mostrarFiltroEquipe && (
             <>
@@ -2671,7 +2612,7 @@ export default function MapView() {
           {message && <p className="mt-2 rounded bg-slate-100 p-2 text-xs text-slate-700">{message}</p>}
         </aside>
 
-        <section className="professional-card relative min-h-0 flex-1 overflow-hidden">
+        <section className="professional-card map-viewport-root relative min-h-0 flex-1 overflow-hidden">
           <div className="absolute inset-0">{mapContent}</div>
         </section>
         </div>

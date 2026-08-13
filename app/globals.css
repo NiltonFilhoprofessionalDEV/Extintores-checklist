@@ -1186,6 +1186,78 @@ h3,
   line-height: 1.4;
 }
 
+.map-marker-mobile--icon-only {
+  gap: 0;
+}
+
+.map-marker-dot-icon {
+  background: transparent;
+  border: 0;
+}
+
+.map-marker-dot {
+  border-radius: 9999px;
+  background: var(--marker-bg);
+  border: 2px solid var(--marker-ring);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+.map-marker-dot--selected {
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 0.45), 0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+.map-viewport-root {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.map-zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.map-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: rgb(255 255 255 / 0.94);
+  color: #1e293b;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  cursor: pointer;
+}
+
+.map-zoom-btn--compact {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+.map-zoom-btn:active {
+  transform: scale(0.96);
+}
+
+@media (max-width: 768px) {
+  .map-zoom-controls {
+    bottom: 10px;
+    right: 8px;
+  }
+}
+
 /* Mobile shell — bottom nav + desktop rail */
 :root {
   --mobile-rail-width: 5.5rem;
