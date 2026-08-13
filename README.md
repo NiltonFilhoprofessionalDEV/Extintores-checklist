@@ -27,6 +27,16 @@ npm install
    - Cole o conteúdo no SQL Editor do Supabase e execute.
 5. Aplique as migrations em `docs/` na ordem. Para multi-base, rode primeiro `migration_multi_base_enum.sql` e só depois `migration_multi_base.sql` (o Postgres exige commit do novo enum antes de usá-lo). Para Administrador Corporativo, rode `migration_admin_corporativo_enum.sql` e depois `migration_admin_corporativo.sql`. Para upload de plantas, rode `migration_mapas_storage.sql` (cria o bucket Storage `mapas`). Para o campo **Nº do cilindro** nos extintores, rode `migration_extintor_num_cilindro.sql`.
 
+## Migração mapas legados (Fase 4)
+
+1. Leia `docs/fase4_analise_migracao_mapas.md`.
+2. Execute `docs/fase4_migration_storage_bucket.sql` no Supabase (limite 25 MB no bucket).
+3. Análise sem alterar dados: `npm run maps:analyze-legacy`
+4. Simulação: `node scripts/migrate-legacy-maps.mjs --dry-run`
+5. Migração: `node scripts/migrate-legacy-maps.mjs --execute`
+
+Requer `SUPABASE_SERVICE_ROLE_KEY` em `.env.local` (nunca no client).
+
 ## Execução local
 
 ```bash

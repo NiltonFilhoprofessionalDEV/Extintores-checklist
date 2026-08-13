@@ -9,7 +9,9 @@
     "lint": "eslint",
     "maps:optimize": "node scripts/optimize-maps.mjs",
     "maps:extract-pdf": "node scripts/extract-pdf-map.mjs",
-    "maps:crop": "node scripts/crop-map-content.mjs"
+    "maps:crop": "node scripts/crop-map-content.mjs",
+    "maps:analyze-legacy": "node scripts/analyze-legacy-maps.mjs",
+    "maps:migrate-legacy": "node scripts/migrate-legacy-maps.mjs --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
