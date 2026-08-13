@@ -60,7 +60,7 @@ const MODAL_META: Record<
   },
   semPosicao: {
     title: "Hidrantes sem posição no mapa",
-    subtitle: "Posicionar no módulo de mapeamento",
+    subtitle: "Posicionar em Posicionar equipamentos",
     color: "#6b7280",
     exportLabel: "Hidrantes_sem_posicao",
   },

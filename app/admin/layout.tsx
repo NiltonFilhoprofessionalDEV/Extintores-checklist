@@ -10,21 +10,22 @@ import FlaticonCredits from "@/src/components/FlaticonCredits";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isMapeamento = pathname?.includes("/mapeamento");
+  const isMapFullBleed =
+    pathname?.includes("/mapeamento") || pathname?.includes("/posicionamento");
 
   return (
     <AuthGuard allowedRoles={["admin", "admin_corporativo", "leadership", "cliente", "corporativo"]}>
       <ActiveBaseProvider>
         <AdminAreaGuard>
           <div
-            className={`app-shell-bg ${isMapeamento ? "admin-shell admin-shell--map" : "admin-shell"}`}
+            className={`app-shell-bg ${isMapFullBleed ? "admin-shell admin-shell--map" : "admin-shell"}`}
           >
             <AdminSidebar />
             <AdminDock />
             <div
-              className={`admin-shell__content ${isMapeamento ? "admin-shell__content--map" : ""}`}
+              className={`admin-shell__content ${isMapFullBleed ? "admin-shell__content--map" : ""}`}
             >
-              {isMapeamento ? (
+              {isMapFullBleed ? (
                 <div className="admin-shell__map">{children}</div>
               ) : (
                 <main className="admin-shell__main">

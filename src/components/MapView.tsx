@@ -6,8 +6,6 @@ import {
   MapContainer,
   Marker,
   Popup,
-  useMap,
-  useMapEvents,
 } from "react-leaflet";
 import L, { type LatLngBoundsExpression, type LatLngBoundsLiteral } from "leaflet";
 
@@ -39,7 +37,6 @@ import {
 } from "@/lib/auth/bases";
 import {
   hasStoredMapPosition,
-  mapClickToStoredCoords,
   resolveLeafletPosition,
   type MapCoordinateFields,
 } from "@/lib/map/coordinates";
@@ -92,6 +89,9 @@ import MapViewportSync from "@/src/components/map/MapViewportSync";
 import MapEquipmentDetailPanel, {
   type MapEquipmentDetail,
 } from "@/src/components/map/MapEquipmentDetailPanel";
+import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
+import MapClickPlacement from "@/src/components/map/MapClickPlacement";
+import { buildPlacementUpdate } from "@/lib/map/build-placement-update";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MapErrorBoundary extends Component<
@@ -262,15 +262,7 @@ function floorRefFromPavimento(pavimento: PavimentoOption) {
 }
 
 function placementPayload(lat: number, lng: number, pavimento: PavimentoOption, mapSize: { width: number; height: number }) {
-  const stored = mapClickToStoredCoords(lat, lng, mapSize.width, mapSize.height);
-  return {
-    coord_x: stored.coord_x,
-    coord_y: stored.coord_y,
-    coord_x_norm: stored.coord_x_norm,
-    coord_y_norm: stored.coord_y_norm,
-    pavimento: pavimento.label,
-    ...(pavimento.id ? { floor_id: pavimento.id } : {}),
-  };
+  return buildPlacementUpdate(lat, lng, { id: pavimento.id, label: pavimento.label }, mapSize);
 }
 
 const INITIAL_CHECKLIST: ChecklistState = CHECKLIST_INITIAL;
@@ -341,172 +333,6 @@ function hidranteCabecalhoForm(h: HidranteRow): Partial<HidranteImportRow> & { c
     quantidade_chaves_storz: h.quantidade_chaves_storz ?? null,
     quantidade_esguichos: h.quantidade_esguichos ?? null,
   };
-}
-
-function FitBounds({
-  bounds,
-  maxZoomExtra = 32,
-  bottomOffset = 0,
-  initialZoomOut = 0,
-  minZoomAbsolute = -18,
-  boundsPad = 0.15,
-}: {
-  bounds: LatLngBoundsExpression;
-  /** Níveis de zoom acima do "fit" para aproximar (pinch in). */
-  maxZoomExtra?: number;
-  bottomOffset?: number;
-  /** Níveis para recuar após o fitBounds inicial (só efeito visual inicial). */
-  initialZoomOut?: number;
-  /** Zoom mínimo absoluto (Leaflet); valores negativos = afastar muito o plano. */
-  minZoomAbsolute?: number;
-  /** Padding nas maxBounds — maior = mais pan com zoom bem afastado. */
-  boundsPad?: number;
-}) {
-  const map = useMap();
-  /**
-   * Enquanto o usuário não interagir (arrastar/zoom), mantemos a planta inteira
-   * encaixada na tela. Reajustamos a cada resize do container porque o layout
-   * flex pode só atingir a altura final após a montagem — sem isso, o primeiro
-   * fit usaria um viewport menor e o mapa abriria "com zoom".
-   */
-  const userInteractedRef = useRef(false);
-  /** True durante fitBounds/setZoom programáticos para ignorar seus eventos de zoom. */
-  const programmaticRef = useRef(false);
-
-  useEffect(() => {
-    userInteractedRef.current = false;
-    const leafletBounds = L.latLngBounds(bounds as LatLngBoundsLiteral);
-
-    const tryFullFit = (): boolean => {
-      map.invalidateSize({ animate: false });
-      const size = map.getSize();
-      if (size.x === 0 || size.y === 0) return false;
-
-      programmaticRef.current = true;
-      map.setMaxBounds(leafletBounds.pad(boundsPad));
-      // Impede overshoot do pinch além do min/max (ajuda no iOS).
-      map.options.bounceAtZoomLimits = true;
-      map.fitBounds(leafletBounds, {
-        paddingTopLeft: [20, 20],
-        paddingBottomRight: [20, 20 + bottomOffset],
-        animate: false,
-      });
-
-      const fittedZoom = map.getZoom();
-
-      const targetZoom = fittedZoom - initialZoomOut;
-      map.setMinZoom(minZoomAbsolute);
-      map.setMaxZoom(fittedZoom + maxZoomExtra);
-
-      if (initialZoomOut > 0) {
-        const z = Math.max(minZoomAbsolute, targetZoom);
-        map.setZoom(z, { animate: false });
-      }
-      programmaticRef.current = false;
-      return true;
-    };
-
-    const onUserInteract = () => {
-      if (programmaticRef.current) return;
-      userInteractedRef.current = true;
-    };
-
-    const onContainerResize = () => {
-      map.invalidateSize({ animate: false });
-      // Após o usuário dar zoom/pan, não forçamos mais o fit — respeitamos a
-      // navegação dele; apenas o invalidateSize acima evita tiles cinzas.
-      if (!userInteractedRef.current) tryFullFit();
-    };
-
-    // Gestos do usuário (roda do mouse, pinch, arrastar) travam o auto-fit.
-    map.on("dragstart", onUserInteract);
-    map.on("zoomstart", onUserInteract);
-
-    const container = map.getContainer();
-    const ro = new ResizeObserver(onContainerResize);
-    ro.observe(container);
-
-    tryFullFit();
-    const id = globalThis.setTimeout(() => {
-      if (!userInteractedRef.current) tryFullFit();
-    }, 300);
-
-    return () => {
-      ro.disconnect();
-      globalThis.clearTimeout(id);
-      map.off("dragstart", onUserInteract);
-      map.off("zoomstart", onUserInteract);
-    };
-  }, [bounds, map, maxZoomExtra, bottomOffset, initialZoomOut, minZoomAbsolute, boundsPad]);
-  return null;
-}
-
-/**
- * Evita zoom/centro inválidos (NaN ou além dos limites) que no mobile costumam
- * travar o Leaflet ou forçar reload da aba por estouro de memória/GPU.
- */
-function ZoomStabilityGuard() {
-  const map = useMap();
-
-  useEffect(() => {
-    let clamping = false;
-
-    const clampIfBroken = () => {
-      if (clamping) return;
-      const zoom = map.getZoom();
-      const min = map.getMinZoom();
-      const max = map.getMaxZoom();
-      const center = map.getCenter();
-      const zoomBroken = !Number.isFinite(zoom) || zoom < min - 0.05 || zoom > max + 0.05;
-      const centerBroken = !Number.isFinite(center.lat) || !Number.isFinite(center.lng);
-      if (!zoomBroken && !centerBroken) return;
-
-      clamping = true;
-      try {
-        const safeZoom = Number.isFinite(zoom) ? Math.min(max, Math.max(min, zoom)) : Math.min(max, Math.max(min, 0));
-        if (centerBroken) {
-          map.setZoom(safeZoom, { animate: false });
-          return;
-        }
-        map.setView(center, safeZoom, { animate: false });
-      } catch {
-        try {
-          map.setZoom(min, { animate: false });
-        } catch {
-          // ignore — ErrorBoundary cobre falha residual
-        }
-      } finally {
-        clamping = false;
-      }
-    };
-
-    map.on("zoomend", clampIfBroken);
-    map.on("moveend", clampIfBroken);
-
-    return () => {
-      map.off("zoomend", clampIfBroken);
-      map.off("moveend", clampIfBroken);
-    };
-  }, [map]);
-
-  return null;
-}
-
-function MapClickHandler({
-  enabled,
-  onClick,
-}: {
-  enabled: boolean;
-  onClick: (lat: number, lng: number) => void;
-}) {
-  useMapEvents({
-    click(event) {
-      if (!enabled) return;
-      onClick(event.latlng.lat, event.latlng.lng);
-    },
-  });
-
-  return null;
 }
 
 // Todas as plantas têm a mesma resolução original. Fixar os bounds garante que
@@ -1745,7 +1571,7 @@ export default function MapView() {
       style={{ height: "100%", width: "100%", background: "#e8eaed" }}
       {...(leafletRotateOpts as Record<string, unknown>)}
     >
-      <FitBounds
+      <MapFitBounds
         bounds={mapBounds}
         maxZoomExtra={isMobile ? 4 : 5}
         bottomOffset={0}
@@ -1753,7 +1579,7 @@ export default function MapView() {
         minZoomAbsolute={isMobile ? -4 : -6}
         boundsPad={isMobile ? 0.2 : 0.12}
       />
-      <ZoomStabilityGuard />
+      <MapZoomStabilityGuard />
       <MapViewportSync onLodChange={setMarkerLod} enableDoubleTapZoom={isMobile} />
       <MapZoomControls
         bounds={mapBounds as LatLngBoundsLiteral}
@@ -1762,7 +1588,7 @@ export default function MapView() {
       {floorHasMap(pavimento.imageBase) && mapImagePath ? (
         <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
       ) : null}
-      <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
+      <MapClickPlacement enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
       {showLayers.extintor &&
         filteredMarkersDoPavimento.map((item) => {

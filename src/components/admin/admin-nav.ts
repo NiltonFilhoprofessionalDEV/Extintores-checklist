@@ -46,6 +46,12 @@ export const SECONDARY_NAV_ITEMS: AdminNavItem[] = [
     adminCorporativoOnly: true,
   },
   {
+    href: "/admin/posicionamento",
+    label: "Posicionar equipamentos",
+    icon: "map",
+    adminLikeOnly: true,
+  },
+  {
     href: "/admin/configuracoes",
     label: "Configurações da base",
     icon: "settings",
