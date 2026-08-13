@@ -25,6 +25,7 @@ export type BaseFloor = {
   image_height: number;
   needs_position_review: boolean;
   active: boolean;
+  legacy_migrated_at?: string | null;
 };
 
 export type AccessibleBase = BaseRecord;

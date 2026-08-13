@@ -37,7 +37,10 @@ tudo em `base_floors` + bucket `mapas` no Supabase Storage.
 - Com `activeBaseId`: apenas `fetchBaseFloors` — sem fallback automático.
 - Coordenadas legadas em pixels continuam válidas até backfill das norm.
 
-## Script futuro
+## Script (Fase 4)
 
-`scripts/migrate-hardcoded-maps.mjs` — upload + update `base_floors` via service role
-(executar manualmente com credenciais locais, não no CI).
+- `npm run maps:analyze-legacy` — relatório sem alterar dados
+- `node scripts/migrate-legacy-maps.mjs --dry-run` — simulação
+- `node scripts/migrate-legacy-maps.mjs --execute` — migração idempotente
+
+Ver `docs/fase4_analise_migracao_mapas.md` e `docs/fase4_migration_storage_bucket.sql`.
