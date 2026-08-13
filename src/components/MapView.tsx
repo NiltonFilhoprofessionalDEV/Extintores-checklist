@@ -2,7 +2,6 @@
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ImageOverlay,
   MapContainer,
   Marker,
   Popup,
@@ -31,8 +30,6 @@ import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import {
   baseHasEquipesConferencia,
   fetchBaseFloors,
-  floorHasMap,
-  resolveFloorDisplayImageUrl,
   type BaseFloor,
 } from "@/lib/auth/bases";
 import {
@@ -92,6 +89,10 @@ import MapEquipmentDetailPanel, {
 import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
 import MapClickPlacement from "@/src/components/map/MapClickPlacement";
 import { buildPlacementUpdate } from "@/lib/map/build-placement-update";
+import { buildFloorImageCandidates, floorHasDisplayablePlant, type FloorPlantLoadStatus } from "@/lib/map/floor-image-resolution";
+import { LEGACY_FLOOR_MAPS } from "@/lib/map/legacy-floor-maps";
+import MapFloorPlantLayer from "@/src/components/map/MapFloorPlantLayer";
+import MapFloorPlantStatusOverlay from "@/src/components/map/MapFloorPlantStatusOverlay";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class MapErrorBoundary extends Component<
@@ -233,17 +234,11 @@ type MarcadorEmergenciaRow = {
 type ChecklistState = ChecklistData;
 
 /** Fallback when base floors fail to load or are empty. */
-const FALLBACK_PAVIMENTOS: PavimentoOption[] = [
-  { key: "terreo", label: "Térreo", imageBase: "/maps/terreo" },
-  { key: "pavimento_1", label: "Pavimento 1", imageBase: "/maps/pavimento 1" },
-  { key: "galeria_tecnica", label: "Galeria Técnica", imageBase: "/maps/galeria_tecniica" },
-  { key: "pavimento_tecnico", label: "Pavimento Técnico", imageBase: "/maps/pavimento_tecnico" },
-  { key: "subsolo", label: "Subsolo", imageBase: "/maps/subsolo" },
-  { key: "teca", label: "TECA", imageBase: "/maps/teca" },
-  { key: "tps_1", label: "TPS 1", imageBase: "/maps/tps_1" },
-  { key: "sci", label: "SCI", imageBase: "/maps/sci" },
-  { key: "other_places", label: "Guaritas/Central de resíduos", imageBase: "/maps/other_places" },
-];
+const FALLBACK_PAVIMENTOS: PavimentoOption[] = LEGACY_FLOOR_MAPS.map((item) => ({
+  key: item.key,
+  label: item.label,
+  imageBase: item.imageBase,
+}));
 
 function mapBaseFloorToPavimento(floor: BaseFloor): PavimentoOption {
   return {
@@ -451,6 +446,8 @@ export default function MapView() {
   const [markerLod, setMarkerLod] = useState<MarkerLod>("icon");
   const [buscaEquipamento, setBuscaEquipamento] = useState("");
   const [filtroPendentes, setFiltroPendentes] = useState(false);
+  const [plantStatus, setPlantStatus] = useState<FloorPlantLoadStatus>("loading");
+  const [plantRetryKey, setPlantRetryKey] = useState(0);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const currentMonthRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
@@ -466,21 +463,22 @@ export default function MapView() {
     [mapImageSize],
   );
 
-  const mapImagePath = useMemo(() => {
-    return resolveFloorDisplayImageUrl(
-      pavimento.imageBase,
-      pavimento.imagePreview,
-      supportsWebp,
-    );
-  }, [pavimento.imageBase, pavimento.imagePreview, supportsWebp]);
-
   const orderedMapImagePaths = useMemo(() => {
     return pavimentos.map((item) => ({
       key: item.key,
-      primaryPath: resolveFloorDisplayImageUrl(item.imageBase, item.imagePreview, supportsWebp),
-      fallbackPath: resolveFloorDisplayImageUrl(item.imageBase, item.imagePreview, false),
+      candidates: buildFloorImageCandidates(
+        item.imageBase,
+        item.imagePreview,
+        supportsWebp,
+        item.key,
+      ),
     }));
   }, [pavimentos, supportsWebp]);
+
+  const hasDisplayablePlant = useMemo(
+    () => floorHasDisplayablePlant(pavimento.imageBase, pavimento.imagePreview, pavimento.key),
+    [pavimento.imageBase, pavimento.imagePreview, pavimento.key],
+  );
 
   const loadGenerationRef = useRef(0);
 
@@ -594,7 +592,8 @@ export default function MapView() {
         if (cancelled) return;
         const activeFloors = floors.filter((f) => f.active);
         if (activeFloors.length === 0) {
-          setPavimentos([]);
+          setPavimentos(FALLBACK_PAVIMENTOS);
+          setPavimento(FALLBACK_PAVIMENTOS[0]);
           return;
         }
         const mapped = activeFloors.map(mapBaseFloorToPavimento);
@@ -617,7 +616,8 @@ export default function MapView() {
         }
       } catch {
         if (cancelled) return;
-        setPavimentos([]);
+        setPavimentos(FALLBACK_PAVIMENTOS);
+        setPavimento(FALLBACK_PAVIMENTOS[0]);
       }
     };
 
@@ -782,20 +782,16 @@ export default function MapView() {
       orderedMapImagePaths[(currentIndex + 1) % orderedMapImagePaths.length];
     if (!nextItem || nextItem.key === pavimento.key) return;
 
-    const preloadOne = (path: string, fallbackPath?: string) => {
-      if (preloadedImages.has(path)) return;
-      const image = new Image();
-      image.src = path;
-      image.onload = () => preloadedImages.add(path);
-      image.onerror = () => {
-        if (!fallbackPath || preloadedImages.has(fallbackPath)) return;
-        const fallbackImage = new Image();
-        fallbackImage.src = fallbackPath;
-        fallbackImage.onload = () => preloadedImages.add(fallbackPath);
-      };
+    const preloadOne = (paths: string[]) => {
+      for (const path of paths) {
+        if (preloadedImages.has(path)) continue;
+        const image = new Image();
+        image.src = path;
+        image.onload = () => preloadedImages.add(path);
+      }
     };
 
-    const idleCb = () => preloadOne(nextItem.primaryPath, nextItem.fallbackPath);
+    const idleCb = () => preloadOne(nextItem.candidates);
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
       const idleWindow = window as Window &
@@ -810,6 +806,28 @@ export default function MapView() {
     const timeoutId = globalThis.setTimeout(idleCb, 500);
     return () => globalThis.clearTimeout(timeoutId);
   }, [orderedMapImagePaths, pavimento.key]);
+
+  useEffect(() => {
+    setPlantStatus("loading");
+    setPlantRetryKey(0);
+  }, [pavimento.key]);
+
+  const retryPlantLoad = useCallback(() => {
+    setPlantRetryKey((key) => key + 1);
+    setPlantStatus("loading");
+  }, []);
+
+  const plantStatusOverlay = hasDisplayablePlant ? (
+    plantStatus !== "ready" && (
+      <MapFloorPlantStatusOverlay
+        status={plantStatus}
+        onRetry={retryPlantLoad}
+        showAdminConfigHint={canEdit}
+      />
+    )
+  ) : (
+    <MapFloorPlantStatusOverlay status="error" showAdminConfigHint={canEdit} />
+  );
 
   const extintoresSemPosicao = useMemo(() => {
     const list = extintores.filter((item) => isUnplacedOnFloor(item, pavimento));
@@ -1585,8 +1603,16 @@ export default function MapView() {
         bounds={mapBounds as LatLngBoundsLiteral}
         compact={isMobile}
       />
-      {floorHasMap(pavimento.imageBase) && mapImagePath ? (
-        <ImageOverlay url={mapImagePath} bounds={mapBounds} className="map-plant-overlay" />
+      {hasDisplayablePlant ? (
+        <MapFloorPlantLayer
+          imagePath={pavimento.imageBase}
+          imagePathPreview={pavimento.imagePreview}
+          floorKey={pavimento.key}
+          bounds={mapBounds}
+          preferWebp={supportsWebp}
+          retryKey={plantRetryKey}
+          onStatusChange={setPlantStatus}
+        />
       ) : null}
       <MapClickPlacement enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
@@ -1941,6 +1967,7 @@ export default function MapView() {
           <div className="absolute inset-0">
             <MapErrorBoundary>{mapContent}</MapErrorBoundary>
           </div>
+          {plantStatusOverlay}
 
           {/* Toasts flutuantes sobre o mapa — não empurram o layout */}
           {savingPosition && (
@@ -2440,6 +2467,7 @@ export default function MapView() {
 
         <section className="professional-card map-viewport-root relative min-h-0 flex-1 overflow-hidden">
           <div className="absolute inset-0">{mapContent}</div>
+          {plantStatusOverlay}
         </section>
         </div>
       </div>
