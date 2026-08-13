@@ -26,6 +26,7 @@ export default function AuthGuard({
 
   useEffect(() => {
     let mounted = true;
+    const hasEstablishedSessionRef = { current: false };
 
     const applySession = async (session: Session | null) => {
       if (!mounted) return;
@@ -57,6 +58,7 @@ export default function AuthGuard({
 
         setProfile({ ...fetchedProfile, role });
         setLoadError(null);
+        hasEstablishedSessionRef.current = true;
       } catch {
         setLoadError("Erro de conexão ao validar seu acesso. Tente novamente.");
       } finally {
@@ -78,10 +80,11 @@ export default function AuthGuard({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
-        router.replace("/login");
+        hasEstablishedSessionRef.current = false;
+        router.replace(redirectTo);
         return;
       }
-      if (event === "SIGNED_IN" && session) {
+      if (event === "SIGNED_IN" && session && !hasEstablishedSessionRef.current) {
         setLoading(true);
         void applySession(session);
       }
