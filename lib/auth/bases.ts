@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { buildFloorImageCandidates } from "@/lib/map/floor-image-resolution";
 import type { UserRole } from "@/lib/auth/roles";
 
 export const ACTIVE_BASE_STORAGE_KEY = "firecheck-active-base";
@@ -172,16 +173,15 @@ export function floorHasMap(imagePath: string | null | undefined): boolean {
   return Boolean(imagePath?.trim());
 }
 
-/** URL da planta para exibição — prefere preview otimizado quando disponível. */
+/** Primeira URL candidata (preview → original → legado). Fallback em runtime via MapFloorPlantLayer. */
 export function resolveFloorDisplayImageUrl(
   imagePath: string,
   imagePathPreview?: string | null,
   preferWebp = true,
+  floorKey?: string | null,
 ): string {
-  if (imagePathPreview?.trim()) {
-    return resolveFloorImageUrl(imagePathPreview, preferWebp);
-  }
-  return resolveFloorImageUrl(imagePath, preferWebp);
+  const candidates = buildFloorImageCandidates(imagePath, imagePathPreview, preferWebp, floorKey);
+  return candidates[0] ?? "";
 }
 
 export function resolveFloorImageUrl(imagePath: string, preferWebp = true): string {

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ImageOverlay,
   MapContainer,
   Marker,
 } from "react-leaflet";
@@ -18,10 +17,12 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import {
   fetchBaseFloors,
-  floorHasMap,
-  resolveFloorDisplayImageUrl,
   type BaseFloor,
 } from "@/lib/auth/bases";
+import {
+  floorHasDisplayablePlant,
+  type FloorPlantLoadStatus,
+} from "@/lib/map/floor-image-resolution";
 import {
   hasStoredMapPosition,
   resolveLeafletPosition,
@@ -37,6 +38,8 @@ import type { FloorRef } from "@/lib/map/floor-matching";
 import { extinguisherIcon, hydrantIcon } from "@/lib/map/marker-icons";
 import type { MarkerColors } from "@/lib/map/marker-styles";
 import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
+import MapFloorPlantLayer from "@/src/components/map/MapFloorPlantLayer";
+import MapFloorPlantStatusOverlay from "@/src/components/map/MapFloorPlantStatusOverlay";
 import MapClickPlacement from "@/src/components/map/MapClickPlacement";
 import MapViewportSync from "@/src/components/map/MapViewportSync";
 import MapZoomControls from "@/src/components/map/MapZoomControls";
@@ -115,6 +118,8 @@ export default function MapPointPlacementEditor() {
   const [busca, setBusca] = useState("");
   const [selected, setSelected] = useState<SelectedEquipment>(null);
   const [undoStack, setUndoStack] = useState<UndoSnapshot[]>([]);
+  const [plantStatus, setPlantStatus] = useState<FloorPlantLoadStatus>("loading");
+  const [plantRetryKey, setPlantRetryKey] = useState(0);
 
   const loadGenerationRef = useRef(0);
 
@@ -145,14 +150,17 @@ export default function MapPointPlacementEditor() {
     [mapImageSize],
   );
 
-  const mapImageUrl = useMemo(() => {
-    if (!selectedFloor) return "";
-    return resolveFloorDisplayImageUrl(
-      selectedFloor.image_path,
-      selectedFloor.image_path_preview,
-      true,
-    );
-  }, [selectedFloor]);
+  const hasDisplayablePlant = useMemo(
+    () =>
+      selectedFloor
+        ? floorHasDisplayablePlant(
+            selectedFloor.image_path,
+            selectedFloor.image_path_preview,
+            selectedFloor.key,
+          )
+        : false,
+    [selectedFloor],
+  );
 
   const loadFloors = useCallback(async () => {
     if (!activeBaseId) {
@@ -161,7 +169,11 @@ export default function MapPointPlacementEditor() {
       return;
     }
     const rows = await fetchBaseFloors(activeBaseId);
-    const withMap = rows.filter((f) => f.active && floorHasMap(f.image_path));
+    const withMap = rows.filter(
+      (f) =>
+        f.active &&
+        floorHasDisplayablePlant(f.image_path, f.image_path_preview, f.key),
+    );
     setFloors(withMap);
     setSelectedFloor((prev) => {
       if (prev && withMap.some((f) => f.id === prev.id)) return prev;
@@ -210,6 +222,16 @@ export default function MapPointPlacementEditor() {
     setUndoStack([]);
     setMessage("");
   }, [selectedFloor?.id]);
+
+  useEffect(() => {
+    setPlantStatus("loading");
+    setPlantRetryKey(0);
+  }, [selectedFloor?.id]);
+
+  const retryPlantLoad = useCallback(() => {
+    setPlantRetryKey((key) => key + 1);
+    setPlantStatus("loading");
+  }, []);
 
   const unplacedExtintores = useMemo(() => {
     if (!selectedFloor) return [];
@@ -513,7 +535,7 @@ export default function MapPointPlacementEditor() {
     setSaving(false);
   }
 
-  const mapReady = selectedFloor && floorHasMap(selectedFloor.image_path) && mapImageUrl;
+  const mapReady = selectedFloor && hasDisplayablePlant;
 
   const leafletRotateOpts = { rotate: false, rotateControl: false };
 
@@ -720,6 +742,7 @@ export default function MapPointPlacementEditor() {
             {loading ? "Carregando mapa…" : "Selecione um setor com planta cadastrada."}
           </div>
         ) : (
+          <>
           <MapContainer
             key={`${selectedFloor.id}-${mapImageSize.width}x${mapImageSize.height}`}
             crs={L.CRS.Simple}
@@ -743,7 +766,14 @@ export default function MapPointPlacementEditor() {
             <MapZoomStabilityGuard />
             <MapViewportSync onLodChange={() => {}} enableDoubleTapZoom={false} />
             <MapZoomControls bounds={mapBounds as LatLngBoundsLiteral} />
-            <ImageOverlay url={mapImageUrl} bounds={mapBounds} className="map-plant-overlay" />
+            <MapFloorPlantLayer
+              imagePath={selectedFloor.image_path}
+              imagePathPreview={selectedFloor.image_path_preview}
+              floorKey={selectedFloor.key}
+              bounds={mapBounds}
+              retryKey={plantRetryKey}
+              onStatusChange={setPlantStatus}
+            />
             <MapClickPlacement enabled={Boolean(selected) && !saving} onClick={handleMapClick} />
 
             {tipoFiltro !== "hidrante" &&
@@ -795,7 +825,13 @@ export default function MapPointPlacementEditor() {
               })}
 
           </MapContainer>
-        )}
+          {plantStatus !== "ready" && (
+            <MapFloorPlantStatusOverlay
+              status={plantStatus}
+              onRetry={retryPlantLoad}
+              showAdminConfigHint
+            />
+          )}
 
         {selected && !hasStoredMapPosition(
           selected.kind === "extintor"
@@ -805,6 +841,8 @@ export default function MapPointPlacementEditor() {
           <div className="pointer-events-none absolute bottom-14 left-1/2 z-[1000] -translate-x-1/2 rounded-full bg-slate-900/85 px-4 py-2 text-xs font-semibold text-white shadow">
             Clique na planta para posicionar
           </div>
+        )}
+          </>
         )}
       </section>
     </div>
