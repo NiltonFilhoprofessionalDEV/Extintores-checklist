@@ -14,6 +14,7 @@ type InspecaoEquipmentCardProps = {
   metaLine: string;
   status: InspecaoCardStatus;
   aviso?: string | null;
+  draftProgress?: { answered: number; total: number } | null;
   icon: ReactNode;
   onClick: () => void;
 };
@@ -24,9 +25,12 @@ export default function InspecaoEquipmentCard({
   metaLine,
   status,
   aviso,
+  draftProgress,
   icon,
   onClick,
 }: InspecaoEquipmentCardProps) {
+  const hasDraft = draftProgress && draftProgress.answered > 0 && draftProgress.answered < draftProgress.total;
+
   return (
     <button type="button" onClick={onClick} className="inspecao-equipment-card pressable">
       <div className="shrink-0">{icon}</div>
@@ -37,6 +41,11 @@ export default function InspecaoEquipmentCard({
             {STATUS_LABELS[status]}
           </span>
         </div>
+        {hasDraft ? (
+          <p className="mt-1 text-[11px] font-bold text-[var(--fc-primary-deep)]">
+            Inspeção em andamento · {draftProgress.answered} de {draftProgress.total} respondidos
+          </p>
+        ) : null}
         <p className="inspecao-equipment-card__local truncate">{localDetalhado}</p>
         <p className="inspecao-equipment-card__meta truncate">{metaLine}</p>
         {aviso ? (
