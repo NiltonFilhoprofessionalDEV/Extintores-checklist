@@ -1086,6 +1086,8 @@ h3,
   transform-origin: top left;
   backface-visibility: hidden;
   pointer-events: none;
+  opacity: 1;
+  visibility: visible;
 }
 
 .leaflet-container {
