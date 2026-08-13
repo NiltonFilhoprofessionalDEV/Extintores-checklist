@@ -15,7 +15,7 @@ const MapView = dynamic(() => import("./MapView"), {
 
 export default function MapViewDynamic() {
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <MapView />
     </div>
   );

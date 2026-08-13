@@ -68,7 +68,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
               <div
                 className={
                   isMapaRoute
-                    ? "flex min-h-0 flex-1 flex-col"
+                    ? "mobile-map-page flex min-h-0 flex-1 flex-col"
                     : "mx-auto w-full max-w-2xl px-3 py-3 md:max-w-4xl lg:max-w-5xl xl:max-w-6xl lg:px-6 lg:py-5"
                 }
               >
