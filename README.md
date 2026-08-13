@@ -59,7 +59,7 @@ Somente **Administrador Corporativo** acessa a página **Bases** e pode atribuir
 
 ## Atribuição de ícones
 
-Ícones de equipamento (inventário, checklist e mapa) por **Magnific** via Flaticon:
+Ícones de equipamento (inventário, checklist e mapa): silhuetas **monocromáticas** derivadas de Magnific / Flaticon:
 
 - [Fogo ícones criados por Magnific - Flaticon](https://www.flaticon.com/br/icones-gratis/fogo)
 - [Hidrante ícones criados por Magnific - Flaticon](https://www.flaticon.com/br/icones-gratis/hidrante)
