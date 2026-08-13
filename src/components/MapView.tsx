@@ -34,9 +34,17 @@ import {
   baseHasEquipesConferencia,
   fetchBaseFloors,
   floorHasMap,
-  resolveFloorImageUrl,
+  resolveFloorDisplayImageUrl,
   type BaseFloor,
 } from "@/lib/auth/bases";
+import {
+  hasStoredMapPosition,
+  mapClickToStoredCoords,
+  resolveLeafletPosition,
+  type MapCoordinateFields,
+} from "@/lib/map/coordinates";
+import { itemMatchesFloor, marcadorMatchesFloor } from "@/lib/map/floor-matching";
+import { readMapViewState, writeMapViewState } from "@/lib/map/map-state-storage";
 import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 import ChecklistForm from "@/src/components/ChecklistForm";
 import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
@@ -137,9 +145,11 @@ class MapErrorBoundary extends Component<
 type Mode = "edicao" | "inspecao";
 
 type PavimentoOption = {
+  id?: string;
   key: string;
   label: string;
   imageBase: string;
+  imagePreview?: string | null;
   imageWidth?: number;
   imageHeight?: number;
 };
@@ -158,6 +168,9 @@ type Extintor = {
   manutencao_3_nivel: string | null;
   coord_x: number | null;
   coord_y: number | null;
+  coord_x_norm?: number | null;
+  coord_y_norm?: number | null;
+  floor_id?: string | null;
   pavimento: string | null;
 };
 
@@ -190,14 +203,20 @@ type HidranteRow = HidranteImportRow & {
   id: string;
   coord_x: number | null;
   coord_y: number | null;
+  coord_x_norm?: number | null;
+  coord_y_norm?: number | null;
+  floor_id?: string | null;
 };
 
 type MarcadorEmergenciaRow = {
   id: string;
   kind: "luz_emergencia" | "placa_saida_emergencia";
   pavimento: string | null;
+  floor_id?: string | null;
   coord_x: number;
   coord_y: number;
+  coord_x_norm?: number | null;
+  coord_y_norm?: number | null;
   quantidade: number;
   verified_at: string | null;
   verified_by: string | null;
@@ -222,11 +241,29 @@ const FALLBACK_PAVIMENTOS: PavimentoOption[] = [
 
 function mapBaseFloorToPavimento(floor: BaseFloor): PavimentoOption {
   return {
+    id: floor.id,
     key: floor.key,
     label: floor.label,
     imageBase: floor.image_path,
+    imagePreview: floor.image_path_preview,
     imageWidth: floor.image_width,
     imageHeight: floor.image_height,
+  };
+}
+
+function floorRefFromPavimento(pavimento: PavimentoOption) {
+  return { id: pavimento.id, key: pavimento.key, label: pavimento.label };
+}
+
+function placementPayload(lat: number, lng: number, pavimento: PavimentoOption, mapSize: { width: number; height: number }) {
+  const stored = mapClickToStoredCoords(lat, lng, mapSize.width, mapSize.height);
+  return {
+    coord_x: stored.coord_x,
+    coord_y: stored.coord_y,
+    coord_x_norm: stored.coord_x_norm,
+    coord_y_norm: stored.coord_y_norm,
+    pavimento: pavimento.label,
+    ...(pavimento.id ? { floor_id: pavimento.id } : {}),
   };
 }
 
@@ -238,51 +275,13 @@ function parseDate(value: string | null) {
   return parseCalendarDateAsLocal(value);
 }
 
-function normalizeText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase();
-}
-
-function isSameFloor(extintorFloor: string | null, selectedFloor: string) {
-  if (!extintorFloor?.trim()) return true;
-  return normalizeText(extintorFloor) === normalizeText(selectedFloor);
-}
-
-/** Casa pavimento/setor do item com label ou key do mapa (acentos/caixa ignorados). */
-function itemMatchesFloor(
-  item: { pavimento?: string | null; setor?: string | null },
-  floor: { key: string; label: string },
-) {
-  const tokens = [item.pavimento, item.setor]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
-  if (tokens.length === 0) return true;
-  return tokens.some(
-    (token) => isSameFloor(token, floor.label) || isSameFloor(token, floor.key),
-  );
-}
-
-function hasMapCoordinates(coord_x: unknown, coord_y: unknown) {
-  // Importante: Number(null) === 0 — não tratar null como coordenada válida.
-  if (coord_x == null || coord_y == null) return false;
-  if (coord_x === "" || coord_y === "") return false;
-  const x = Number(coord_x);
-  const y = Number(coord_y);
-  return Number.isFinite(x) && Number.isFinite(y);
-}
-
 /** Extintor pendente de posição neste pavimento (usa pavimento ou setor). */
 function isUnplacedOnFloor(
-  item: { coord_x: number | null; coord_y: number | null; pavimento: string | null; setor?: string },
-  floor: { key: string; label: string },
+  item: { coord_x: number | null; coord_y: number | null; coord_x_norm?: number | null; coord_y_norm?: number | null; pavimento: string | null; setor?: string; floor_id?: string | null },
+  floor: PavimentoOption,
 ) {
-  if (hasMapCoordinates(item.coord_x, item.coord_y)) return false;
-  return itemMatchesFloor(item, floor);
+  if (hasStoredMapPosition(item)) return false;
+  return itemMatchesFloor(item, floorRefFromPavimento(floor));
 }
 
 function getMaintenanceStatus(extintor: Extintor) {
@@ -732,45 +731,48 @@ export default function MapView() {
   );
 
   const mapImagePath = useMemo(() => {
-    // Sempre usa a versão full-res para exibição — os bounds são baseados nas
-    // dimensões originais (14042×9934) e a versão mobile causaria borrado no zoom.
-    return resolveFloorImageUrl(pavimento.imageBase, supportsWebp);
-  }, [pavimento.imageBase, supportsWebp]);
+    return resolveFloorDisplayImageUrl(
+      pavimento.imageBase,
+      pavimento.imagePreview,
+      supportsWebp,
+    );
+  }, [pavimento.imageBase, pavimento.imagePreview, supportsWebp]);
 
   const orderedMapImagePaths = useMemo(() => {
     return pavimentos.map((item) => ({
       key: item.key,
-      primaryPath: resolveFloorImageUrl(item.imageBase, supportsWebp),
-      fallbackPath: resolveFloorImageUrl(item.imageBase, false),
+      primaryPath: resolveFloorDisplayImageUrl(item.imageBase, item.imagePreview, supportsWebp),
+      fallbackPath: resolveFloorDisplayImageUrl(item.imageBase, item.imagePreview, false),
     }));
   }, [pavimentos, supportsWebp]);
 
-  const loadExtintores = useCallback(async (opts?: { quiet?: boolean }) => {
+  const loadGenerationRef = useRef(0);
+
+  const loadExtintores = useCallback(async (opts?: { quiet?: boolean; generation?: number }) => {
+    const generation = opts?.generation ?? loadGenerationRef.current;
     if (!opts?.quiet) setLoading(true);
-    let query = supabase
-      .from("extintores")
-      .select(
-        "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento",
-      )
-      .order("codigo", { ascending: true });
+    const selectFull =
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento";
+    const selectLegacy =
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento";
+
+    let query = supabase.from("extintores").select(selectFull).order("codigo", { ascending: true });
     if (activeBaseId) query = query.eq("base_id", activeBaseId);
     query = query.eq("active", true);
 
     let { data, error } = await query;
 
-    // Compat: bases ainda sem coluna active (antes da migration).
-    if (error && /active|schema cache|column/i.test(error.message)) {
-      let fallback = supabase
-        .from("extintores")
-        .select(
-          "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento",
-        )
-        .order("codigo", { ascending: true });
+    if (error && /coord_x_norm|floor_id|schema cache|column/i.test(error.message)) {
+      let fallback = supabase.from("extintores").select(selectLegacy).order("codigo", { ascending: true });
       if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
       const retry = await fallback;
-      data = retry.data;
-      error = retry.error;
+      if (!retry.error) {
+        data = retry.data as typeof data;
+        error = retry.error;
+      }
     }
+
+    if (generation !== loadGenerationRef.current) return;
 
     if (error) {
       setMessage(`Erro ao carregar extintores: ${error.message}`);
@@ -795,30 +797,38 @@ export default function MapView() {
     setConferidosNoMesIds(new Set(rows.map((r) => r.extintor_id).filter(Boolean)));
   }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId]);
 
-  const loadHidrantesEMarcadores = useCallback(async () => {
-    let hidrantesQuery = supabase
-      .from("hidrantes")
-      .select(
-        "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y",
-      )
-      .eq("active", true);
+  const loadHidrantesEMarcadores = useCallback(async (generation?: number) => {
+    const gen = generation ?? loadGenerationRef.current;
+    const hidSelectFull =
+      "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id";
+    const hidSelectLegacy =
+      "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y";
+
+    let hidrantesQuery = supabase.from("hidrantes").select(hidSelectFull).eq("active", true);
     if (activeBaseId) hidrantesQuery = hidrantesQuery.eq("base_id", activeBaseId);
 
+    let hData: HidranteRow[] | null = null;
+    let hError: { message: string } | null = null;
+
     let h = await hidrantesQuery;
-    if (h.error && /active|schema cache|column/i.test(h.error.message)) {
-      let fallback = supabase
-        .from("hidrantes")
-        .select(
-          "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y",
-        );
+    if (h.error && /coord_x_norm|floor_id|active|schema cache|column/i.test(h.error.message)) {
+      let fallback = supabase.from("hidrantes").select(hidSelectLegacy);
       if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
-      h = await fallback;
+      const retry = await fallback;
+      hData = (retry.data ?? null) as HidranteRow[] | null;
+      hError = retry.error;
+    } else {
+      hData = (h.data ?? null) as HidranteRow[] | null;
+      hError = h.error;
     }
 
     const [marcadoresRows] = await Promise.all([
       fetchMarcadoresEmergenciaForMap(supabase, activeBaseId),
     ]);
-    if (!h.error) setHidrantes((h.data ?? []) as HidranteRow[]);
+
+    if (gen !== loadGenerationRef.current) return;
+
+    if (!hError) setHidrantes(hData ?? []);
     setMarcadoresEmergencia(marcadoresRows as MarcadorEmergenciaRow[]);
   }, [supabase, activeBaseId]);
 
@@ -846,13 +856,29 @@ export default function MapView() {
       try {
         const floors = await fetchBaseFloors(activeBaseId);
         if (cancelled) return;
-        if (floors.length === 0) {
+        const activeFloors = floors.filter((f) => f.active);
+        if (activeFloors.length === 0) {
           setPavimentos([]);
           return;
         }
-        const mapped = floors.map(mapBaseFloorToPavimento);
+        const mapped = activeFloors.map(mapBaseFloorToPavimento);
         setPavimentos(mapped);
-        setPavimento((prev) => mapped.find((item) => item.key === prev.key) ?? mapped[0]);
+        const persisted = readMapViewState(activeBaseId);
+        setPavimento((prev) => {
+          if (persisted?.floorKey) {
+            const fromStorage = mapped.find((item) => item.key === persisted.floorKey);
+            if (fromStorage) return fromStorage;
+          }
+          return mapped.find((item) => item.key === prev.key) ?? mapped[0];
+        });
+        if (persisted?.mode) setMode(persisted.mode);
+        if (persisted?.filtroEquipe !== undefined) setFiltroEquipe(persisted.filtroEquipe as EquipeConferenciaId | "");
+        if (persisted?.showExtintor !== undefined || persisted?.showHidrante !== undefined) {
+          setShowLayers({
+            extintor: persisted.showExtintor ?? true,
+            hidrante: persisted.showHidrante ?? true,
+          });
+        }
       } catch {
         if (cancelled) return;
         setPavimentos([]);
@@ -918,9 +944,11 @@ export default function MapView() {
   }, [loadConferenciasDoMes, supabase]);
 
   useEffect(() => {
+    loadGenerationRef.current += 1;
+    const generation = loadGenerationRef.current;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadExtintores();
-    void loadHidrantesEMarcadores();
+    void loadExtintores({ generation });
+    void loadHidrantesEMarcadores(generation);
     const mesAposSessao = async () => {
       await getCurrentSession();
       await loadConferenciasDoMes();
@@ -928,6 +956,16 @@ export default function MapView() {
     };
     void mesAposSessao();
   }, [loadConferenciasDoMes, loadConferenciasHidrantesDoMes, loadExtintores, loadHidrantesEMarcadores]);
+
+  useEffect(() => {
+    writeMapViewState(activeBaseId, {
+      floorKey: pavimento.key,
+      mode,
+      filtroEquipe,
+      showExtintor: showLayers.extintor,
+      showHidrante: showLayers.hidrante,
+    });
+  }, [activeBaseId, pavimento.key, mode, filtroEquipe, showLayers.extintor, showLayers.hidrante]);
 
   useEffect(() => {
     let mounted = true;
@@ -995,16 +1033,12 @@ export default function MapView() {
   }, []);
 
   useEffect(() => {
-    // Em dispositivos móveis evitamos preloading agressivo para reduzir consumo de memória
-    // e evitar fechamento da aba/navegador ao abrir o mapa.
-    if (isMobile) return;
-
     const currentIndex = orderedMapImagePaths.findIndex((item) => item.key === pavimento.key);
     if (currentIndex === -1) return;
 
-    const preloadQueue = orderedMapImagePaths
-      .filter((item) => item.key !== pavimento.key)
-      .map((_, index) => orderedMapImagePaths[(currentIndex + index + 1) % orderedMapImagePaths.length]);
+    const nextItem =
+      orderedMapImagePaths[(currentIndex + 1) % orderedMapImagePaths.length];
+    if (!nextItem || nextItem.key === pavimento.key) return;
 
     const preloadOne = (path: string, fallbackPath?: string) => {
       if (preloadedImages.has(path)) return;
@@ -1019,9 +1053,7 @@ export default function MapView() {
       };
     };
 
-    const preloadAll = () => {
-      preloadQueue.forEach((item) => preloadOne(item.primaryPath, item.fallbackPath));
-    };
+    const idleCb = () => preloadOne(nextItem.primaryPath, nextItem.fallbackPath);
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
       const idleWindow = window as Window &
@@ -1029,42 +1061,44 @@ export default function MapView() {
           requestIdleCallback: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number;
           cancelIdleCallback: (id: number) => void;
         };
-      const idleId = idleWindow.requestIdleCallback(() => preloadAll(), { timeout: 1200 });
+      const idleId = idleWindow.requestIdleCallback(idleCb, { timeout: 2000 });
       return () => idleWindow.cancelIdleCallback(idleId);
     }
 
-    const timeoutId = globalThis.setTimeout(preloadAll, 300);
+    const timeoutId = globalThis.setTimeout(idleCb, 500);
     return () => globalThis.clearTimeout(timeoutId);
-  }, [isMobile, orderedMapImagePaths, pavimento.key]);
+  }, [orderedMapImagePaths, pavimento.key]);
 
   const extintoresSemPosicao = useMemo(() => {
     const list = extintores.filter((item) => isUnplacedOnFloor(item, pavimento));
     return [...list].sort(compareExtintorCodigoAsc);
   }, [extintores, pavimento]);
 
+  const floorRef = useMemo(() => floorRefFromPavimento(pavimento), [pavimento]);
+
   const markersDoPavimento = useMemo(() => {
     const list = extintores.filter(
-      (item) => hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
+      (item) =>
+        hasStoredMapPosition(item) && itemMatchesFloor(item, floorRef),
     );
     const sorted = [...list].sort(compareExtintorCodigoAsc);
     return filtrarPorEquipe(sorted, filtroEquipe, "extintor");
-  }, [extintores, pavimento, filtroEquipe]);
+  }, [extintores, floorRef, filtroEquipe]);
 
   const hidrantesSemPosicao = useMemo(
     () =>
       hidrantes.filter(
-        (item) =>
-          !hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
+        (item) => !hasStoredMapPosition(item) && itemMatchesFloor(item, floorRef),
       ),
-    [hidrantes, pavimento],
+    [hidrantes, floorRef],
   );
 
   const hidrantesDoPavimento = useMemo(() => {
     const list = hidrantes.filter(
-      (item) => hasMapCoordinates(item.coord_x, item.coord_y) && itemMatchesFloor(item, pavimento),
+      (item) => hasStoredMapPosition(item) && itemMatchesFloor(item, floorRef),
     );
     return filtrarPorEquipe(list, filtroEquipe, "hidrante");
-  }, [hidrantes, pavimento, filtroEquipe]);
+  }, [hidrantes, floorRef, filtroEquipe]);
 
   const mostrarFiltroEquipe =
     mode === "inspecao" && canInspect && baseHasEquipesConferencia(activeBase);
@@ -1076,8 +1110,8 @@ export default function MapView() {
   }, [activeBase]);
 
   const marcadoresDoPavimento = useMemo(
-    () => marcadoresEmergencia.filter((m) => isSameFloor(m.pavimento, pavimento.label)),
-    [marcadoresEmergencia, pavimento.label],
+    () => marcadoresEmergencia.filter((m) => marcadorMatchesFloor(m, floorRef)),
+    [marcadoresEmergencia, floorRef],
   );
 
   // Clique sempre ativo em edição: se nada estiver selecionado, mostramos orientação ao usuário.
@@ -1145,13 +1179,17 @@ export default function MapView() {
 
       setSavingPosition(true);
       setMessage("");
+      const coords = placementPayload(lat, lng, pavimento, mapImageSize);
       const { error } = await supabase.from("marcadores_emergencia").insert({
         kind: placementExtra,
         pavimento: pavimento.label,
-        coord_x: lng,
-        coord_y: lat,
+        coord_x: coords.coord_x,
+        coord_y: coords.coord_y,
+        coord_x_norm: coords.coord_x_norm,
+        coord_y_norm: coords.coord_y_norm,
         quantidade: qty,
         ...(activeBaseId ? { base_id: activeBaseId } : {}),
+        ...(pavimento.id ? { floor_id: pavimento.id } : {}),
       });
       if (error) {
         setMessage(`Erro ao salvar marcador: ${error.message}`);
@@ -1167,18 +1205,19 @@ export default function MapView() {
       setSavingPosition(true);
       setMessage("");
       const placedId = selectedHidranteId;
+      const coords = placementPayload(lat, lng, pavimento, mapImageSize);
       const { data, error } = await supabase
         .from("hidrantes")
-        .update({ coord_x: lng, coord_y: lat, pavimento: pavimento.label })
+        .update(coords)
         .eq("id", placedId)
-        .select("id,coord_x,coord_y,pavimento")
+        .select("id,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento")
         .maybeSingle();
       if (error) {
         setMessage(`Erro ao salvar hidrante: ${error.message}`);
         setSavingPosition(false);
         return;
       }
-      if (!data || !hasMapCoordinates(data.coord_x, data.coord_y)) {
+      if (!data || !hasStoredMapPosition(data as MapCoordinateFields)) {
         setMessage(
           "Não foi possível salvar a posição do hidrante (sem permissão ou o registro não foi atualizado).",
         );
@@ -1193,6 +1232,9 @@ export default function MapView() {
                 ...item,
                 coord_x: Number(data.coord_x),
                 coord_y: Number(data.coord_y),
+                coord_x_norm: data.coord_x_norm != null ? Number(data.coord_x_norm) : coords.coord_x_norm,
+                coord_y_norm: data.coord_y_norm != null ? Number(data.coord_y_norm) : coords.coord_y_norm,
+                floor_id: data.floor_id ? String(data.floor_id) : pavimento.id ?? null,
                 pavimento: String(data.pavimento ?? pavimento.label),
               }
             : item,
@@ -1211,17 +1253,12 @@ export default function MapView() {
     setMessage("");
 
     const placedId = selectedExtintorId;
-    // Não sobrescrever `setor` (cadastro). Só posição + pavimento do mapa.
-    // Filtrar só por id: RLS já escopa a base; `.eq("base_id")` falha se base_id estiver null.
+    const coords = placementPayload(lat, lng, pavimento, mapImageSize);
     const { data, error } = await supabase
       .from("extintores")
-      .update({
-        coord_x: lng,
-        coord_y: lat,
-        pavimento: pavimento.label,
-      })
+      .update(coords)
       .eq("id", placedId)
-      .select("id,coord_x,coord_y,pavimento,setor")
+      .select("id,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento,setor")
       .maybeSingle();
 
     if (error) {
@@ -1229,7 +1266,7 @@ export default function MapView() {
       setSavingPosition(false);
       return;
     }
-    if (!data || !hasMapCoordinates(data.coord_x, data.coord_y)) {
+    if (!data || !hasStoredMapPosition(data as MapCoordinateFields)) {
       setMessage(
         "Não foi possível salvar a posição (sem permissão ou o registro não foi atualizado). Se você é Administrador Corporativo, rode a migration de RLS de coordenadas.",
       );
@@ -1244,6 +1281,9 @@ export default function MapView() {
               ...item,
               coord_x: Number(data.coord_x),
               coord_y: Number(data.coord_y),
+              coord_x_norm: data.coord_x_norm != null ? Number(data.coord_x_norm) : coords.coord_x_norm,
+              coord_y_norm: data.coord_y_norm != null ? Number(data.coord_y_norm) : coords.coord_y_norm,
+              floor_id: data.floor_id ? String(data.floor_id) : pavimento.id ?? null,
               pavimento: String(data.pavimento ?? pavimento.label),
               setor: String(data.setor ?? item.setor),
             }
@@ -1290,9 +1330,16 @@ export default function MapView() {
 
     const { data, error } = await supabase
       .from("extintores")
-      .update({ coord_x: null, coord_y: null, pavimento: null })
+      .update({
+        coord_x: null,
+        coord_y: null,
+        coord_x_norm: null,
+        coord_y_norm: null,
+        floor_id: null,
+        pavimento: null,
+      })
       .eq("id", extintor.id)
-      .select("id,coord_x,coord_y")
+      .select("id,coord_x,coord_y,coord_x_norm,coord_y_norm")
       .maybeSingle();
 
     if (error) {
@@ -1300,7 +1347,7 @@ export default function MapView() {
       setSavingPosition(false);
       return;
     }
-    if (!data || hasMapCoordinates(data.coord_x, data.coord_y)) {
+    if (!data || hasStoredMapPosition(data as MapCoordinateFields)) {
       setMessage(
         "Não foi possível remover o marcador (sem permissão ou o registro não foi atualizado).",
       );
@@ -1311,7 +1358,15 @@ export default function MapView() {
     setExtintores((prev) =>
       prev.map((item) =>
         item.id === extintor.id
-          ? { ...item, coord_x: null, coord_y: null, pavimento: null }
+          ? {
+              ...item,
+              coord_x: null,
+              coord_y: null,
+              coord_x_norm: null,
+              coord_y_norm: null,
+              floor_id: null,
+              pavimento: null,
+            }
           : item,
       ),
     );
@@ -1636,16 +1691,23 @@ export default function MapView() {
     setSavingPosition(true);
     const { data, error } = await supabase
       .from("hidrantes")
-      .update({ coord_x: null, coord_y: null, pavimento: null })
+      .update({
+        coord_x: null,
+        coord_y: null,
+        coord_x_norm: null,
+        coord_y_norm: null,
+        floor_id: null,
+        pavimento: null,
+      })
       .eq("id", h.id)
-      .select("id,coord_x,coord_y")
+      .select("id,coord_x,coord_y,coord_x_norm,coord_y_norm")
       .maybeSingle();
     if (error) {
       setMessage(error.message);
       setSavingPosition(false);
       return;
     }
-    if (!data || hasMapCoordinates(data.coord_x, data.coord_y)) {
+    if (!data || hasStoredMapPosition(data as MapCoordinateFields)) {
       setMessage(
         "Não foi possível remover o hidrante do mapa (sem permissão ou o registro não foi atualizado).",
       );
@@ -1656,7 +1718,15 @@ export default function MapView() {
     setHidrantes((prev) =>
       prev.map((item) =>
         item.id === h.id
-          ? { ...item, coord_x: null, coord_y: null, pavimento: null }
+          ? {
+              ...item,
+              coord_x: null,
+              coord_y: null,
+              coord_x_norm: null,
+              coord_y_norm: null,
+              floor_id: null,
+              pavimento: null,
+            }
           : item,
       ),
     );
@@ -1706,12 +1776,11 @@ export default function MapView() {
     >
       <FitBounds
         bounds={mapBounds}
-        /* Zoom extremo (+36) com planta 14k×9k estoura memória no celular e “recarrega” a aba */
-        maxZoomExtra={isMobile ? 8 : 24}
+        maxZoomExtra={isMobile ? 4 : 5}
         bottomOffset={0}
         initialZoomOut={0}
-        minZoomAbsolute={isMobile ? -6 : -12}
-        boundsPad={isMobile ? 0.35 : 0.15}
+        minZoomAbsolute={isMobile ? -4 : -6}
+        boundsPad={isMobile ? 0.2 : 0.12}
       />
       <ZoomStabilityGuard />
       {floorHasMap(pavimento.imageBase) && mapImagePath ? (
@@ -1720,10 +1789,13 @@ export default function MapView() {
       <MapClickHandler enabled={mapClickPlacementEnabled} onClick={handleMapClick} />
 
       {showLayers.extintor &&
-        markersDoPavimento.map((item) => (
+        markersDoPavimento.map((item) => {
+          const position = resolveLeafletPosition(item, mapImageSize.width, mapImageSize.height);
+          if (!position) return null;
+          return (
           <Marker
             key={item.id}
-            position={[Number(item.coord_y), Number(item.coord_x)]}
+            position={position}
             icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, isMobile)}
             eventHandlers={{
               click: () => {
@@ -1799,13 +1871,17 @@ export default function MapView() {
               </Popup>
             )}
           </Marker>
-        ))}
+          );
+        })}
 
       {showLayers.hidrante &&
-        hidrantesDoPavimento.map((h) => (
+        hidrantesDoPavimento.map((h) => {
+          const position = resolveLeafletPosition(h, mapImageSize.width, mapImageSize.height);
+          if (!position) return null;
+          return (
           <Marker
             key={h.id}
-            position={[Number(h.coord_y), Number(h.coord_x)]}
+            position={position}
             icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, isMobile)}
             eventHandlers={{
               click: () => {
@@ -1846,7 +1922,8 @@ export default function MapView() {
               </Popup>
             )}
           </Marker>
-        ))}
+          );
+        })}
 
     </MapContainer>
   );

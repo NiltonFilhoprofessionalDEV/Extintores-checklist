@@ -21,6 +21,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
   },
@@ -33,7 +34,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "pdf-to-img": "^6.2.0",
-    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
