@@ -161,7 +161,7 @@ export default function AdminConfiguracoesPage() {
       setFile(null);
       setMessage(
         file
-          ? "Setor criado com mapa. Já aparece no cadastro e no mapeamento."
+          ? "Setor criado com mapa. Configure posições em Posicionar equipamentos."
           : "Setor criado. Você pode enviar o mapa depois ao editar o setor.",
       );
       await load();
@@ -205,7 +205,7 @@ export default function AdminConfiguracoesPage() {
       setMessage(
         editFile
           ? replacingMap
-            ? "Planta substituída. Revise as posições dos equipamentos no mapeamento."
+            ? "Planta substituída. Revise as posições em Posicionar equipamentos."
             : "Setor e mapa atualizados."
           : "Setor atualizado.",
       );
