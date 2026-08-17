@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# relatórios locais da migração de mapas
+migration-report.json
+
 # vercel
 .vercel
 
