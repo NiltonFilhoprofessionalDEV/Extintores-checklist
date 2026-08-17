@@ -16,7 +16,6 @@ import { exportConferenciasPdf } from "@/lib/export/pdf";
 import {
   resolveExtintorConferenciaExport,
   resolveHidranteConferenciaExport,
-  type ConferenciaExportStatus,
 } from "@/lib/export/conferencia-historico";
 import type { TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import type { HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
@@ -31,14 +30,22 @@ import { useActiveBase } from "@/lib/auth/active-base-context";
 import { baseHasEquipesConferencia } from "@/lib/auth/bases";
 import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client";
 import type { ChecklistQuestion } from "@/lib/checklist/default-questions";
+import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 import ExportActions from "@/src/components/ExportActions";
-import ConferenciaFilterModal from "./ConferenciaFilterModal";
+import ConferenciaCard from "./ConferenciaCard";
+import ConferenciaDetailDrawer from "./ConferenciaDetailDrawer";
+import ConferenciaFilterDrawer from "./ConferenciaFilterDrawer";
 import {
-  ConferenciaCard,
-  ConferenciaDetailModal,
-  type ConferenciaItem,
-} from "./ConferenciaResults";
+  OPCOES_FILTRO_STATUS,
+  detectarPeriodoPreset,
+  filtrosPadraoMesVigente,
+  getDatasPadraoMesVigente,
+  labelPeriodo,
+  type ConferenciaFiltrosDraft,
+  type FiltroStatusConferencia,
+} from "./conferencia-filtros";
+import type { ConferenciaItem } from "./conferencia-view";
 
 function equipeLabelForCodigo(codigo: string, tipo: TipoEquipamento): string {
   for (const eq of EQUIPES_CONFERENCIA) {
@@ -61,51 +68,24 @@ function endOfDayIso(dateStr: string): string | null {
   return d.toISOString();
 }
 
-function formatDateInputLocal(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function getDatasPadraoMesVigente(): { inicio: string; fim: string } {
-  const hoje = new Date();
-  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  return {
-    inicio: formatDateInputLocal(inicioMes),
-    fim: formatDateInputLocal(hoje),
-  };
-}
-
-type FiltroStatusConferencia = ConferenciaExportStatus | "";
-
-const OPCOES_FILTRO_STATUS: { value: FiltroStatusConferencia; label: string }[] = [
-  { value: "", label: "Todos os status" },
-  { value: "conforme", label: "Conforme" },
-  { value: "alerta", label: "Não conforme" },
-  { value: "vencido", label: "Vencido" },
-];
-
 function montarSufixoExportacaoArquivo(
   filtroEquipe: EquipeConferenciaId | "",
   dataInicio: string,
   dataFim: string,
   busca: string,
   filtroStatus: FiltroStatusConferencia,
+  filtroLocal: string,
+  filtroConferente: string,
 ): string {
   const partes: string[] = [];
   if (filtroEquipe) partes.push(filtroEquipe);
   if (filtroStatus) partes.push(filtroStatus);
   if (dataInicio) partes.push(`de_${dataInicio}`);
   if (dataFim) partes.push(`ate_${dataFim}`);
+  if (filtroLocal) partes.push("local");
+  if (filtroConferente) partes.push("conferente");
   if (busca.trim()) partes.push("busca");
   return partes.join("_");
-}
-
-function formatarDataFiltro(isoDate: string): string {
-  const d = new Date(`${isoDate}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString("pt-BR");
 }
 
 function IconeBusca() {
@@ -117,11 +97,30 @@ function IconeBusca() {
   );
 }
 
-function IconeEquipe() {
+function IconeFiltro() {
   return (
-    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path strokeLinecap="round" d="M4 8h10M18 8h2M4 16h2M10 16h10" />
+      <circle cx="16" cy="8" r="2.25" />
+      <circle cx="8" cy="16" r="2.25" />
     </svg>
+  );
+}
+
+function Chip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <span className="conf-chip">
+      <span className="conf-chip__label">{label}</span>
+      <button type="button" onClick={onRemove} aria-label={`Remover filtro ${label}`}>
+        ×
+      </button>
+    </span>
   );
 }
 
@@ -137,9 +136,11 @@ export default function AdminConferenciasPage() {
   const [dataFim, setDataFim] = useState(() => getDatasPadraoMesVigente().fim);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatusConferencia>("");
+  const [filtroLocal, setFiltroLocal] = useState("");
+  const [filtroConferente, setFiltroConferente] = useState("");
   const [exportando, setExportando] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ConferenciaItem | null>(null);
   const [extintorQuestions, setExtintorQuestions] = useState<ChecklistQuestion[]>([]);
   const [hidranteQuestions, setHidranteQuestions] = useState<ChecklistQuestion[]>([]);
@@ -290,6 +291,14 @@ export default function AdminConferenciasPage() {
         return false;
       }
 
+      if (filtroLocal && (item.pavimento || item.setor || "").trim() !== filtroLocal) {
+        return false;
+      }
+
+      if (filtroConferente && item.conferente.trim() !== filtroConferente) {
+        return false;
+      }
+
       if (startIso || endIso) {
         const t = new Date(item.data_conferencia).getTime();
         if (startIso && t < new Date(startIso).getTime()) return false;
@@ -301,6 +310,7 @@ export default function AdminConferenciasPage() {
       const text = [
         item.conferente,
         item.codigo,
+        formatEquipmentIdentifier(item.tipo, item.codigo),
         item.setor,
         item.local_detalhado,
         item.tipoEquip ?? "",
@@ -312,7 +322,17 @@ export default function AdminConferenciasPage() {
 
       return text.includes(q);
     });
-  }, [rows, busca, showEquipeFilter, filtroEquipe, filtroStatus, dataInicio, dataFim]);
+  }, [
+    rows,
+    busca,
+    showEquipeFilter,
+    filtroEquipe,
+    filtroStatus,
+    filtroLocal,
+    filtroConferente,
+    dataInicio,
+    dataFim,
+  ]);
 
   const filteredExt = useMemo(
     () => filteredBase.filter((r) => r.tipo === "extintor"),
@@ -324,40 +344,89 @@ export default function AdminConferenciasPage() {
   );
   const visiveis = tipoLista === "extintor" ? filteredExt : filteredHid;
   const totalExportacao = filteredExt.length + filteredHid.length;
-
   const extCount = filteredExt.length;
   const hidCount = filteredHid.length;
-  const datasPadraoMes = getDatasPadraoMesVigente();
-  const datasPersonalizadas =
-    dataInicio !== datasPadraoMes.inicio || dataFim !== datasPadraoMes.fim;
+
+  const periodoAtivo = detectarPeriodoPreset(dataInicio, dataFim);
+  const periodoPersonalizado = periodoAtivo !== "mes";
   const filtrosAvancadosAtivos = [
     Boolean(showEquipeFilter && filtroEquipe),
     Boolean(filtroStatus),
-    datasPersonalizadas,
+    Boolean(filtroLocal),
+    Boolean(filtroConferente),
+    periodoPersonalizado,
   ].filter(Boolean).length;
-  const temFiltrosAtivos = Boolean(
-    (showEquipeFilter && filtroEquipe) || filtroStatus || datasPersonalizadas || busca.trim(),
-  );
-  const totalTipoAtual =
-    tipoLista === "extintor"
-      ? rows.filter((r) => r.tipo === "extintor").length
-      : rows.filter((r) => r.tipo === "hidrante").length;
+  const temFiltrosAtivos = filtrosAvancadosAtivos > 0 || Boolean(busca.trim());
+
+  const locaisDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      const local = (row.pavimento || row.setor || "").trim();
+      if (local) set.add(local);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [rows]);
+
+  const conferentesDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      const nome = row.conferente.trim();
+      if (nome) set.add(nome);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [rows]);
+
+  const resumo = useMemo(() => {
+    let conforme = 0;
+    let alerta = 0;
+    let vencido = 0;
+    for (const item of visiveis) {
+      if (item.exportStatus === "conforme") conforme += 1;
+      else if (item.exportStatus === "alerta") alerta += 1;
+      else vencido += 1;
+    }
+    return { realizadas: visiveis.length, conforme, alerta, vencido };
+  }, [visiveis]);
+
+  const filtrosDraft: ConferenciaFiltrosDraft = {
+    equipe: filtroEquipe,
+    status: filtroStatus,
+    dataInicio,
+    dataFim,
+    local: filtroLocal,
+    conferente: filtroConferente,
+  };
 
   const equipeLabelAtiva = filtroEquipe
     ? (EQUIPES_CONFERENCIA.find((eq) => eq.id === filtroEquipe)?.label ?? filtroEquipe)
     : "";
-
   const statusLabelAtivo =
     OPCOES_FILTRO_STATUS.find((op) => op.value === filtroStatus)?.label ?? "";
 
-  function limparFiltros() {
-    const { inicio, fim } = getDatasPadraoMesVigente();
+  function aplicarFiltros(next: ConferenciaFiltrosDraft) {
+    datasEditadasPeloUsuarioRef.current = detectarPeriodoPreset(next.dataInicio, next.dataFim) !== "mes";
+    setFiltroEquipe(next.equipe);
+    setFiltroStatus(next.status);
+    setDataInicio(next.dataInicio);
+    setDataFim(next.dataFim);
+    setFiltroLocal(next.local);
+    setFiltroConferente(next.conferente);
+  }
+
+  function limparFiltrosAvancados() {
+    const padrao = filtrosPadraoMesVigente();
     datasEditadasPeloUsuarioRef.current = false;
-    setBusca("");
     setFiltroEquipe("");
     setFiltroStatus("");
-    setDataInicio(inicio);
-    setDataFim(fim);
+    setFiltroLocal("");
+    setFiltroConferente("");
+    setDataInicio(padrao.dataInicio);
+    setDataFim(padrao.dataFim);
+  }
+
+  function limparFiltros() {
+    limparFiltrosAvancados();
+    setBusca("");
   }
 
   function handleExport(format: "excel" | "pdf") {
@@ -424,6 +493,8 @@ export default function AdminConferenciasPage() {
         dataFim,
         busca,
         filtroStatus,
+        filtroLocal,
+        filtroConferente,
       );
       if (format === "pdf") {
         exportConferenciasPdf(ext, hid, "Histórico de conferências");
@@ -436,34 +507,29 @@ export default function AdminConferenciasPage() {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="page-hero p-6">
-        <div className="page-hero-content flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Histórico</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Conferências realizadas</h2>
-            <p className="mt-2 text-sm font-medium text-slate-300">
-              Consulte extintores e hidrantes separadamente. Os relatórios respeitam todos os filtros aplicados.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void loadConferencias()}
-              className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20"
-            >
-              Atualizar
-            </button>
-            <ExportActions
-              tone="dark"
-              disabled={exportando || totalExportacao === 0}
-              excelLabel={exportando ? "Exportando…" : "Excel"}
-              onExcel={() => handleExport("excel")}
-              onPdf={() => handleExport("pdf")}
-            />
-          </div>
+    <section className="conf-page">
+      <header className="conf-header">
+        <div>
+          <h1>Conferências</h1>
+          <p>Histórico de inspeções realizadas nos equipamentos.</p>
         </div>
-      </div>
+        <div className="conf-header__actions">
+          <button
+            type="button"
+            onClick={() => void loadConferencias()}
+            className="dash-refresh"
+          >
+            Atualizar
+          </button>
+          <ExportActions
+            compact
+            disabled={exportando || totalExportacao === 0}
+            excelLabel={exportando ? "Exportando…" : "Excel"}
+            onExcel={() => handleExport("excel")}
+            onPdf={() => handleExport("pdf")}
+          />
+        </div>
+      </header>
 
       <InventarioTipoTabs
         value={tipoLista}
@@ -472,168 +538,113 @@ export default function AdminConferenciasPage() {
         hidrantesCount={hidCount}
       />
 
-      {loadError && (
+      {loadError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span className="font-semibold">Aviso ao carregar:</span> {loadError}
         </div>
-      )}
+      ) : null}
 
-      <div className="professional-card p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="relative min-w-0 flex-1" htmlFor="filtro-busca">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-              <IconeBusca />
-            </span>
-            <input
-              id="filtro-busca"
-              type="search"
-              placeholder="Buscar por código, local, conferente ou observação…"
-              className="field-control !rounded-xl !py-2.5 !pl-11"
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => setFilterModalOpen(true)}
-            className="relative inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ink)] transition hover:border-[var(--orange)] hover:text-[var(--orange-deep)]"
-          >
-            <IconeEquipe />
-            Filtros
-            {filtrosAvancadosAtivos > 0 && (
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--orange)] px-1 text-[10px] text-white">
-                {filtrosAvancadosAtivos}
-              </span>
-            )}
-          </button>
-          <span className="hidden whitespace-nowrap px-1 text-xs font-semibold text-slate-500 md:inline">
-            {loading ? "Carregando…" : `${visiveis.length} de ${totalTipoAtual}`}
-          </span>
-          {temFiltrosAtivos && (
-            <button
-              type="button"
-              onClick={limparFiltros}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-[var(--muted)] hover:text-slate-700"
-              aria-label="Limpar filtros"
-              title="Limpar filtros"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        {filtrosAvancadosAtivos > 0 && !loading && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
-            {showEquipeFilter && filtroEquipe && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900">
-                {equipeLabelAtiva}
-                <button
-                  type="button"
-                  onClick={() => setFiltroEquipe("")}
-                  className="rounded-full p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-800"
-                  aria-label="Remover filtro de equipe"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            )}
-            {filtroStatus && (
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
-                  filtroStatus === "vencido"
-                    ? "border-red-200 bg-red-50 text-red-900"
-                    : filtroStatus === "alerta"
-                      ? "border-amber-200 bg-amber-50 text-amber-900"
-                      : "border-green-200 bg-green-50 text-green-900"
-                }`}
-              >
-                {statusLabelAtivo}
-                <button
-                  type="button"
-                  onClick={() => setFiltroStatus("")}
-                  className="rounded-full p-0.5 opacity-60 hover:opacity-100"
-                  aria-label="Remover filtro de status"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            )}
-            {dataInicio !== datasPadraoMes.inicio && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
-                De {formatarDataFiltro(dataInicio)}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataInicio(datasPadraoMes.inicio);
-                    datasEditadasPeloUsuarioRef.current =
-                      dataFim !== getDatasPadraoMesVigente().fim;
-                  }}
-                  className="rounded-full p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"
-                  aria-label="Restaurar data inicial do mês vigente"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            )}
-            {dataFim !== datasPadraoMes.fim && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
-                Até {formatarDataFiltro(dataFim)}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataFim(datasPadraoMes.fim);
-                    datasEditadasPeloUsuarioRef.current =
-                      dataInicio !== getDatasPadraoMesVigente().inicio;
-                  }}
-                  className="rounded-full p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"
-                  aria-label="Restaurar data final de hoje"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            )}
-          </div>
-        )}
+      <div className="professional-card conf-toolbar">
+        <label className="conf-search" htmlFor="filtro-busca">
+          <IconeBusca />
+          <input
+            id="filtro-busca"
+            type="search"
+            placeholder="Buscar por código, local, conferente ou observação..."
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => setFilterDrawerOpen(true)}
+          className="conf-filters-btn"
+        >
+          <IconeFiltro />
+          Filtros
+          {filtrosAvancadosAtivos > 0 ? (
+            <span className="conf-filters-btn__count">{filtrosAvancadosAtivos}</span>
+          ) : null}
+        </button>
       </div>
 
-      <div className="professional-card p-5">
-        <div className="mb-4 flex items-end justify-between gap-3">
+      {temFiltrosAtivos ? (
+        <div className="conf-chips">
+          {busca.trim() ? <Chip label={`Busca: ${busca.trim()}`} onRemove={() => setBusca("")} /> : null}
+          {periodoPersonalizado ? (
+            <Chip
+              label={labelPeriodo(dataInicio, dataFim)}
+              onRemove={() => {
+                const { inicio, fim } = getDatasPadraoMesVigente();
+                datasEditadasPeloUsuarioRef.current = false;
+                setDataInicio(inicio);
+                setDataFim(fim);
+              }}
+            />
+          ) : null}
+          {filtroStatus ? (
+            <Chip label={statusLabelAtivo} onRemove={() => setFiltroStatus("")} />
+          ) : null}
+          {filtroLocal ? <Chip label={filtroLocal} onRemove={() => setFiltroLocal("")} /> : null}
+          {filtroConferente ? (
+            <Chip label={filtroConferente} onRemove={() => setFiltroConferente("")} />
+          ) : null}
+          {showEquipeFilter && filtroEquipe ? (
+            <Chip label={equipeLabelAtiva} onRemove={() => setFiltroEquipe("")} />
+          ) : null}
+          <button type="button" className="conf-chips__clear" onClick={limparFiltros}>
+            Limpar filtros
+          </button>
+        </div>
+      ) : null}
+
+      {!loading ? (
+        <p className="conf-summary" aria-label="Resumo operacional">
+          <span className="conf-summary__item">
+            <strong>{resumo.realizadas}</strong> realizadas
+          </span>
+          <span className="conf-summary__item is-ok">
+            <strong>{resumo.conforme}</strong> conformes
+          </span>
+          <span className="conf-summary__item is-bad">
+            <strong>{resumo.alerta}</strong> não conformes
+          </span>
+          <span className="conf-summary__item is-warn">
+            <strong>{resumo.vencido}</strong> vencidos
+          </span>
+        </p>
+      ) : null}
+
+      <div className="professional-card conf-list">
+        <div className="conf-list__head">
           <div>
             <p className="page-eyebrow">Relatórios de inspeção</p>
-            <h2 className="mt-1 text-xl font-extrabold text-[var(--ink)]">
+            <h2>
               {tipoLista === "extintor" ? "Extintores inspecionados" : "Hidrantes inspecionados"}
             </h2>
           </div>
-          <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-xs font-bold text-slate-600">
+          <span className="conf-list__count">
             {visiveis.length} {visiveis.length === 1 ? "registro" : "registros"}
           </span>
         </div>
+
         {loading ? (
-          <div className="flex items-center justify-center gap-3 py-16 text-sm font-semibold text-slate-500">
+          <div className="conf-empty">
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
             Carregando conferências…
           </div>
         ) : visiveis.length === 0 ? (
-          <div className="rounded-2xl bg-[var(--muted)] px-5 py-10 text-center">
-            <p className="font-bold text-[var(--ink)]">Nenhuma inspeção encontrada</p>
-            <p className="mt-1 text-sm text-slate-500">Ajuste a busca ou os filtros para ver outros resultados.</p>
+          <div className="conf-empty conf-empty--box">
+            <p>Nenhuma inspeção encontrada</p>
+            <span>Ajuste a busca ou os filtros para ver outros resultados.</span>
           </div>
         ) : (
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="conf-grid">
             {visiveis.map((item) => (
               <ConferenciaCard
                 key={`${item.tipo}-${item.id}`}
                 item={item}
+                teamLabel={equipeLabelForCodigo(item.codigo, item.tipo)}
                 questions={item.tipo === "extintor" ? extintorQuestions : hidranteQuestions}
                 onOpen={() => setSelectedItem(item)}
               />
@@ -642,36 +653,28 @@ export default function AdminConferenciasPage() {
         )}
       </div>
 
-      <ConferenciaFilterModal
-        open={filterModalOpen}
+      <ConferenciaFilterDrawer
+        open={filterDrawerOpen}
         showEquipeFilter={showEquipeFilter}
-        filtroEquipe={filtroEquipe}
-        filtroStatus={filtroStatus}
-        dataInicio={dataInicio}
-        dataFim={dataFim}
-        resultCount={visiveis.length}
-        onEquipeChange={setFiltroEquipe}
-        onStatusChange={setFiltroStatus}
-        onDataInicioChange={(value) => {
-          datasEditadasPeloUsuarioRef.current = true;
-          setDataInicio(value);
+        value={filtrosDraft}
+        locais={locaisDisponiveis}
+        conferentes={conferentesDisponiveis}
+        onApply={aplicarFiltros}
+        onClear={() => {
+          limparFiltrosAvancados();
+          setFilterDrawerOpen(false);
         }}
-        onDataFimChange={(value) => {
-          datasEditadasPeloUsuarioRef.current = true;
-          setDataFim(value);
-        }}
-        onClear={limparFiltros}
-        onClose={() => setFilterModalOpen(false)}
+        onClose={() => setFilterDrawerOpen(false)}
       />
 
-      {selectedItem && (
-        <ConferenciaDetailModal
+      {selectedItem ? (
+        <ConferenciaDetailDrawer
           item={selectedItem}
           teamLabel={equipeLabelForCodigo(selectedItem.codigo, selectedItem.tipo)}
           questions={selectedItem.tipo === "extintor" ? extintorQuestions : hidranteQuestions}
           onClose={() => setSelectedItem(null)}
         />
-      )}
+      ) : null}
     </section>
   );
 }
