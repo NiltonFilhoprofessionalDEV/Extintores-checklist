@@ -12,6 +12,16 @@ export function getLocalCalendarMonthUtcIsoRange(reference: Date = new Date()) {
   return { startIso: start.toISOString(), endInclusiveIso: endInclusive.toISOString() };
 }
 
+/** Intervalo do dia civil no fuso local, para filtrar `timestamptz`. */
+export function getLocalCalendarDayUtcIsoRange(reference: Date = new Date()) {
+  const y = reference.getFullYear();
+  const m = reference.getMonth();
+  const d = reference.getDate();
+  const start = new Date(y, m, d, 0, 0, 0, 0);
+  const endInclusive = new Date(y, m, d, 23, 59, 59, 999);
+  return { startIso: start.toISOString(), endInclusiveIso: endInclusive.toISOString() };
+}
+
 /** `timestamptz` ISO dentro do intervalo inclusive (mesmo mês civil local dos extremos). */
 export function isIsoDateWithinInclusiveRange(
   iso: string | null,
@@ -23,3 +33,4 @@ export function isIsoDateWithinInclusiveRange(
   if (Number.isNaN(t)) return false;
   return t >= new Date(startIso).getTime() && t <= new Date(endInclusiveIso).getTime();
 }
+

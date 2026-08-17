@@ -2424,3 +2424,236 @@ body[data-inspection-active="true"] .mobile-bottom-nav {
 body[data-inspection-active="true"] {
   --mobile-bottom-nav-clearance: 0px;
 }
+
+/* Perfil operacional */
+.profile-page {
+  width: 100%;
+  max-width: 28rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .profile-page {
+    max-width: 34rem;
+  }
+}
+
+.profile-hero {
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: var(--graphite);
+  color: #fff;
+}
+
+.profile-hero__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1.25rem 1.15rem;
+  text-align: center;
+}
+
+.profile-hero__avatar {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--fc-primary);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.profile-hero__name {
+  margin-top: 0.85rem;
+  max-width: 100%;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.profile-hero__meta {
+  margin-top: 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.62);
+}
+
+.profile-hero__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.12);
+}
+
+.profile-hero__stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.85rem 0.5rem;
+}
+
+.profile-hero__stats > div + div {
+  border-left: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.profile-hero__stat-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.profile-hero__stat-label {
+  margin-top: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.profile-section__title {
+  margin-bottom: 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.profile-activity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.profile-activity > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.85rem 0.35rem;
+}
+
+.profile-activity__value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--fc-text-primary);
+}
+
+.profile-activity__label {
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.profile-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #eef0f2;
+  text-align: left;
+  color: var(--fc-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.profile-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-row:focus-visible {
+  outline: none;
+  box-shadow: var(--fc-focus-ring);
+  border-radius: 0.4rem;
+}
+
+.profile-row__icon {
+  display: grid;
+  width: 1.75rem;
+  place-items: center;
+  color: #64748b;
+}
+
+.profile-row__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-row__value {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.profile-row__chevron {
+  flex-shrink: 0;
+  color: #cbd5e1;
+}
+
+.profile-row--danger {
+  color: #be123c;
+}
+
+.profile-row--danger .profile-row__icon {
+  color: #be123c;
+}
+
+.profile-base__name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--fc-text-primary);
+}
+
+.profile-base__role {
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.profile-logout {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #eef0f2;
+}
+
+.profile-skeleton {
+  min-height: 12.5rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(90deg, #eceef0 0%, #f7f8f9 50%, #eceef0 100%);
+  background-size: 200% 100%;
+  animation: profile-shimmer 1.2s ease-in-out infinite;
+}
+
+.profile-skeleton--block {
+  min-height: 5.5rem;
+}
+
+@keyframes profile-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-skeleton {
+    animation: none;
+  }
+}
+

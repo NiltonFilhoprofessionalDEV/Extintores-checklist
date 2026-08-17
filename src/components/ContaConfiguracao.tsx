@@ -53,8 +53,16 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
   }, [router]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAccount();
   }, [loadAccount]);
+
+  useEffect(() => {
+    if (loading) return;
+    const hash = window.location.hash.replace("#", "");
+    if (!hash) return;
+    document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [loading]);
 
   async function callContaApi(body: Record<string, unknown>) {
     const {
@@ -193,7 +201,7 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
         </div>
       )}
 
-      <form className="section-card space-y-4 p-6" onSubmit={handleSavePerfil}>
+      <form id="dados-pessoais" className="section-card space-y-4 p-6 scroll-mt-4" onSubmit={handleSavePerfil}>
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dados pessoais</p>
           <h2 className="mt-1 text-lg font-black text-[var(--ink)]">Informações do perfil</h2>
@@ -239,22 +247,12 @@ export default function ContaConfiguracao({ backHref, backLabel }: ContaConfigur
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-semibold text-slate-700">Status da conta</label>
-          <input
-            type="text"
-            readOnly
-            className="field-control cursor-not-allowed bg-slate-50 text-slate-500"
-            value={profile?.active ? "Ativo" : "Inativo"}
-          />
-        </div>
-
         <button type="submit" disabled={savingPerfil} className="btn-primary w-full sm:w-auto">
           {savingPerfil ? "Salvando…" : "Salvar dados"}
         </button>
       </form>
 
-      <form className="section-card space-y-4 p-6" onSubmit={handleChangePassword}>
+      <form id="alterar-senha" className="section-card space-y-4 p-6 scroll-mt-4" onSubmit={handleChangePassword}>
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Segurança</p>
           <h2 className="mt-1 text-lg font-black text-[var(--ink)]">Alterar senha</h2>
