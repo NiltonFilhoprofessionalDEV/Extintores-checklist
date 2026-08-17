@@ -151,10 +151,13 @@ async function uploadFloorImages(supabase, baseId, floorKey, processed, dryRun) 
 }
 
 async function migrateEquipmentForFloor(supabase, floor, table, report, dryRun, force) {
-  const selectCols =
-    table === "marcadores_emergencia"
-      ? "id,pavimento,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id"
-      : "id,pavimento,setor,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id";
+  const selectByTable = {
+    extintores: "id,pavimento,setor,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id",
+    hidrantes: "id,pavimento,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id",
+    marcadores_emergencia: "id,pavimento,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id",
+  };
+  const selectCols = selectByTable[table];
+  if (!selectCols) throw new Error(`Tabela não suportada: ${table}`);
 
   const { data: rows, error } = await supabase
     .from(table)
@@ -162,10 +165,7 @@ async function migrateEquipmentForFloor(supabase, floor, table, report, dryRun, 
     .eq("base_id", floor.base_id);
 
   if (error) {
-    if (/coord_x_norm|floor_id|schema cache|column/i.test(error.message)) {
-      report.errors.push({ table, floor_id: floor.id, message: `select ignorado: ${error.message}` });
-      return false;
-    }
+    report.errors.push({ table, floor_id: floor.id, message: error.message });
     throw error;
   }
 

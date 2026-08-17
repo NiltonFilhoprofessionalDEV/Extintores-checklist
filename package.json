@@ -12,6 +12,7 @@
     "maps:crop": "node scripts/crop-map-content.mjs",
     "maps:analyze-legacy": "node scripts/analyze-legacy-maps.mjs",
     "maps:diagnose-equipment": "node scripts/diagnose-equipment-migration.mjs",
+    "maps:validate-legacy": "node scripts/validate-legacy-migration.mjs",
     "maps:migrate-legacy": "node scripts/migrate-legacy-maps.mjs --dry-run"
   },
   "dependencies": {
