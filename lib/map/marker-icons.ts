@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { equipmentIconMarkup } from "@/src/components/EquipmentIcons";
+import { formatMapMarkerLabel, type MapEquipmentKind } from "@/lib/map/marker-label";
 import { MARKER_AMBER, type MarkerColors } from "@/lib/map/marker-styles";
 import type { MarkerLod } from "@/lib/map/marker-lod";
 
@@ -30,61 +31,58 @@ function escapeMarkerLabel(value: string): string {
   });
 }
 
-function codigoLabel(codigo: string, maxLen = 6): string {
-  const numMatch = codigo.match(/\d+/);
-  const label = numMatch ? numMatch[0].replace(/^0+/, "") || numMatch[0] : codigo.slice(0, maxLen);
-  return escapeMarkerLabel(label);
-}
-
 /** Âmbar puro falha contraste com número branco — escurece só o badge. */
 function badgeFill(bg: string): string {
   return bg === MARKER_AMBER ? "#ea580c" : bg;
 }
 
-function badgeFontSize(label: string, compact: boolean): number {
-  if (label.length >= 4) return compact ? 8 : 9;
-  if (label.length === 3) return compact ? 9 : 10;
-  return compact ? 10 : 11;
+function badgeFontSize(label: string, lod: MarkerLod): number {
+  const long = label.length >= 6;
+  if (lod === "dot") return long ? 9 : 10;
+  if (lod === "icon") return long ? 10 : 11;
+  return long ? 11 : 12;
+}
+
+function badgeBox(label: string, lod: MarkerLod, selected: boolean): { width: number; height: number } {
+  const extra = selected ? 4 : 0;
+  const charW = lod === "dot" ? 7 : lod === "icon" ? 7.5 : 8;
+  const padX = lod === "detail" ? 28 : 12;
+  const width = Math.round(label.length * charW + padX + extra);
+  const height = (lod === "dot" ? 20 : lod === "icon" ? 24 : 28) + extra;
+  return { width: Math.max(width, lod === "dot" ? 40 : 44), height };
 }
 
 function numberedBadgeIcon(
   colors: MarkerColors,
   codigo: string,
-  kind: "ext" | "hid",
+  kind: MapEquipmentKind,
   lod: MarkerLod,
   selected: boolean,
+  pulse: boolean,
 ): L.DivIcon {
   const fill = badgeFill(colors.bg);
-  const safeLabel = codigoLabel(codigo);
-  const cacheKey = `badge-${kind}-${fill}-${safeLabel}-${lod}-${selected ? "sel" : "n"}`;
+  const label = formatMapMarkerLabel(kind, codigo);
+  const safeLabel = escapeMarkerLabel(label);
+  const cacheKey = `badge-${kind}-${fill}-${safeLabel}-${lod}-${selected ? "sel" : "n"}-${pulse ? "p" : "0"}`;
 
   return getCachedDivIcon(cacheKey, () => {
-    const kindClass = kind === "hid" ? " map-marker-badge--hyd" : "";
     const selectedClass = selected ? " map-marker-badge--selected" : "";
+    const pulseClass = pulse ? " map-marker-badge--pulse" : "";
+    const { width, height } = badgeBox(label, lod, selected);
+    const hitW = width + 10;
+    const hitH = height + 12;
+    const fontSize = badgeFontSize(label, lod);
 
-    if (lod === "detail") {
-      const width = selected ? 56 : 50;
-      const height = selected ? 30 : 26;
-      const iconSize = kind === "ext" ? 14 : 13;
-      return L.divIcon({
-        className: "map-marker-badge-icon",
-        iconSize: [width, height],
-        iconAnchor: [width / 2, height / 2],
-        html: `<div class="map-marker-badge map-marker-badge--detail${kindClass}${selectedClass}" style="--marker-bg:${fill};width:${width}px;height:${height}px;">
-          <span class="map-marker-badge__glyph">${equipmentIconMarkup(kind === "ext" ? "extintor" : "hidrante", iconSize)}</span>
-          <span class="map-marker-badge__code">${safeLabel}</span>
-        </div>`,
-      });
-    }
+    const inner =
+      lod === "detail"
+        ? `<span class="map-marker-badge__glyph">${equipmentIconMarkup(kind === "extintor" ? "extintor" : "hidrante", 13)}</span><span class="map-marker-badge__code">${safeLabel}</span>`
+        : `<span class="map-marker-badge__code">${safeLabel}</span>`;
 
-    const compact = lod === "dot";
-    const size = compact ? (selected ? 26 : 22) : selected ? 30 : 26;
-    const fontSize = badgeFontSize(safeLabel, compact);
     return L.divIcon({
       className: "map-marker-badge-icon",
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      html: `<div class="map-marker-badge map-marker-badge--${compact ? "compact" : "mid"}${kindClass}${selectedClass}" style="--marker-bg:${fill};width:${size}px;height:${size}px;font-size:${fontSize}px;">${safeLabel}</div>`,
+      iconSize: [hitW, hitH],
+      iconAnchor: [hitW / 2, hitH / 2],
+      html: `<div class="map-marker-hit"><div class="map-marker-badge map-marker-badge--${lod}${selectedClass}${pulseClass}" style="--marker-bg:${fill};width:${width}px;height:${height}px;font-size:${fontSize}px;">${inner}</div></div>`,
     });
   });
 }
@@ -94,8 +92,9 @@ export function extinguisherIcon(
   codigo = "",
   lod: MarkerLod = "detail",
   selected = false,
+  pulse = false,
 ): L.DivIcon {
-  return numberedBadgeIcon(colors, codigo, "ext", lod, selected);
+  return numberedBadgeIcon(colors, codigo, "extintor", lod, selected, pulse);
 }
 
 export function hydrantIcon(
@@ -103,6 +102,7 @@ export function hydrantIcon(
   codigo: string,
   lod: MarkerLod = "detail",
   selected = false,
+  pulse = false,
 ): L.DivIcon {
-  return numberedBadgeIcon(colors, codigo, "hid", lod, selected);
+  return numberedBadgeIcon(colors, codigo, "hidrante", lod, selected, pulse);
 }

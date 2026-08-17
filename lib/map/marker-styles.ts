@@ -46,20 +46,13 @@ export function extintorMarkerColors(
       })
     : false;
 
+  // Cor do badge = status (atenção sempre vermelho; conforme só se conferido e sem alerta).
+  if (vencido || temNc) {
+    return { bg: MARKER_RED, ring: conferidoNoMes ? MARKER_GREEN : MARKER_RED };
+  }
   if (conferidoNoMes) {
-    if (vencido) {
-      return { bg: MARKER_RED, ring: MARKER_GREEN };
-    }
-    if (temNc) {
-      return { bg: MARKER_GREEN, ring: MARKER_RED };
-    }
     return { bg: MARKER_GREEN, ring: MARKER_GREEN };
   }
-
-  if (vencido || temNc) {
-    return { bg: MARKER_RED, ring: MARKER_RED };
-  }
-
   return { bg: MARKER_AMBER, ring: MARKER_AMBER };
 }
 
