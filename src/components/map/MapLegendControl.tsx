@@ -7,38 +7,68 @@ type MapLegendControlProps = {
   variant: "popover" | "sheet";
 };
 
+function LegendSwatch({ label, bg }: { label: string; bg: string }) {
+  return (
+    <span
+      className="inline-flex h-5 min-w-[2.4rem] items-center justify-center rounded-md px-1 text-[10px] font-extrabold text-white"
+      style={{ background: bg }}
+    >
+      {label}
+    </span>
+  );
+}
+
 function LegendBody() {
   return (
-    <div className="space-y-2 text-xs leading-snug text-slate-600">
-      <p className="font-semibold text-slate-800">Cores do marcador</p>
-      <ul className="space-y-1.5">
-        <li className="flex items-center gap-2">
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#16a34a] px-1 text-[10px] font-extrabold text-white">
-            12
-          </span>
-          <span>
-            <span className="font-semibold text-green-700">Verde:</span> conferido e conforme no mês.
-          </span>
-        </li>
-        <li className="flex items-center gap-2">
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ea580c] px-1 text-[10px] font-extrabold text-white">
-            12
-          </span>
-          <span>
-            <span className="font-semibold text-orange-700">Laranja:</span> pendente de conferência.
-          </span>
-        </li>
-        <li className="flex items-center gap-2">
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#dc2626] px-1 text-[10px] font-extrabold text-white">
-            12
-          </span>
-          <span>
-            <span className="font-semibold text-red-700">Vermelho:</span> não conforme, vencido ou item em falta.
-          </span>
-        </li>
-      </ul>
+    <div className="space-y-3 text-xs leading-snug text-slate-600">
+      <div>
+        <p className="mb-1.5 font-semibold uppercase tracking-wide text-slate-800">Tipo de equipamento</p>
+        <ul className="space-y-1.5">
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="E-25" bg="#334155" />
+            <span>
+              <span className="font-semibold text-slate-800">E</span> = Extintor
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="H-07" bg="#334155" />
+            <span>
+              <span className="font-semibold text-slate-800">H</span> = Hidrante
+            </span>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <p className="mb-1.5 font-semibold uppercase tracking-wide text-slate-800">Status</p>
+        <ul className="space-y-1.5">
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="E-25" bg="#16a34a" />
+            <span>
+              <span className="font-semibold text-green-700">Verde:</span> conferido e conforme no mês.
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="E-25" bg="#ea580c" />
+            <span>
+              <span className="font-semibold text-orange-700">Laranja:</span> pendente de conferência.
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="E-25" bg="#dc2626" />
+            <span>
+              <span className="font-semibold text-red-700">Vermelho:</span> não conforme, vencido ou item em falta.
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <LegendSwatch label="E-25" bg="#64748b" />
+            <span>
+              <span className="font-semibold text-slate-600">Cinza:</span> sem status, quando aplicável.
+            </span>
+          </li>
+        </ul>
+      </div>
       <p className="text-[11px] text-slate-500">
-        O número no marcador é o código do equipamento e permanece visível em qualquer zoom.
+        A letra indica o tipo, o número identifica o equipamento e a cor mostra só o status.
       </p>
     </div>
   );

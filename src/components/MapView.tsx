@@ -91,7 +91,10 @@ import MapZoomControls from "@/src/components/map/MapZoomControls";
 import MapViewportSync from "@/src/components/map/MapViewportSync";
 import MapSearchFocus from "@/src/components/map/MapSearchFocus";
 import MapToolbar from "@/src/components/map/MapToolbar";
+import MapEquipmentSearch from "@/src/components/map/MapEquipmentSearch";
 import MapFiltersSheet from "@/src/components/map/MapFiltersSheet";
+import { searchBaseEquipment, resolveFloorForEquipment, type MapSearchHit } from "@/lib/map/equipment-search";
+import { formatMapMarkerLabel } from "@/lib/map/marker-label";
 import MapLegendControl from "@/src/components/map/MapLegendControl";
 import MapEquipmentDetailPanel, {
   type MapEquipmentDetail,
@@ -459,6 +462,20 @@ export default function MapView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [plantStatus, setPlantStatus] = useState<FloorPlantLoadStatus>("loading");
   const [plantRetryKey, setPlantRetryKey] = useState(0);
+  const [searchFocusRequest, setSearchFocusRequest] = useState<{
+    nonce: number;
+    id: string;
+    kind: "extintor" | "hidrante";
+    floorKey: string;
+  } | null>(null);
+  const [pendingSearchOpen, setPendingSearchOpen] = useState<{
+    id: string;
+    kind: "extintor" | "hidrante";
+    floorKey: string;
+  } | null>(null);
+  const [pulseMarkerId, setPulseMarkerId] = useState<string | null>(null);
+  const searchFocusNonceRef = useRef(0);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const currentMonthRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
@@ -878,73 +895,74 @@ export default function MapView() {
   }, [hidrantes, floorRef, filtroEquipe]);
 
   const filteredMarkersDoPavimento = useMemo(() => {
-    const q = buscaEquipamento.trim().toLowerCase();
     return markersDoPavimento.filter((item) => {
       const conferido = conferidosNoMesIds.has(item.id);
       const ult = ultimoChecklistExtintorMes.get(item.id);
       const nc = ult ? checklistTemNaoConformidade(ult) : false;
-      if (!matchesInspectionStatus(conferido, nc, filtroStatus)) return false;
-      if (!q) return true;
-      const loc = formatExtintorLocalizacao(item).toLowerCase();
-      const tipo = formatExtintorTipoCapacidade(item).toLowerCase();
-      return item.codigo.toLowerCase().includes(q) || loc.includes(q) || tipo.includes(q);
+      return matchesInspectionStatus(conferido, nc, filtroStatus);
     });
-  }, [
-    markersDoPavimento,
-    buscaEquipamento,
-    filtroStatus,
-    conferidosNoMesIds,
-    ultimoChecklistExtintorMes,
-  ]);
+  }, [markersDoPavimento, filtroStatus, conferidosNoMesIds, ultimoChecklistExtintorMes]);
 
   const filteredHidrantesDoPavimento = useMemo(() => {
-    const q = buscaEquipamento.trim().toLowerCase();
     return hidrantesDoPavimento.filter((h) => {
       const conferido = conferidosHidranteMesIds.has(h.id);
       const ult = ultimoChecklistHidranteMes.get(h.id);
       const nc = ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false;
-      if (!matchesInspectionStatus(conferido, nc, filtroStatus)) return false;
-      if (!q) return true;
-      const loc = (h.local_detalhado ?? "").toLowerCase();
-      return h.codigo.toLowerCase().includes(q) || loc.includes(q);
+      return matchesInspectionStatus(conferido, nc, filtroStatus);
     });
+  }, [hidrantesDoPavimento, filtroStatus, conferidosHidranteMesIds, ultimoChecklistHidranteMes]);
+
+  const floorCatalog = useMemo(
+    () => pavimentos.map((item) => ({ id: item.id, key: item.key, label: item.label })),
+    [pavimentos],
+  );
+
+  const searchableEquipment = useMemo(() => {
+    const extRows = extintores.map((item) => {
+      const ult = ultimoChecklistExtintorMes.get(item.id);
+      return {
+        id: item.id,
+        codigo: item.codigo,
+        kind: "extintor" as const,
+        localizacao: formatExtintorLocalizacao(item),
+        conferido: conferidosNoMesIds.has(item.id),
+        naoConforme: ult ? checklistTemNaoConformidade(ult) : false,
+        floor_id: item.floor_id,
+        pavimento: item.pavimento,
+        setor: item.setor,
+        coord_x: item.coord_x,
+        coord_y: item.coord_y,
+        coord_x_norm: item.coord_x_norm,
+        coord_y_norm: item.coord_y_norm,
+      };
+    });
+    const hidRows = hidrantes.map((item) => {
+      const ult = ultimoChecklistHidranteMes.get(item.id);
+      return {
+        id: item.id,
+        codigo: item.codigo,
+        kind: "hidrante" as const,
+        localizacao: item.local_detalhado || "",
+        conferido: conferidosHidranteMesIds.has(item.id),
+        naoConforme: ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false,
+        floor_id: item.floor_id,
+        pavimento: item.pavimento,
+        setor: null,
+        coord_x: item.coord_x,
+        coord_y: item.coord_y,
+        coord_x_norm: item.coord_x_norm,
+        coord_y_norm: item.coord_y_norm,
+      };
+    });
+    return [...extRows, ...hidRows];
   }, [
-    hidrantesDoPavimento,
-    buscaEquipamento,
-    filtroStatus,
+    extintores,
+    hidrantes,
+    conferidosNoMesIds,
     conferidosHidranteMesIds,
+    ultimoChecklistExtintorMes,
     ultimoChecklistHidranteMes,
   ]);
-
-  const searchFocusItem = useMemo(() => {
-    if (infoMarker || infoHidrante) return null;
-    const q = buscaEquipamento.trim().toLowerCase();
-    if (!q) return null;
-    const extExact = filteredMarkersDoPavimento.filter((item) => item.codigo.toLowerCase() === q);
-    const hidExact = filteredHidrantesDoPavimento.filter((h) => h.codigo.toLowerCase() === q);
-    if (extExact.length === 1 && hidExact.length === 0) return extExact[0];
-    if (hidExact.length === 1 && extExact.length === 0) return hidExact[0];
-    if (filteredMarkersDoPavimento.length === 1 && filteredHidrantesDoPavimento.length === 0) {
-      return filteredMarkersDoPavimento[0];
-    }
-    if (filteredHidrantesDoPavimento.length === 1 && filteredMarkersDoPavimento.length === 0) {
-      return filteredHidrantesDoPavimento[0];
-    }
-    return null;
-  }, [
-    infoMarker,
-    infoHidrante,
-    buscaEquipamento,
-    filteredMarkersDoPavimento,
-    filteredHidrantesDoPavimento,
-  ]);
-
-  const searchFocusPosition = useMemo(() => {
-    if (!searchFocusItem) return null;
-    return resolveLeafletPosition(searchFocusItem, mapImageSize.width, mapImageSize.height);
-  }, [searchFocusItem, mapImageSize.width, mapImageSize.height]);
-
-  const highlightedMarkerId = infoMarker?.id ?? infoHidrante?.id ?? searchFocusItem?.id ?? null;
 
   const appliedFilters = useMemo<MapFilterState>(
     () => ({
@@ -954,6 +972,119 @@ export default function MapView() {
     }),
     [showLayers, filtroStatus, filtroEquipe],
   );
+
+  const searchHits = useMemo(
+    () => searchBaseEquipment(searchableEquipment, buscaEquipamento, appliedFilters, floorCatalog),
+    [searchableEquipment, buscaEquipamento, appliedFilters, floorCatalog],
+  );
+
+  const highlightedMarkerId =
+    infoMarker?.id ?? infoHidrante?.id ?? searchFocusRequest?.id ?? pendingSearchOpen?.id ?? null;
+
+  const searchFocusItem = useMemo(() => {
+    if (!searchFocusRequest) return null;
+    if (searchFocusRequest.kind === "extintor") {
+      return extintores.find((item) => item.id === searchFocusRequest.id) ?? null;
+    }
+    return hidrantes.find((item) => item.id === searchFocusRequest.id) ?? null;
+  }, [searchFocusRequest, extintores, hidrantes]);
+
+  const searchFocusOnCurrentFloor = Boolean(
+    searchFocusItem && itemMatchesFloor(searchFocusItem, floorRef),
+  );
+
+  const searchFocusPosition = useMemo(() => {
+    if (!searchFocusItem || !searchFocusOnCurrentFloor) return null;
+    return resolveLeafletPosition(searchFocusItem, mapImageSize.width, mapImageSize.height);
+  }, [searchFocusItem, searchFocusOnCurrentFloor, mapImageSize.width, mapImageSize.height]);
+
+  const plantReadyForFocus =
+    searchFocusRequest != null &&
+    pavimento.key === searchFocusRequest.floorKey &&
+    (plantStatus === "ready" || plantStatus === "error" || !hasDisplayablePlant);
+
+  const openEquipmentFromSearch = useCallback(
+    (id: string, kind: "extintor" | "hidrante") => {
+      if (kind === "extintor") {
+        const item = extintores.find((row) => row.id === id);
+        if (!item) return;
+        setInfoHidrante(null);
+        setInfoEmergencia(null);
+        setInfoMarker(item);
+        return;
+      }
+      const item = hidrantes.find((row) => row.id === id);
+      if (!item) return;
+      setInfoMarker(null);
+      setInfoEmergencia(null);
+      setInfoHidrante(item);
+    },
+    [extintores, hidrantes],
+  );
+
+  const startMarkerPulse = useCallback((id: string) => {
+    if (pulseTimerRef.current) globalThis.clearTimeout(pulseTimerRef.current);
+    setPulseMarkerId(id);
+    pulseTimerRef.current = globalThis.setTimeout(() => setPulseMarkerId(null), 2600);
+  }, []);
+
+  const handleSearchSelect = useCallback(
+    (hit: MapSearchHit) => {
+      setBuscaEquipamento("");
+      const source = searchableEquipment.find((item) => item.id === hit.id && item.kind === hit.kind);
+      const targetFloor = source
+        ? resolveFloorForEquipment(source, floorCatalog)
+        : floorCatalog.find((floor) => floor.id === hit.floorId) ?? null;
+      const nextPavimento = targetFloor
+        ? pavimentos.find((item) => item.key === targetFloor.key || item.id === targetFloor.id)
+        : null;
+
+      const targetFloorKey = nextPavimento?.key ?? pavimento.key;
+      searchFocusNonceRef.current += 1;
+      setSearchFocusRequest({
+        nonce: searchFocusNonceRef.current,
+        id: hit.id,
+        kind: hit.kind,
+        floorKey: targetFloorKey,
+      });
+      startMarkerPulse(hit.id);
+
+      if (nextPavimento && nextPavimento.key !== pavimento.key) {
+        setPendingSearchOpen({ id: hit.id, kind: hit.kind, floorKey: nextPavimento.key });
+        setPavimento(nextPavimento);
+        return;
+      }
+      if (!nextPavimento) {
+        setMessage("Equipamento encontrado, mas o setor do mapa não está disponível.");
+      }
+      openEquipmentFromSearch(hit.id, hit.kind);
+    },
+    [
+      searchableEquipment,
+      floorCatalog,
+      pavimentos,
+      pavimento.key,
+      startMarkerPulse,
+      openEquipmentFromSearch,
+    ],
+  );
+
+  useEffect(() => {
+    if (!pendingSearchOpen) return;
+    if (pavimento.key !== pendingSearchOpen.floorKey) return;
+    if (!plantReadyForFocus) return;
+    const timer = globalThis.setTimeout(() => {
+      openEquipmentFromSearch(pendingSearchOpen.id, pendingSearchOpen.kind);
+      setPendingSearchOpen(null);
+    }, 420);
+    return () => globalThis.clearTimeout(timer);
+  }, [pendingSearchOpen, plantReadyForFocus, pavimento.key, openEquipmentFromSearch]);
+
+  useEffect(() => {
+    return () => {
+      if (pulseTimerRef.current) globalThis.clearTimeout(pulseTimerRef.current);
+    };
+  }, []);
 
   const activeFilterCount = countActiveMapFilters(appliedFilters);
 
@@ -1047,9 +1178,15 @@ export default function MapView() {
         const selected = pavimentos.find((item) => item.key === key);
         if (selected) setPavimento(selected);
       }}
-      busca={buscaEquipamento}
-      onBuscaChange={setBuscaEquipamento}
       showSearch={canInspect && mode === "inspecao"}
+      searchSlot={
+        <MapEquipmentSearch
+          query={buscaEquipamento}
+          onQueryChange={setBuscaEquipamento}
+          results={searchHits}
+          onSelect={handleSearchSelect}
+        />
+      }
       onOpenFilters={() => setFiltersOpen(true)}
       activeFilterCount={activeFilterCount}
       actions={mapModeActions}
@@ -1735,7 +1872,11 @@ export default function MapView() {
       />
       <MapZoomStabilityGuard />
       <MapViewportSync onLodChange={setMarkerLod} enableDoubleTapZoom={isMobile} />
-      <MapSearchFocus position={searchFocusPosition} />
+      <MapSearchFocus
+        position={searchFocusPosition}
+        requestId={searchFocusRequest?.nonce ?? 0}
+        plantReady={plantReadyForFocus}
+      />
       <MapZoomControls
         bounds={mapBounds as LatLngBoundsLiteral}
         compact={isMobile}
@@ -1763,7 +1904,14 @@ export default function MapView() {
           <Marker
             key={item.id}
             position={position}
-            icon={extinguisherIcon(extintorMarkerStyle(item), item.codigo, lod, selected)}
+            icon={extinguisherIcon(
+              extintorMarkerStyle(item),
+              item.codigo,
+              lod,
+              selected,
+              pulseMarkerId === item.id,
+            )}
+            title={`${formatMapMarkerLabel("extintor", item.codigo)}`}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao" && canInspect) {
@@ -1782,7 +1930,7 @@ export default function MapView() {
                 key={`ext-${item.id}-${isDataVencida(item.manutencao_2_nivel) ? 1 : 0}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${ultimoChecklistExtintorMes.get(item.id)?.data_conferencia ?? ""}`}
               >
                 <div className="text-sm" style={{ minWidth: 160 }}>
-                  <p className="font-semibold">{item.codigo}</p>
+                  <p className="font-semibold">{formatMapMarkerLabel("extintor", item.codigo)}</p>
                   <p className="text-zinc-500">{formatExtintorLocalizacao(item)}</p>
                   {isDataVencida(item.manutencao_2_nivel) && (
                     <p className="mt-1 text-xs font-semibold text-red-700">⚠ Teste nível 2 vencido</p>
@@ -1855,7 +2003,14 @@ export default function MapView() {
           <Marker
             key={h.id}
             position={position}
-            icon={hydrantIcon(hidranteMarkerStyle(h), h.codigo, lod, selected)}
+            icon={hydrantIcon(
+              hidranteMarkerStyle(h),
+              h.codigo,
+              lod,
+              selected,
+              pulseMarkerId === h.id,
+            )}
+            title={`${formatMapMarkerLabel("hidrante", h.codigo)}`}
             eventHandlers={{
               click: () => {
                 if (mode === "inspecao" && canInspect) {
@@ -1872,9 +2027,9 @@ export default function MapView() {
             {!(isMobile && mode === "inspecao") && (
               <Popup>
                 <div className="text-sm" style={{ minWidth: 160 }}>
-                  <p className="font-semibold">{h.codigo}</p>
+                  <p className="font-semibold">{formatMapMarkerLabel("hidrante", h.codigo)}</p>
                   <p className="text-zinc-500">{h.local_detalhado || "—"}</p>
-                  <p className="mt-1 text-xs font-semibold text-blue-700">Hidrante</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700">Hidrante</p>
                   {mode === "inspecao" && canInspect && (
                     <button
                       type="button"

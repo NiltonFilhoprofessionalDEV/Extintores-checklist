@@ -11,9 +11,8 @@ type MapToolbarProps = {
   pavimentos: PavimentoOption[];
   pavimentoKey: string;
   onPavimentoChange: (key: string) => void;
-  busca: string;
-  onBuscaChange: (value: string) => void;
   showSearch: boolean;
+  searchSlot?: ReactNode;
   onOpenFilters: () => void;
   activeFilterCount: number;
   actions?: ReactNode;
@@ -33,9 +32,8 @@ export default function MapToolbar({
   pavimentos,
   pavimentoKey,
   onPavimentoChange,
-  busca,
-  onBuscaChange,
   showSearch,
+  searchSlot,
   onOpenFilters,
   activeFilterCount,
   actions,
@@ -77,15 +75,8 @@ export default function MapToolbar({
       </div>
 
       {showSearch ? (
-        <div className="map-toolbar__row">
-          <input
-            type="search"
-            aria-label="Buscar equipamento"
-            placeholder="Buscar equipamento..."
-            className="map-toolbar__search"
-            value={busca}
-            onChange={(event) => onBuscaChange(event.target.value)}
-          />
+        <div className="map-toolbar__row map-toolbar__row--search">
+          {searchSlot}
           {filtersButton}
         </div>
       ) : null}
