@@ -181,7 +181,7 @@ export default function AdminExtintoresPage() {
       "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at";
 
     let extData: ExtintorRow[] | null = null;
-    let extQuery = supabase
+    const extQuery = supabase
       .from("extintores")
       .select(selectWithFloor)
       .eq("base_id", activeBaseId)
@@ -241,7 +241,7 @@ export default function AdminExtintoresPage() {
     const hidSelect =
       "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at,active";
 
-    let hidRes = await supabase
+    const hidRes = await supabase
       .from("hidrantes")
       .select(hidSelectWithFloor)
       .eq("base_id", activeBaseId)
@@ -306,23 +306,6 @@ export default function AdminExtintoresPage() {
     };
     void loadProfile();
   }, []);
-
-  useEffect(() => {
-    if (modalMode !== "edit" || floorFieldTouchedRef.current) return;
-    if (modalEntity === "extintor" && editId) {
-      const item = extintores.find((row) => row.id === editId);
-      if (!item) return;
-      const next = resolveFloorSelectValue(floors, item);
-      setForm((prev) => (prev.setor === next ? prev : { ...prev, setor: next }));
-      return;
-    }
-    if (modalEntity === "hidrante" && editId) {
-      const item = hidrantes.find((row) => row.id === editId);
-      if (!item) return;
-      const next = resolveFloorSelectValue(floors, item);
-      setFormHidrante((prev) => (prev.pavimento === next ? prev : { ...prev, pavimento: next }));
-    }
-  }, [floors, modalMode, modalEntity, editId, extintores, hidrantes]);
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
@@ -497,7 +480,9 @@ export default function AdminExtintoresPage() {
     setSaving(true);
     setFeedback(null);
 
-    const setorLabel = toUppercaseLabel(form.setor);
+    const setorLabel = toUppercaseLabel(
+      resolveFloorSelectValue(floors, { setor: form.setor, pavimento: form.pavimento }) || form.setor,
+    );
     const payload = {
       codigo: form.codigo.trim(),
       setor: setorLabel,
@@ -560,7 +545,9 @@ export default function AdminExtintoresPage() {
     setSaving(true);
     setFeedback(null);
 
-    const payload = buildHidranteSavePayload(formHidrante);
+    const pavimento =
+      resolveFloorSelectValue(floors, { pavimento: formHidrante.pavimento }) || formHidrante.pavimento;
+    const payload = buildHidranteSavePayload({ ...formHidrante, pavimento });
 
     try {
       if (modalMode === "create") {
