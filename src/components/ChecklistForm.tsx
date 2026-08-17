@@ -9,6 +9,7 @@ import {
 } from "@/lib/checklist/types";
 import { DEFAULT_EXTINTOR_QUESTION_LABELS } from "@/lib/checklist/default-questions";
 import { computeChecklistProgress } from "@/lib/inspecao/checklist-progress";
+import ChecklistConferenteField from "@/src/components/checklist/ChecklistConferenteField";
 import ChecklistDraftIndicator from "@/src/components/checklist/ChecklistDraftIndicator";
 import ChecklistOperationalBar from "@/src/components/checklist/ChecklistOperationalBar";
 import ChecklistProgressBar from "@/src/components/checklist/ChecklistProgressBar";
@@ -142,22 +143,14 @@ export default function ChecklistForm({
       <div className="checklist-form__layout">
         <aside className="checklist-form__aside">
           {headerResolved && <ExtintorCompactHeader info={headerResolved} />}
-          <div className="mt-4 space-y-3">
+          <div className="checklist-form__meta">
             <ChecklistProgressBar progress={progress} />
             <ChecklistDraftIndicator visible={draftSavedVisible} />
-            <div>
-              <label className="mb-1.5 block text-xs font-bold text-[var(--fc-text-secondary)]">
-                Conferente *
-              </label>
-              <input
-                required
-                type="text"
-                placeholder="Nome do responsável"
-                className="field-control field-control--touch"
-                value={data.conferente}
-                onChange={(event) => onChange({ ...data, conferente: event.target.value })}
-              />
-            </div>
+            <ChecklistConferenteField
+              id="checklist-conferente-extintor"
+              value={data.conferente}
+              onChange={(conferente) => onChange({ ...data, conferente })}
+            />
             <MarkAllConformeButton
               disabled={isSaving}
               onConfirm={() => onChange(markAllConforme(data, fieldKeys))}
@@ -166,7 +159,7 @@ export default function ChecklistForm({
         </aside>
 
         <div className="checklist-form__main">
-          <div className="space-y-3">
+          <div className="checklist-form__questions">
             {resolvedFields.map((field, index) => {
               const value = getChecklistAnswer(data, field.key);
               return (
@@ -183,14 +176,15 @@ export default function ChecklistForm({
               );
             })}
 
-            <div>
-              <label className="mb-1.5 block text-xs font-bold text-[var(--fc-text-secondary)]">
+            <div className="checklist-notes">
+              <label className="checklist-notes__label" htmlFor="checklist-observacoes-extintor">
                 Observações
               </label>
               <textarea
+                id="checklist-observacoes-extintor"
                 rows={3}
                 placeholder="Observações adicionais (opcional)..."
-                className="field-control field-control--touch"
+                className="checklist-notes__input"
                 value={data.observacoes}
                 onChange={(event) => onChange({ ...data, observacoes: event.target.value })}
               />
@@ -198,12 +192,12 @@ export default function ChecklistForm({
           </div>
 
           {!valid && data.conferente.trim() && (
-            <p className="mt-3 text-center text-xs font-semibold text-amber-700">
+            <p className="checklist-form__hint">
               Responda todos os itens e preencha a descrição em todo item marcado como não conforme.
             </p>
           )}
 
-          <div className="mt-4 hidden lg:block">
+          <div className="checklist-form__back">
             <button type="button" onClick={onCancel} className="btn-secondary w-full py-3">
               Voltar à lista
             </button>

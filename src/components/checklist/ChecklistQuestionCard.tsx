@@ -33,12 +33,12 @@ function ChecklistQuestionCardComponent({
       <ChecklistOptionButtons value={value} onChange={onChange} />
       {value === "nao_conforme" && (
         <div className="checklist-nc-panel">
-          <p className="checklist-nc-panel__title">Não conformidade</p>
+          <p className="checklist-nc-panel__title">Não conformidade identificada</p>
           <textarea
             required
             rows={3}
             placeholder="Descreva o problema encontrado..."
-            className="field-control field-control--touch !border-red-200 !bg-white"
+            className="checklist-nc-panel__input"
             value={detalheNc}
             onChange={(event) => onDetalheNcChange(event.target.value)}
           />

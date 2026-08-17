@@ -20,7 +20,7 @@ const OPTIONS: OptionDef[] = [
     value: "nao_conforme",
     label: "Não conforme",
     shortLabel: "Não conforme",
-    icon: "✕",
+    icon: "×",
     activeClass: "checklist-option--nao-conforme",
   },
   {
@@ -44,7 +44,7 @@ export default function ChecklistOptionButtons({
   disabled = false,
 }: ChecklistOptionButtonsProps) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="checklist-options" role="group" aria-label="Resposta da inspeção">
       {OPTIONS.map((opt) => {
         const active = value === opt.value;
         return (
@@ -55,6 +55,7 @@ export default function ChecklistOptionButtons({
             onClick={() => onChange(opt.value)}
             className={`checklist-option pressable ${active ? opt.activeClass : ""}`}
             aria-pressed={active}
+            aria-label={opt.label}
           >
             <span className="checklist-option__icon" aria-hidden>{opt.icon}</span>
             <span className="checklist-option__label">{opt.shortLabel}</span>
