@@ -8,7 +8,7 @@ import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/
 import { exportInventarioPdf } from "@/lib/export/pdf";
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { canManageInactiveInventory, isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
 import { SOFT_DELETE_CONFIRM_PHRASE } from "@/lib/audit/write-audit-log";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { fetchBaseFloors } from "@/lib/auth/bases";
@@ -231,6 +231,7 @@ export default function AdminExtintoresPage() {
 
   const readOnly = isInventoryReadOnlyRole(actorRole);
   const canSoftDelete = isAdminLikeRole(actorRole);
+  const canManageInactive = canManageInactiveInventory(actorRole);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -362,6 +363,15 @@ export default function AdminExtintoresPage() {
     };
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!canManageInactive && showInactive) {
+      setShowInactive(false);
+      setStatusMenuOpen(false);
+      setSelectionMode(false);
+      setSelectedIds([]);
+    }
+  }, [canManageInactive, showInactive]);
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
@@ -738,59 +748,61 @@ export default function AdminExtintoresPage() {
         hidrantesCount={hidrantes.length}
       />
 
-      {canSoftDelete && (
+      {(canManageInactive || (canSoftDelete && selectionMode)) && (
         <div className="professional-card flex flex-wrap items-center gap-2 px-4 py-3">
-          <div className="relative">
-            <button
-              type="button"
-              className="btn-secondary text-xs"
-              onClick={() => setStatusMenuOpen((open) => !open)}
-              aria-haspopup="listbox"
-              aria-expanded={statusMenuOpen}
-            >
-              Status: {showInactive ? "Inativos" : "Ativos"}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            {statusMenuOpen && (
-              <div
-                className="absolute left-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-xl"
-                role="listbox"
+          {canManageInactive && (
+            <div className="relative">
+              <button
+                type="button"
+                className="btn-secondary text-xs"
+                onClick={() => setStatusMenuOpen((open) => !open)}
+                aria-haspopup="listbox"
+                aria-expanded={statusMenuOpen}
               >
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={!showInactive}
-                  className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
-                    !showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                  onClick={() => {
-                    setShowInactive(false);
-                    exitSelectionMode();
-                    setStatusMenuOpen(false);
-                  }}
+                Status: {showInactive ? "Inativos" : "Ativos"}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {statusMenuOpen && (
+                <div
+                  className="absolute left-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-xl"
+                  role="listbox"
                 >
-                  Ativos
-                </button>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={showInactive}
-                  className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
-                    showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                  onClick={() => {
-                    setShowInactive(true);
-                    exitSelectionMode();
-                    setStatusMenuOpen(false);
-                  }}
-                >
-                  Inativos
-                </button>
-              </div>
-            )}
-          </div>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={!showInactive}
+                    className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
+                      !showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => {
+                      setShowInactive(false);
+                      exitSelectionMode();
+                      setStatusMenuOpen(false);
+                    }}
+                  >
+                    Ativos
+                  </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={showInactive}
+                    className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
+                      showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => {
+                      setShowInactive(true);
+                      exitSelectionMode();
+                      setStatusMenuOpen(false);
+                    }}
+                  >
+                    Inativos
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {selectionMode && !showInactive && (
             <>
@@ -935,7 +947,7 @@ export default function AdminExtintoresPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                      {!readOnly && showInactive && canSoftDelete ? (
+                      {!readOnly && showInactive && canManageInactive ? (
                         <button
                           type="button"
                           onClick={() => openRestoreOne(e.id)}
@@ -1064,7 +1076,7 @@ export default function AdminExtintoresPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                      {!readOnly && showInactive && canSoftDelete ? (
+                      {!readOnly && showInactive && canManageInactive ? (
                         <button
                           type="button"
                           onClick={() => openRestoreOne(h.id)}
@@ -1607,8 +1619,10 @@ export default function AdminExtintoresPage() {
             ) : (
               <>
                 <p className="mt-2 text-sm text-slate-600">
-                  Eles saem da lista ativa desta base. O histórico de inspeções permanece e você pode
-                  recuperá-los depois na aba “Removidos”.
+                  Eles saem da lista ativa desta base. O histórico de inspeções permanece
+                  {canManageInactive
+                    ? " e você pode recuperá-los depois em Status → Inativos."
+                    : ". Somente o administrador corporativo pode ver e recuperar itens inativos."}
                 </p>
                 <p className="mt-3 text-sm font-semibold text-slate-800">
                   Para confirmar que você quer apagar estes itens, digite:
