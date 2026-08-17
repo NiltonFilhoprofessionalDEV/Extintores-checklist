@@ -1,5 +1,5 @@
 import type { AdminIconName } from "./admin-nav";
-import { EquipmentPairIcon } from "../EquipmentIcons";
+import { ExtinguisherIcon } from "../EquipmentIcons";
 
 export default function AdminNavIcon({ name, size = 20 }: { name: AdminIconName; size?: number }) {
   const common = {
@@ -18,7 +18,7 @@ export default function AdminNavIcon({ name, size = 20 }: { name: AdminIconName;
     return <svg {...common}><path d="M4 13h6V4H4v9Zm10 7h6v-9h-6v9ZM4 20h6v-3H4v3Zm10-13h6V4h-6v3Z" /></svg>;
   }
   if (name === "inventory") {
-    return <EquipmentPairIcon size={size + 4} />;
+    return <ExtinguisherIcon size={size} />;
   }
   if (name === "map") {
     return <svg {...common}><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15" /></svg>;
