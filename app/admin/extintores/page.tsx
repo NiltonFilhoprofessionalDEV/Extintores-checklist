@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_PADRAO, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 import { exportInventarioPdf } from "@/lib/export/pdf";
 import {
@@ -45,6 +45,7 @@ import {
   MaintenanceCell,
   PositionBadge,
 } from "@/src/components/inventory/InventoryVisuals";
+import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 
 type HidranteRow = HidranteInventarioCompletoRow & { floor_id?: string | null };
 
@@ -86,9 +87,9 @@ function DetalheCampo({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 ${className}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className={`mt-1 text-sm font-semibold text-slate-900 ${valueClassName}`}>{value}</p>
+    <div className={`inv-detail-field ${className}`.trim()}>
+      <p className="inv-detail-field__label">{label}</p>
+      <p className={`inv-detail-field__value ${valueClassName}`.trim()}>{value}</p>
     </div>
   );
 }
@@ -1290,110 +1291,98 @@ export default function AdminExtintoresPage() {
         </FormDrawer>
       )}
 
-      {detalheView && (
-        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
-            <div className="flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--orange)]">
-                  Detalhes do equipamento
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-slate-900">
-                  {tituloEquipamento(detalheView.item.codigo, detalheView.tipo)}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeDetalhe}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
-                aria-label="Fechar"
-              >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+      {detalheView && !modalMode && (
+        <FormDrawer
+          eyebrow={detalheView.tipo === "extintor" ? "Detalhes do extintor" : "Detalhes do hidrante"}
+          title={formatEquipmentIdentifier(detalheView.tipo, detalheView.item.codigo)}
+          description={
+            detalheView.tipo === "extintor"
+              ? [detalheView.item.setor, detalheView.item.local_detalhado].filter(Boolean).join(" · ") ||
+                "Informações cadastrais deste equipamento."
+              : [detalheView.item.pavimento, detalheView.item.local_detalhado].filter(Boolean).join(" · ") ||
+                "Informações cadastrais deste equipamento."
+          }
+          onClose={closeDetalhe}
+          footer={
+            <>
+              <button type="button" onClick={closeDetalhe} className="btn-secondary">
+                Fechar
               </button>
-            </div>
-
-            <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
-              {detalheView.tipo === "extintor" ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.pavimento}
-                    value={detalheView.item.setor || detalheView.item.pavimento || "—"}
-                  />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.localDetalhado}
-                    value={detalheView.item.local_detalhado || "—"}
-                    className="sm:col-span-2"
-                  />
-                  <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
-                  <DetalheCampo label={COLUNAS_PADRAO.numCilindro} value={detalheView.item.num_cilindro || "—"} />
-                  <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
-                  <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.capacidadeExtintora}
-                    value={detalheView.item.capacidade_extintora || "—"}
-                  />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.venctoN2}
-                    value={formatDate(detalheView.item.manutencao_2_nivel)}
-                    valueClassName={isExpired(detalheView.item.manutencao_2_nivel) ? "text-red-700" : ""}
-                  />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.venctoN3}
-                    value={formatDate(detalheView.item.manutencao_3_nivel)}
-                    valueClassName={isExpired(detalheView.item.manutencao_3_nivel) ? "text-red-700" : ""}
-                  />
-                  <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DetalheCampo label={COLUNAS_PADRAO.codigoCurto} value={detalheView.item.codigo} />
-                  <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.localDetalhado}
-                    value={detalheView.item.local_detalhado || "—"}
-                    className="sm:col-span-2"
-                  />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.mangueiras}
-                    value={
-                      detalheView.item.quantidade_mangueiras != null
-                        ? String(detalheView.item.quantidade_mangueiras)
-                        : "—"
-                    }
-                  />
-                  <DetalheCampo label="Quantidade de Chaves Storz" value={detalheView.item.quantidade_chaves_storz ?? "—"} />
-                  <DetalheCampo label="Quantidade de Esguichos" value={detalheView.item.quantidade_esguichos ?? "—"} />
-                  {HIDRANTE_TESTE_M_CAMPOS.slice(
-                    0,
-                    parseQuantidadeMangueiras(String(detalheView.item.quantidade_mangueiras ?? "")),
-                  ).map(({ key, label }) => (
-                    <DetalheCampo
-                      key={key}
-                      label={label}
-                      value={formatDate(detalheView.item[key])}
-                      valueClassName={isExpired(detalheView.item[key]) ? "text-red-700" : ""}
-                    />
-                  ))}
-                  <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
-                </div>
-              )}
-
-              <div className="mt-5 flex justify-end gap-3">
-                {!readOnly && (
-                  <button type="button" onClick={editarFromDetalhe} className="btn-primary">
-                    Editar
-                  </button>
-                )}
-                <button type="button" onClick={closeDetalhe} className="btn-secondary">
-                  Fechar
+              {!readOnly ? (
+                <button type="button" onClick={editarFromDetalhe} className="btn-primary">
+                  Editar
                 </button>
-              </div>
+              ) : null}
+            </>
+          }
+        >
+          {detalheView.tipo === "extintor" ? (
+            <div className="inv-detail-grid">
+              <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.pavimento}
+                value={detalheView.item.setor || detalheView.item.pavimento || "—"}
+              />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.localDetalhado}
+                value={detalheView.item.local_detalhado || "—"}
+                className="inv-detail-field--full"
+              />
+              <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
+              <DetalheCampo label={COLUNAS_PADRAO.numCilindro} value={detalheView.item.num_cilindro || "—"} />
+              <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
+              <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.capacidadeExtintora}
+                value={detalheView.item.capacidade_extintora || "—"}
+                className="inv-detail-field--full"
+              />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.venctoN2}
+                value={formatDate(detalheView.item.manutencao_2_nivel)}
+                valueClassName={isExpired(detalheView.item.manutencao_2_nivel) ? "text-red-700" : ""}
+              />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.venctoN3}
+                value={formatDate(detalheView.item.manutencao_3_nivel)}
+                valueClassName={isExpired(detalheView.item.manutencao_3_nivel) ? "text-red-700" : ""}
+              />
+              <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className="inv-detail-grid">
+              <DetalheCampo label={COLUNAS_PADRAO.codigoCurto} value={detalheView.item.codigo} />
+              <DetalheCampo label={COLUNAS_PADRAO.pavimento} value={detalheView.item.pavimento || "—"} />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.localDetalhado}
+                value={detalheView.item.local_detalhado || "—"}
+                className="inv-detail-field--full"
+              />
+              <DetalheCampo
+                label={COLUNAS_PADRAO.mangueiras}
+                value={
+                  detalheView.item.quantidade_mangueiras != null
+                    ? String(detalheView.item.quantidade_mangueiras)
+                    : "—"
+                }
+              />
+              <DetalheCampo label="Quantidade de Chaves Storz" value={detalheView.item.quantidade_chaves_storz ?? "—"} />
+              <DetalheCampo label="Quantidade de Esguichos" value={detalheView.item.quantidade_esguichos ?? "—"} />
+              {HIDRANTE_TESTE_M_CAMPOS.slice(
+                0,
+                parseQuantidadeMangueiras(String(detalheView.item.quantidade_mangueiras ?? "")),
+              ).map(({ key, label }) => (
+                <DetalheCampo
+                  key={key}
+                  label={label}
+                  value={formatDate(detalheView.item[key])}
+                  valueClassName={isExpired(detalheView.item[key]) ? "text-red-700" : ""}
+                />
+              ))}
+              <DetalheCampo label="Cadastrado em" value={formatDate(detalheView.item.created_at)} />
+            </div>
+          )}
+        </FormDrawer>
       )}
 
       {bulkConfirmOpen && (
