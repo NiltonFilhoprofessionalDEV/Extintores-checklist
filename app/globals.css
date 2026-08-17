@@ -1661,8 +1661,8 @@ h3,
 }
 
 .mobile-nav-rail__item.is-active {
-  background: var(--fc-primary-soft);
-  color: var(--fc-primary-deep);
+  background: transparent;
+  color: var(--fc-primary);
 }
 
 .inspecao-status-badge {
@@ -1681,13 +1681,73 @@ h3,
 }
 
 .inspecao-status-badge--pendente {
-  background: var(--fc-primary-soft);
-  color: var(--fc-primary-deep);
+  background: #fffbeb;
+  color: #b45309;
 }
 
-.inspecao-status-badge--nao-conforme {
+.inspecao-status-badge--nao-conforme,
+.inspecao-status-badge--vencido {
   background: #fff1f2;
   color: #be123c;
+}
+
+.inspecao-equipment-icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--fc-border);
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.inspecao-type-tabs,
+.inspecao-status-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--fc-border);
+}
+
+.inspecao-type-tab,
+.inspecao-status-tab {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 0.7rem 0.5rem;
+  color: var(--fc-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.inspecao-status-tab {
+  font-size: 0.75rem;
+}
+
+.inspecao-type-tab.is-active,
+.inspecao-status-tab.is-active {
+  border-bottom-color: var(--fc-primary);
+  color: var(--fc-text-primary);
+  font-weight: 800;
+}
+
+.inspecao-type-tab__count,
+.inspecao-status-tab__count {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.inspecao-type-tab.is-active .inspecao-type-tab__count,
+.inspecao-status-tab.is-active .inspecao-status-tab__count {
+  color: var(--fc-primary);
 }
 
 .inspecao-equipment-card {
@@ -1698,35 +1758,42 @@ h3,
   border: 1px solid var(--fc-border);
   border-radius: var(--fc-radius-lg);
   background: var(--fc-surface);
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 0.9rem;
   text-align: left;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
 .inspecao-equipment-card:hover {
-  border-color: #d5d8db;
-  box-shadow: var(--fc-shadow-soft);
+  border-color: #cbd5e1;
 }
 
 .inspecao-equipment-card__codigo {
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
   font-weight: 800;
+  letter-spacing: -0.03em;
   line-height: 1.2;
   color: var(--fc-text-primary);
 }
 
 .inspecao-equipment-card__local {
-  margin-top: 0.15rem;
+  margin-top: 0.2rem;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 0.8125rem;
-  line-height: 1.35;
-  color: var(--fc-text-secondary);
+  line-height: 1.4;
+  color: #475569;
 }
 
 .inspecao-equipment-card__meta {
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.6875rem;
-  line-height: 1.35;
-  color: #8a939b;
+  line-height: 1.4;
+  color: #94a3b8;
 }
 
 @media (min-width: 1024px) {
@@ -1743,7 +1810,7 @@ h3,
   }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) {
   .inspecao-card-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1753,7 +1820,7 @@ h3,
 
 @media (min-width: 1280px) {
   .inspecao-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

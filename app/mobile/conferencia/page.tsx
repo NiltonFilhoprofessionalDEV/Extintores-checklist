@@ -10,6 +10,7 @@ import HidranteChecklistForm from "@/src/components/HidranteChecklistForm";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { EquipmentStatusIcon } from "@/src/components/EquipmentIcons";
 import InspecaoEquipmentCard, { type InspecaoCardStatus } from "@/src/components/mobile/InspecaoEquipmentCard";
+import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import InspecaoDraftPrompt from "@/src/components/mobile/InspecaoDraftPrompt";
 import InspecaoFiltersPanel from "@/src/components/mobile/InspecaoFiltersPanel";
 import InspecaoStatusTabs from "@/src/components/mobile/InspecaoStatusTabs";
@@ -1033,7 +1034,7 @@ export default function MobileConferenciaPage() {
   return (
     <div className="space-y-3">
       <header className="space-y-1">
-        <h1 className="font-display text-xl font-extrabold tracking-tight text-[var(--fc-text-primary)] lg:text-2xl">
+        <h1 className="text-xl font-extrabold tracking-tight text-[var(--fc-text-primary)] lg:text-2xl">
           {isAdminLista ? "Checklist" : "Inspeções"}
         </h1>
         <p className="text-sm text-[var(--fc-text-secondary)]">
@@ -1048,7 +1049,7 @@ export default function MobileConferenciaPage() {
 
       {pendingDraftEntry && !selected && !selectedHidrante ? (
         <InspecaoDraftPrompt
-          equipmentCodigo={pendingDraftEntry.equipmentCodigo}
+          equipmentCodigo={formatEquipmentIdentifier(pendingDraftEntry.kind, pendingDraftEntry.equipmentCodigo)}
           kindLabel={pendingDraftEntry.kind === "extintor" ? "Extintor" : "Hidrante"}
           answeredCount={pendingDraftEntry.answeredCount}
           totalCount={pendingDraftEntry.totalCount}
@@ -1066,7 +1067,7 @@ export default function MobileConferenciaPage() {
 
       <div className="flex gap-2">
         <div className="flex min-h-[var(--fc-input-height)] flex-1 items-center gap-2 rounded-[var(--fc-radius-lg)] border border-[var(--fc-border)] bg-[var(--fc-surface)] px-3">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#8a939b" strokeWidth={2} aria-hidden>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="text-slate-400" strokeWidth={1.75} aria-hidden>
             <circle cx="11" cy="11" r="8" />
             <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
           </svg>
@@ -1143,26 +1144,26 @@ export default function MobileConferenciaPage() {
             const manutVencida =
               isVencido(item.manutencao_2_nivel) || isVencido(item.manutencao_3_nivel);
             const testeN2Vencido = isDataVencida(item.manutencao_2_nivel);
-            const variant: "ok" | "pendente" | "alerta" =
-              temNc || testeN2Vencido ? "alerta" : conferidoNoMes ? "ok" : "pendente";
 
             const cardStatus: InspecaoCardStatus = temNc
               ? "nao_conforme"
-              : conferidoNoMes
-                ? "concluido"
-                : "pendente";
+              : manutVencida || testeN2Vencido
+                ? "vencido"
+                : conferidoNoMes
+                  ? "concluido"
+                  : "pendente";
 
             return (
               <InspecaoEquipmentCard
                 key={item.id}
-                codigo={item.codigo}
+                codigo={formatEquipmentIdentifier("extintor", item.codigo)}
                 localDetalhado={item.local_detalhado}
                 metaLine={`${item.pavimento ?? "—"} · ${item.tipo} · ${item.tamanho}`}
                 status={cardStatus}
                 aviso={
                   manutVencida ? "Atenção: manutenção nível 2 ou 3 vencida" : null
                 }
-                icon={<EquipmentStatusIcon kind="extintor" variant={variant} />}
+                icon={<EquipmentStatusIcon kind="extintor" />}
                 draftProgress={getEquipmentDraftProgress("extintor", item.id)}
                 onClick={() => openExtintor(item)}
               />
@@ -1177,19 +1178,19 @@ export default function MobileConferenciaPage() {
               ? hidranteChecklistTemNaoConformidade(ultimo as Record<string, string | null>)
               : false;
             const mangueiraVencida = hidranteTemMangueiraVencida(item);
-            const variant: "ok" | "pendente" | "alerta" =
-              temNc || mangueiraVencida ? "alerta" : conferidoNoMes ? "ok" : "pendente";
 
             const cardStatus: InspecaoCardStatus = temNc
               ? "nao_conforme"
-              : conferidoNoMes
-                ? "concluido"
-                : "pendente";
+              : mangueiraVencida
+                ? "vencido"
+                : conferidoNoMes
+                  ? "concluido"
+                  : "pendente";
 
             return (
               <InspecaoEquipmentCard
                 key={item.id}
-                codigo={item.codigo}
+                codigo={formatEquipmentIdentifier("hidrante", item.codigo)}
                 localDetalhado={item.local_detalhado}
                 metaLine={formatHidranteMetaLine(item)}
                 status={cardStatus}
@@ -1198,7 +1199,7 @@ export default function MobileConferenciaPage() {
                     ? "Atenção: mangueira com teste hidrostático vencido"
                     : null
                 }
-                icon={<EquipmentStatusIcon kind="hidrante" variant={variant} />}
+                icon={<EquipmentStatusIcon kind="hidrante" />}
                 draftProgress={getEquipmentDraftProgress("hidrante", item.id)}
                 onClick={() => openHidrante(item)}
               />
