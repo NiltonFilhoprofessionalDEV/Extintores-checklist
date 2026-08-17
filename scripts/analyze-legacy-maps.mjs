@@ -9,6 +9,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnvLocal } from "./lib/load-env-local.mjs";
 import {
   LEGACY_FLOOR_MAPS,
   LEGACY_BY_KEY,
@@ -18,6 +19,8 @@ import {
   normalizeFloorText,
   pavimentoMatchesFloor,
 } from "./lib/legacy-map-catalog.mjs";
+
+loadEnvLocal();
 
 const ROOT = process.cwd();
 

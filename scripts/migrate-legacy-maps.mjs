@@ -14,6 +14,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnvLocal } from "./lib/load-env-local.mjs";
 import {
   LEGACY_BY_KEY,
   isLegacyImagePath,
@@ -24,6 +25,8 @@ import {
   publicMapObjectUrl,
   storageObjectPath,
 } from "./lib/legacy-map-catalog.mjs";
+
+loadEnvLocal();
 
 const ROOT = process.cwd();
 const PREVIEW_MAX_SIDE = 4000;
@@ -98,9 +101,9 @@ function createReport() {
     floors: { scanned: 0, migrated: 0, skipped: 0, failed: 0, details: [] },
     storageBytesUploaded: 0,
     equipment: {
-      extintores: { floorIdSet: 0, normSet: 0, reviewFlags: 0 },
-      hidrantes: { floorIdSet: 0, normSet: 0, reviewFlags: 0 },
-      marcadores: { floorIdSet: 0, normSet: 0, reviewFlags: 0 },
+      extintores: { found: 0, alreadyComplete: 0, floorIdSet: 0, normSet: 0, reviewFlags: 0 },
+      hidrantes: { found: 0, alreadyComplete: 0, floorIdSet: 0, normSet: 0, reviewFlags: 0 },
+      marcadores: { found: 0, alreadyComplete: 0, floorIdSet: 0, normSet: 0, reviewFlags: 0 },
     },
     errors: [],
     finishedAt: null,
@@ -160,6 +163,7 @@ async function migrateEquipmentForFloor(supabase, floor, table, report, dryRun, 
 
   if (error) {
     if (/coord_x_norm|floor_id|schema cache|column/i.test(error.message)) {
+      report.errors.push({ table, floor_id: floor.id, message: `select ignorado: ${error.message}` });
       return false;
     }
     throw error;
@@ -182,6 +186,8 @@ async function migrateEquipmentForFloor(supabase, floor, table, report, dryRun, 
       (!row.floor_id && pavimentoMatchesFloor(row.pavimento, floor));
 
     if (!matches) continue;
+
+    bucket.found += 1;
 
     if (!row.floor_id) {
       updates.floor_id = floor.id;
@@ -208,7 +214,10 @@ async function migrateEquipmentForFloor(supabase, floor, table, report, dryRun, 
       }
     }
 
-    if (Object.keys(updates).length === 0) continue;
+    if (Object.keys(updates).length === 0) {
+      bucket.alreadyComplete += 1;
+      continue;
+    }
 
     if (!dryRun) {
       const { error: upErr } = await supabase.from(table).update(updates).eq("id", row.id);
@@ -270,6 +279,13 @@ async function run() {
     if (!catalog && !legacyPath) {
       report.floors.skipped += 1;
       report.floors.details.push({ floor_id: floor.id, key: floor.key, action: "skip_not_legacy" });
+      try {
+        await migrateEquipmentForFloor(supabase, floor, "extintores", report, args.dryRun, args.force);
+        await migrateEquipmentForFloor(supabase, floor, "hidrantes", report, args.dryRun, args.force);
+        await migrateEquipmentForFloor(supabase, floor, "marcadores_emergencia", report, args.dryRun, args.force);
+      } catch (err) {
+        report.errors.push({ floor_id: floor.id, message: String(err?.message ?? err) });
+      }
       continue;
     }
 
