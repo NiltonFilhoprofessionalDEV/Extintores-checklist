@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/roles";
 import { useActiveBase } from "@/lib/auth/active-base-context";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCurrentSession } from "@/lib/auth/session-client";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 import RowActionsMenu from "@/src/components/RowActionsMenu";
 
@@ -44,7 +44,6 @@ function readBaseFlags(config: Record<string, unknown> | null) {
 
 export default function AdminBasesPage() {
   const { refresh } = useActiveBase();
-  const supabase = useMemo(() => getSupabaseClient(), []);
   const [bases, setBases] = useState<BaseItem[]>([]);
   const [candidates, setCandidates] = useState<CandidateAdmin[]>([]);
   const [message, setMessage] = useState("");
@@ -71,13 +70,12 @@ export default function AdminBasesPage() {
 
   const callApi = useCallback(
     async <T,>(url: string, init?: RequestInit) => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sessão não encontrada.");
+      const session = await getCurrentSession();
+      if (!session?.access_token) throw new Error("Sessão não encontrada.");
 
       const response = await fetch(url, {
         ...init,
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
@@ -99,7 +97,7 @@ export default function AdminBasesPage() {
       if (!payload) throw new Error("Resposta inválida da API.");
       return payload;
     },
-    [supabase],
+    [],
   );
 
   const load = useCallback(async () => {

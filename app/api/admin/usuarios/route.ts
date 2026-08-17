@@ -7,16 +7,31 @@ import {
   getManagerAccessibleBaseIds,
   getTargetProfile,
   getUserManagerFromRequest,
+  resolveUserManagerFromRequest,
   replaceBaseMemberships,
   resolveBaseForWrite,
   resolveTeamForWrite,
 } from "@/lib/auth/user-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
+export const dynamic = "force-dynamic";
+
+function jsonNoStore(body: unknown, init?: { status?: number }) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
+}
+
 export async function GET(request: Request) {
   try {
-    const manager = await getUserManagerFromRequest(request);
-    if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    const resolved = await resolveUserManagerFromRequest(request);
+    if (!resolved.manager) {
+      return jsonNoStore({ error: resolved.error }, { status: resolved.status });
+    }
+    const manager = resolved.manager;
 
     const supabaseAdmin = getSupabaseAdminClient();
 
@@ -33,9 +48,9 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false });
       if (error) {
         console.error("[admin/usuarios] GET leadership", error);
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        return jsonNoStore({ error: error.message }, { status: 400 });
       }
-      return NextResponse.json({
+      return jsonNoStore({
         users: data ?? [],
         managerRole: manager.role,
         managerTeam: manager.team,
@@ -51,7 +66,7 @@ export async function GET(request: Request) {
       const accessibleBaseIds = await getManagerAccessibleBaseIds(manager);
       const requestedActive = request.headers.get("x-active-base-id")?.trim() || null;
       if (requestedActive && !accessibleBaseIds.includes(requestedActive)) {
-        return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
+        return jsonNoStore({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
       }
       scopeBaseId =
         requestedActive && accessibleBaseIds.includes(requestedActive)
@@ -60,7 +75,7 @@ export async function GET(request: Request) {
     }
 
     if (!scopeBaseId) {
-      return NextResponse.json({ error: "Nenhuma base acessível para listar usuários." }, { status: 403 });
+      return jsonNoStore({ error: "Nenhuma base acessível para listar usuários." }, { status: 403 });
     }
 
     const { data: staffUsers, error: staffError } = await supabaseAdmin
@@ -71,7 +86,7 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
     if (staffError) {
       console.error("[admin/usuarios] GET staff", staffError);
-      return NextResponse.json({ error: staffError.message }, { status: 400 });
+      return jsonNoStore({ error: staffError.message }, { status: 400 });
     }
 
     // Admin corporativo: também lista outros admin_corporativo com membership NESTA base.
@@ -83,7 +98,7 @@ export async function GET(request: Request) {
         .eq("base_id", scopeBaseId);
       if (membershipError) {
         console.error("[admin/usuarios] GET memberships", membershipError);
-        return NextResponse.json({ error: membershipError.message }, { status: 400 });
+        return jsonNoStore({ error: membershipError.message }, { status: 400 });
       }
       const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
       if (corpIds.length > 0) {
@@ -95,7 +110,7 @@ export async function GET(request: Request) {
           .order("created_at", { ascending: false });
         if (corpError) {
           console.error("[admin/usuarios] GET corporativo", corpError);
-          return NextResponse.json({ error: corpError.message }, { status: 400 });
+          return jsonNoStore({ error: corpError.message }, { status: 400 });
         }
         corpUsers = corps ?? [];
       }
@@ -106,7 +121,7 @@ export async function GET(request: Request) {
       byId.set(String(user.id), user);
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       users: Array.from(byId.values()),
       managerRole: manager.role,
       managerTeam: manager.team,
@@ -115,7 +130,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[admin/usuarios] GET", error);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: error instanceof Error ? error.message : "Erro interno no carregamento de usuários." },
       { status: 500 },
     );

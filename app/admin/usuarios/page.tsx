@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/roles";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 import { useActiveBase } from "@/lib/auth/active-base-context";
+import { getCurrentSession } from "@/lib/auth/session-client";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import UserList from "./UserList";
 import type { UserItem } from "./user-types";
@@ -85,13 +86,12 @@ export default function AdminUsuariosPage() {
     form.base_ids.length > 0 ? form.base_ids : needsBasePicker ? defaultBaseIds : [];
 
   const callAdminApi = useCallback(async <T,>(url: string, init?: RequestInit) => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw new Error("Sessão não encontrada.");
+    const session = await getCurrentSession();
+    if (!session?.access_token) throw new Error("Sessão não encontrada.");
 
     const response = await fetch(url, {
       ...init,
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
@@ -122,16 +122,14 @@ export default function AdminUsuariosPage() {
     }
 
     return payload;
-  }, [supabase, activeBaseId]);
+  }, [activeBaseId]);
 
   const loadUsers = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
     setLoading(true);
     setListError("");
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getCurrentSession();
       if (session) setCurrentUserId(session.user.id);
 
       const payload = await callAdminApi<{ users: UserItem[]; managerRole: UserRole; managerTeam: UserTeam | null }>(
@@ -149,7 +147,7 @@ export default function AdminUsuariosPage() {
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
     }
-  }, [callAdminApi, supabase]);
+  }, [callAdminApi]);
 
   useEffect(() => {
     if (!ready) return;

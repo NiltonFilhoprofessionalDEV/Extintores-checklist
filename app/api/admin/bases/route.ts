@@ -6,13 +6,24 @@ import {
   updateBase,
   type CreateBaseInput,
 } from "@/lib/auth/base-management-server";
-import { getManagerAccessibleBaseIds } from "@/lib/auth/user-management-server";
+import { getManagerAccessibleBaseIds, resolveUserManagerFromRequest } from "@/lib/auth/user-management-server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const manager = await requireAdminCorporativo(request);
-    if (!manager) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    const resolved = await resolveUserManagerFromRequest(request);
+    if (!resolved.manager) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    }
+    if (resolved.manager.role !== "admin_corporativo") {
+      return NextResponse.json(
+        { error: "Somente Administrador Corporativo pode gerenciar bases." },
+        { status: 403 },
+      );
+    }
+    const manager = resolved.manager;
 
     const supabaseAdmin = getSupabaseAdminClient();
     const baseIds = await getManagerAccessibleBaseIds(manager);

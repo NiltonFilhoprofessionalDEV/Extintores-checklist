@@ -7,6 +7,7 @@ import {
   isMultiBaseRole,
   isTeamRequiredForRole,
   isUserManager,
+  normalizeUserRole,
   normalizeUserTeam,
 } from "@/lib/auth/roles";
 
@@ -27,30 +28,68 @@ export type ManagedProfile = {
 };
 
 export async function getUserManagerFromRequest(request: Request): Promise<UserManager | null> {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
+  const resolved = await resolveUserManagerFromRequest(request);
+  return resolved.manager;
+}
+
+export async function resolveUserManagerFromRequest(
+  request: Request,
+): Promise<{ manager: UserManager; error: null; status: 200 } | { manager: null; error: string; status: 401 | 403 }> {
+  const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { manager: null, error: "Sessão não encontrada.", status: 401 };
+  }
 
   const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) return null;
+  if (!token) {
+    return { manager: null, error: "Sessão não encontrada.", status: 401 };
+  }
 
   const supabaseAdmin = getSupabaseAdminClient();
   const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !authData.user) return null;
+  if (authError || !authData.user) {
+    console.error("[auth] getUser falhou ao resolver manager", authError?.message ?? "user ausente");
+    return { manager: null, error: "Sessão inválida ou expirada. Entre novamente.", status: 401 };
+  }
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
     .select("role,team,active,base_id")
     .eq("id", authData.user.id)
-    .maybeSingle<{ role: UserRole; team: string | null; active: boolean; base_id: string | null }>();
+    .maybeSingle<{ role: string; team: string | null; active: boolean; base_id: string | null }>();
 
-  if (profileError || !profile || !profile.active || !isUserManager(profile.role)) return null;
+  if (profileError) {
+    console.error("[auth] falha ao ler profile do manager", profileError);
+    return { manager: null, error: "Não foi possível validar o perfil.", status: 401 };
+  }
+  if (!profile) {
+    return { manager: null, error: "Perfil não encontrado.", status: 401 };
+  }
+  if (!profile.active) {
+    return { manager: null, error: "Conta inativa.", status: 403 };
+  }
+
+  const role = normalizeUserRole(profile.role);
+  if (!role || !isUserManager(role)) {
+    return { manager: null, error: "Sem permissão para gerenciar usuários.", status: 403 };
+  }
+
   const team = normalizeUserTeam(profile.team);
-  if (profile.role === "leadership" && !team) return null;
-  if (profile.role === "leadership" && !profile.base_id) return null;
-  if (profile.role === "admin" && !profile.base_id) return null;
-  // admin_corporativo: base_id pode ser null (usa memberships)
+  if (role === "leadership" && !team) {
+    return { manager: null, error: "Líder sem equipe definida.", status: 403 };
+  }
+  if (role === "leadership" && !profile.base_id) {
+    return { manager: null, error: "Líder sem base definida.", status: 403 };
+  }
+  if (role === "admin" && !profile.base_id) {
+    return { manager: null, error: "Administrador sem base definida.", status: 403 };
+  }
 
-  return { id: authData.user.id, role: profile.role, team, base_id: profile.base_id };
+  return {
+    manager: { id: authData.user.id, role, team, base_id: profile.base_id },
+    error: null,
+    status: 200,
+  };
 }
 
 export async function getManagerAccessibleBaseIds(manager: UserManager): Promise<string[]> {
