@@ -1185,9 +1185,11 @@ h3,
   background: #fff;
 }
 
-.map-marker-badge__glyph img {
+.map-marker-badge__glyph img,
+.map-marker-badge__glyph svg {
   width: 12px;
   height: 12px;
+  display: block;
   object-fit: contain;
 }
 
