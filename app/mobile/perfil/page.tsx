@@ -1,265 +1,267 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { signOutCurrentUser } from "@/lib/auth/session-client";
-import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
+import { getCurrentSession } from "@/lib/auth/profile";
+import { ROLE_LABELS } from "@/lib/auth/roles";
+import { useActiveBase } from "@/lib/auth/active-base-context";
+import { APP_NAME, APP_VERSION } from "@/lib/app-version";
+import { fetchProfileActivityStats, type ProfileActivityStats } from "@/lib/inspecao/profile-activity";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
+import ProfileSettingsRow from "@/src/components/mobile/profile/ProfileSettingsRow";
 
-type Stats = {
-  totalInspecoes: number;
-  ultimaInspecao: string | null;
-};
+function formatLastInspectionShort(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const day = date.toLocaleDateString("pt-BR", { day: "2-digit" });
+  const month = date
+    .toLocaleDateString("pt-BR", { month: "short" })
+    .replace(".", "")
+    .toUpperCase();
+  return `${day} ${month}`;
+}
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function formatMetric(value: number | null | undefined, loading: boolean): string {
+  if (loading) return "—";
+  if (value == null) return "—";
+  return String(value);
+}
+
+function UserIcon() {
   return (
-    <div className="flex items-center justify-between py-3">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
-    </div>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <circle cx="12" cy="8" r="3.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 19.25c.9-3.1 3.4-4.75 6.5-4.75s5.6 1.65 6.5 4.75" />
+    </svg>
   );
 }
+
+function LockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path strokeLinecap="round" d="M8 11V8a4 4 0 018 0v3" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <circle cx="12" cy="12" r="8.25" />
+      <path strokeLinecap="round" d="M12 11v5" />
+      <circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H4m0 0l3.5-3.5M4 12l3.5 3.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 5h6a3 3 0 013 3v8a3 3 0 01-3 3h-6" />
+    </svg>
+  );
+}
+
+const EMPTY_STATS: ProfileActivityStats = {
+  today: null,
+  month: null,
+  total: null,
+  lastAt: null,
+};
 
 export default function MobilePerfilPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const { ready, profile, activeBase, activeBaseId } = useActiveBase();
 
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [email, setEmail] = useState<string>("");
-  const [stats, setStats] = useState<Stats>({ totalInspecoes: 0, ultimaInspecao: null });
-  const [loading, setLoading] = useState(true);
+  const [activity, setActivity] = useState<{ key: string; stats: ProfileActivityStats } | null>(null);
   const [showConfirmSignOut, setShowConfirmSignOut] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+
+  const requestKey = ready && profile?.nome ? `${profile.nome}|${activeBaseId ?? ""}` : "";
+  const stats = activity?.key === requestKey ? activity.stats : EMPTY_STATS;
+  const statsLoading = Boolean(requestKey) && activity?.key !== requestKey;
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const session = await getCurrentSession();
-        if (!session) { router.replace("/login"); return; }
+    void getCurrentSession().then((session) => {
+      if (!session) router.replace("/login");
+    });
+  }, [router]);
 
-        setEmail(session.user.email ?? "");
-        const prof = await getProfileBySession(session);
-        setProfile(prof);
-
-        // Fetch inspection stats for this user (escopo da base do perfil)
-        let checklistsQuery = supabase
-          .from("checklists")
-          .select("id, data_conferencia")
-          .order("data_conferencia", { ascending: false });
-        if (prof?.base_id) {
-          checklistsQuery = checklistsQuery.eq("base_id", prof.base_id);
-        }
-        const { data: checklists } = await checklistsQuery;
-
-        const list = checklists ?? [];
-        setStats({
-          totalInspecoes: list.length,
-          ultimaInspecao: (list[0]?.data_conferencia as string | undefined) ?? null,
-        });
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
-      }
+  useEffect(() => {
+    if (!requestKey || !profile?.nome) return;
+    const conferente = profile.nome;
+    const baseId = activeBaseId;
+    let cancelled = false;
+    void fetchProfileActivityStats(supabase, conferente, baseId)
+      .then((next) => {
+        if (!cancelled) setActivity({ key: requestKey, stats: next });
+      })
+      .catch(() => {
+        if (!cancelled) setActivity({ key: requestKey, stats: EMPTY_STATS });
+      });
+    return () => {
+      cancelled = true;
     };
-    void load();
-  }, [supabase, router]);
+  }, [requestKey, profile?.nome, activeBaseId, supabase]);
 
   async function handleSignOut() {
     await signOutCurrentUser();
     router.replace("/login");
   }
 
-  if (loading) {
+  if (!ready) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
+      <div className="profile-page" aria-busy="true">
+        <div className="profile-hero profile-skeleton" />
+        <div className="profile-skeleton profile-skeleton--block" />
+        <div className="profile-skeleton profile-skeleton--block" />
       </div>
     );
   }
 
-  const roleLabel =
-    profile?.role === "admin"
-      ? "Administrador"
-      : profile?.role === "admin_corporativo"
-        ? "Administrador Corporativo"
-        : profile?.role === "leadership"
-          ? "Liderança"
-          : profile?.role === "corporativo"
-            ? "Corporativo"
-            : "Conferente";
-  const roleBg =
-    profile?.role === "admin" || profile?.role === "admin_corporativo"
-      ? "#fef3c7"
-      : profile?.role === "leadership"
-        ? "#ede9fe"
-        : "#dbeafe";
-  const roleColor =
-    profile?.role === "admin" || profile?.role === "admin_corporativo"
-      ? "#92400e"
-      : profile?.role === "leadership"
-        ? "#5b21b6"
-        : "#1e40af";
-
-  const formattedLastInspection = stats.ultimaInspecao
-    ? new Date(stats.ultimaInspecao).toLocaleDateString("pt-BR", {
+  const displayName = profile?.nome?.trim() || "Usuário";
+  const initial = displayName.charAt(0).toUpperCase();
+  const roleLabel = profile ? ROLE_LABELS[profile.role] : "—";
+  const baseName = activeBase?.nome?.trim() || "Base não definida";
+  const lastLabel = stats.lastAt ? formatLastInspectionShort(stats.lastAt) : "—";
+  const lastTitle = stats.lastAt
+    ? new Date(stats.lastAt).toLocaleDateString("pt-BR", {
         day: "2-digit",
         month: "long",
         year: "numeric",
       })
-    : "Nenhuma ainda";
+    : "Nenhuma inspeção ainda";
 
   return (
-    <div className="space-y-4">
-      {/* Avatar + name card */}
-      <div className="reveal-up overflow-hidden rounded-[1.75rem] bg-[var(--forest)] text-white shadow-[var(--shadow-lift)]">
-        <div className="relative px-5 py-6 flex flex-col items-center gap-3">
-          <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[var(--neon)]/20 blur-3xl" />
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[var(--neon)] ring-4 ring-white/15">
-            <span className="text-3xl font-extrabold text-[var(--neon-ink)]">
-              {(profile?.nome ?? email).charAt(0).toUpperCase()}
-            </span>
+    <div className="profile-page">
+      <section className="profile-hero">
+        <div className="profile-hero__identity">
+          <div className="profile-hero__avatar" aria-hidden>
+            {initial}
           </div>
-
-          <div className="text-center">
-            <h2 className="text-xl font-extrabold leading-tight">
-              {profile?.nome ?? "Usuário"}
-            </h2>
-            <p className="mt-0.5 text-sm text-white/70">{email}</p>
-          </div>
-
-          {/* Role badge */}
-          <span
-            className="rounded-full px-3 py-1 text-xs font-bold"
-            style={{ background: roleBg, color: roleColor }}
-          >
-            {roleLabel}
-          </span>
+          <h1 className="profile-hero__name">{displayName}</h1>
+          <p className="profile-hero__meta">
+            {roleLabel} · {baseName}
+          </p>
         </div>
-
-        {/* Stats strip */}
-        <div className="grid grid-cols-2 divide-x divide-white/20 border-t border-white/20 bg-black/10">
-          <div className="flex flex-col items-center py-3.5">
-            <p className="text-2xl font-extrabold text-white">{stats.totalInspecoes}</p>
-            <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">Inspeções</p>
+        <div className="profile-hero__stats">
+          <div>
+            <p className="profile-hero__stat-value">{formatMetric(stats.total, statsLoading)}</p>
+            <p className="profile-hero__stat-label">Inspeções</p>
           </div>
-          <div className="flex flex-col items-center py-3.5">
-            <p className="text-sm font-bold text-white leading-tight text-center px-2">
-              {formattedLastInspection}
+          <div>
+            <p className="profile-hero__stat-value" title={lastTitle}>
+              {statsLoading ? "—" : lastLabel}
             </p>
-            <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">Última inspeção</p>
+            <p className="profile-hero__stat-label">Última inspeção</p>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Account info */}
-      <div className="section-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Dados da conta
-        </p>
-        <div className="divide-y divide-slate-100">
-          <InfoRow label="Nome" value={profile?.nome ?? "—"} />
-          <InfoRow label="E-mail" value={email || "—"} />
-          <InfoRow label="Função" value={roleLabel} />
-          <InfoRow
-            label="Status"
-            value={profile?.active ? "Ativo" : "Inativo"}
+      <section className="profile-section" aria-labelledby="profile-activity-title">
+        <h2 id="profile-activity-title" className="profile-section__title">
+          Minha atividade
+        </h2>
+        <div className="profile-activity">
+          <div>
+            <p className="profile-activity__value">{formatMetric(stats.today, statsLoading)}</p>
+            <p className="profile-activity__label">Hoje</p>
+          </div>
+          <div>
+            <p className="profile-activity__value">{formatMetric(stats.month, statsLoading)}</p>
+            <p className="profile-activity__label">Este mês</p>
+          </div>
+          <div>
+            <p className="profile-activity__value">{formatMetric(stats.total, statsLoading)}</p>
+            <p className="profile-activity__label">Total</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="profile-section" aria-labelledby="profile-account-title">
+        <h2 id="profile-account-title" className="profile-section__title">
+          Minha conta
+        </h2>
+        <div className="profile-group">
+          <ProfileSettingsRow
+            href="/mobile/configuracoes#dados-pessoais"
+            icon={<UserIcon />}
+            label="Dados pessoais"
+          />
+          <ProfileSettingsRow
+            href="/mobile/configuracoes#alterar-senha"
+            icon={<LockIcon />}
+            label="Alterar senha"
           />
         </div>
-        <div className="pb-2" />
-      </div>
+      </section>
 
-      {/* Activity */}
-      <div className="section-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Atividade
-        </p>
-        <div className="divide-y divide-slate-100">
-          <InfoRow label="Total de inspeções registradas" value={String(stats.totalInspecoes)} />
-          <InfoRow label="Última conferência" value={formattedLastInspection} />
+      <section className="profile-section" aria-labelledby="profile-base-title">
+        <h2 id="profile-base-title" className="profile-section__title">
+          Base de trabalho
+        </h2>
+        <div className="profile-base">
+          <p className="profile-base__name">{baseName}</p>
+          <p className="profile-base__role">{roleLabel}</p>
         </div>
-        <div className="pb-2" />
-      </div>
+      </section>
 
-      {/* Actions */}
-      <div className="section-card px-5">
-        <p className="pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Ações
-        </p>
+      <section className="profile-section" aria-labelledby="profile-app-title">
+        <h2 id="profile-app-title" className="profile-section__title">
+          Aplicativo
+        </h2>
+        <div className="profile-group">
+          <ProfileSettingsRow
+            onClick={() => setShowAbout(true)}
+            icon={<InfoIcon />}
+            label={`Sobre o ${APP_NAME}`}
+          />
+        </div>
+      </section>
 
-        <Link
-          href="/mobile/configuracoes"
-          className="flex w-full items-center justify-between border-b border-slate-100 py-3.5 text-sm font-semibold text-slate-800"
-        >
-          <span className="flex items-center gap-3">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Configurações da conta
-          </span>
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
-
-        <button
-          type="button"
+      <div className="profile-logout">
+        <ProfileSettingsRow
           onClick={() => setShowConfirmSignOut(true)}
-          className="flex w-full items-center justify-between py-3.5 text-sm font-semibold text-red-600"
-        >
-          <span className="flex items-center gap-3">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sair do sistema
-          </span>
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-        <div className="pb-2" />
+          icon={<LogoutIcon />}
+          label="Sair do sistema"
+          destructive
+        />
       </div>
 
-      {/* App info */}
-      <div className="pb-4 text-center">
-        <p className="text-xs text-slate-400">FireCheck · Versão 1.0.0</p>
-        <p className="mt-0.5 text-[10px] text-slate-300">Segurança que se confere</p>
-      </div>
+      {showAbout && (
+        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+          <div
+            role="dialog"
+            aria-labelledby="profile-about-title"
+            className="relative w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 sm:max-w-sm sm:rounded-2xl"
+          >
+            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
+            <ModalCloseButton onClick={() => setShowAbout(false)} className="absolute right-4 top-4" />
+            <h2 id="profile-about-title" className="text-lg font-bold text-[var(--fc-text-primary)]">
+              {APP_NAME}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Versão {APP_VERSION}</p>
+          </div>
+        </div>
+      )}
 
-      {/* Confirm sign out modal */}
       {showConfirmSignOut && (
-        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm">
-          <div className="relative w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 shadow-2xl shadow-[var(--forest)]/30">
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200" />
+        <div className="modal-layer fixed inset-0 flex items-end bg-[var(--forest)]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+          <div className="relative w-full rounded-t-3xl bg-white px-5 pb-8 pt-5 sm:max-w-sm sm:rounded-2xl">
+            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
             <ModalCloseButton
               onClick={() => setShowConfirmSignOut(false)}
               className="absolute right-4 top-4"
             />
-
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--forest)" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-base font-bold text-gray-900">Sair do sistema?</p>
-                <p className="text-xs text-gray-500">Você precisará fazer login novamente.</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="btn-primary w-full py-3.5"
-              >
+            <p className="text-base font-bold text-gray-900">Sair do sistema?</p>
+            <p className="mt-1 text-xs text-gray-500">Você precisará fazer login novamente.</p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button type="button" onClick={handleSignOut} className="btn-primary w-full py-3.5">
                 Sim, sair agora
               </button>
               <button
