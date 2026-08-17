@@ -23,9 +23,13 @@ export const viewport: Viewport = {
   themeColor: "#f97316",
 };
 
+const SITE_URL = "https://firechecklist.vercel.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "FireCheck",
   description: "Segurança que se confere",
+  applicationName: "FireCheck",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -37,6 +41,29 @@ export const metadata: Metadata = {
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     shortcut: "/icon-192.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "/",
+    siteName: "FireCheck",
+    title: "FireCheck",
+    description: "Segurança que se confere",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "FireCheck — Segurança que se confere",
+        type: "image/png",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FireCheck",
+    description: "Segurança que se confere",
+    images: ["/og-image.png"],
   },
 };
 
