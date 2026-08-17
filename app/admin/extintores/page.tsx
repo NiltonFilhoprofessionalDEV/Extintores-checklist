@@ -906,7 +906,7 @@ export default function AdminExtintoresPage() {
             />
           ) : (
             <>
-              <div className="inv-cards md:hidden">
+              <div className="inv-cards">
                 {filtered.map((e) => (
                   <div key={e.id} className="inv-card">
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetalheExtintor(e)}>
@@ -959,7 +959,7 @@ export default function AdminExtintoresPage() {
                 ))}
               </div>
 
-              <div className="inv-table-wrap hidden md:block">
+              <div className="inv-table-wrap">
                 <table className="modern-table inv-table">
                   <thead>
                     <tr>
@@ -1069,7 +1069,7 @@ export default function AdminExtintoresPage() {
             />
           ) : (
             <>
-              <div className="inv-cards md:hidden">
+              <div className="inv-cards">
                 {filteredHidrantes.map((h) => (
                   <div key={h.id} className="inv-card">
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetalheHidrante(h)}>
@@ -1121,7 +1121,7 @@ export default function AdminExtintoresPage() {
                 ))}
               </div>
 
-              <div className="inv-table-wrap hidden md:block">
+              <div className="inv-table-wrap">
                 <table className="modern-table inv-table">
                   <thead>
                     <tr>
