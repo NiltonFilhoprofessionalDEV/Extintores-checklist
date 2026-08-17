@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   assignableRoles,
   canManageTarget,
@@ -50,7 +50,7 @@ function isTeamRequired(role: UserRole): boolean {
 }
 
 export default function AdminUsuariosPage() {
-  const { activeBaseId, accessibleBases } = useActiveBase();
+  const { ready, activeBaseId, accessibleBases, activeBase } = useActiveBase();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [managerRole, setManagerRole] = useState<UserRole>("admin");
   const [managerTeam, setManagerTeam] = useState<UserTeam | null>(null);
@@ -60,7 +60,9 @@ export default function AdminUsuariosPage() {
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [listError, setListError] = useState("");
   const [loading, setLoading] = useState(false);
+  const loadGenerationRef = useRef(0);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const creatableRoles = useMemo(() => assignableRoles(managerRole), [managerRole]);
@@ -123,7 +125,9 @@ export default function AdminUsuariosPage() {
   }, [supabase, activeBaseId]);
 
   const loadUsers = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    setListError("");
     try {
       const {
         data: { session },
@@ -133,20 +137,25 @@ export default function AdminUsuariosPage() {
       const payload = await callAdminApi<{ users: UserItem[]; managerRole: UserRole; managerTeam: UserTeam | null }>(
         "/api/admin/usuarios",
       );
-      setUsers(payload.users);
+      if (generation !== loadGenerationRef.current) return;
+      setUsers(payload.users ?? []);
       setManagerRole(payload.managerRole);
       setManagerTeam(payload.managerTeam);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao carregar usuários.");
+      if (generation !== loadGenerationRef.current) return;
+      const text = error instanceof Error ? error.message : "Não foi possível carregar os usuários.";
+      console.error("[admin/usuarios] falha ao carregar lista", error);
+      setListError(text);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [callAdminApi, supabase]);
 
   useEffect(() => {
+    if (!ready) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadUsers();
-  }, [loadUsers, activeBaseId]);
+  }, [loadUsers, ready, activeBaseId]);
 
   function canActOn(user: UserItem): boolean {
     return canManageTarget(managerRole, user.role, managerTeam, user.team) && user.id !== currentUserId;
@@ -195,7 +204,10 @@ export default function AdminUsuariosPage() {
   async function openEdit(user: UserItem) {
     let base_ids: string[] = [];
     if (isMultiBaseRole(user.role)) {
-      const { data } = await supabase.from("base_memberships").select("base_id").eq("user_id", user.id);
+      const { data, error } = await supabase.from("base_memberships").select("base_id").eq("user_id", user.id);
+      if (error) {
+        console.error("[admin/usuarios] falha ao ler memberships do usuário", error);
+      }
       base_ids = (data ?? []).map((row) => String(row.base_id));
       if (base_ids.length === 0) base_ids = defaultBaseIds;
     } else if (user.base_id) {
@@ -511,20 +523,37 @@ export default function AdminUsuariosPage() {
           <div>
             <p className="page-eyebrow">Equipe e acessos</p>
             <h3 className="mt-1 text-xl font-extrabold text-[var(--ink)]">Usuários cadastrados</h3>
+            {activeBase ? (
+              <p className="mt-1 text-sm text-slate-500">
+                Base ativa: <span className="font-semibold text-slate-700">{activeBase.nome}</span>
+              </p>
+            ) : null}
           </div>
           <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-xs font-bold text-slate-600">
             {users.length} {users.length === 1 ? "usuário" : "usuários"}
           </span>
         </div>
-        {loading ? (
+        {!ready || loading ? (
           <div className="flex items-center justify-center gap-3 py-16 text-sm font-semibold text-slate-500">
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
             Carregando usuários…
           </div>
+        ) : listError ? (
+          <div className="rounded-2xl bg-red-50 px-5 py-12 text-center">
+            <p className="font-bold text-red-800">Não foi possível carregar os usuários</p>
+            <p className="mt-1 text-sm text-red-700">{listError}</p>
+            <button type="button" className="btn-primary mt-4" onClick={() => void loadUsers()}>
+              Tentar novamente
+            </button>
+          </div>
         ) : users.length === 0 ? (
           <div className="rounded-2xl bg-[var(--muted)] px-5 py-12 text-center">
             <p className="font-bold text-[var(--ink)]">Nenhum usuário cadastrado</p>
-            <p className="mt-1 text-sm text-slate-500">Use “Novo usuário” para criar o primeiro acesso.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {activeBase
+                ? `Não há usuários nesta base (${activeBase.nome}). Troque a base ativa para ver os demais.`
+                : "Use “Novo usuário” para criar o primeiro acesso."}
+            </p>
           </div>
         ) : (
           <UserList

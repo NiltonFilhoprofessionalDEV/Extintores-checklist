@@ -31,7 +31,10 @@ export async function GET(request: Request) {
         .eq("team", manager.team)
         .eq("base_id", manager.base_id)
         .order("created_at", { ascending: false });
-      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      if (error) {
+        console.error("[admin/usuarios] GET leadership", error);
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
       return NextResponse.json({
         users: data ?? [],
         managerRole: manager.role,
@@ -40,21 +43,20 @@ export async function GET(request: Request) {
       });
     }
 
-    // Isolamento estrito: só a base ativa (admin_corporativo) ou a home base (admin).
-    // Nunca misturar usuários de Santa Genoveva com Curitiba (ou qualquer outra base).
+    // Isolamento por base: admin vê a home base; corporativo vê a base ativa (ou a primeira acessível).
     let scopeBaseId: string | null = null;
     if (manager.role === "admin") {
       scopeBaseId = manager.base_id;
     } else if (manager.role === "admin_corporativo") {
-      const activeBaseId = request.headers.get("x-active-base-id")?.trim() || null;
-      if (!activeBaseId) {
-        return NextResponse.json({ error: "Base ativa obrigatória para listar usuários." }, { status: 400 });
-      }
       const accessibleBaseIds = await getManagerAccessibleBaseIds(manager);
-      if (!accessibleBaseIds.includes(activeBaseId)) {
+      const requestedActive = request.headers.get("x-active-base-id")?.trim() || null;
+      if (requestedActive && !accessibleBaseIds.includes(requestedActive)) {
         return NextResponse.json({ error: "Base fora do seu escopo de acesso." }, { status: 403 });
       }
-      scopeBaseId = activeBaseId;
+      scopeBaseId =
+        requestedActive && accessibleBaseIds.includes(requestedActive)
+          ? requestedActive
+          : (accessibleBaseIds[0] ?? null);
     }
 
     if (!scopeBaseId) {
@@ -67,7 +69,10 @@ export async function GET(request: Request) {
       .eq("base_id", scopeBaseId)
       .in("role", ["admin", "leadership", "user", "cliente"])
       .order("created_at", { ascending: false });
-    if (staffError) return NextResponse.json({ error: staffError.message }, { status: 400 });
+    if (staffError) {
+      console.error("[admin/usuarios] GET staff", staffError);
+      return NextResponse.json({ error: staffError.message }, { status: 400 });
+    }
 
     // Admin corporativo: também lista outros admin_corporativo com membership NESTA base.
     let corpUsers: typeof staffUsers = [];
@@ -77,6 +82,7 @@ export async function GET(request: Request) {
         .select("user_id")
         .eq("base_id", scopeBaseId);
       if (membershipError) {
+        console.error("[admin/usuarios] GET memberships", membershipError);
         return NextResponse.json({ error: membershipError.message }, { status: 400 });
       }
       const corpIds = [...new Set((membershipUserIds ?? []).map((row) => String(row.user_id)))];
@@ -87,7 +93,10 @@ export async function GET(request: Request) {
           .eq("role", "admin_corporativo")
           .in("id", corpIds)
           .order("created_at", { ascending: false });
-        if (corpError) return NextResponse.json({ error: corpError.message }, { status: 400 });
+        if (corpError) {
+          console.error("[admin/usuarios] GET corporativo", corpError);
+          return NextResponse.json({ error: corpError.message }, { status: 400 });
+        }
         corpUsers = corps ?? [];
       }
     }
@@ -105,6 +114,7 @@ export async function GET(request: Request) {
       managerAccessibleBaseIds: [scopeBaseId],
     });
   } catch (error) {
+    console.error("[admin/usuarios] GET", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro interno no carregamento de usuários." },
       { status: 500 },
