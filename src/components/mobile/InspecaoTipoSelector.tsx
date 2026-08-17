@@ -17,41 +17,28 @@ export default function InspecaoTipoSelector({
   onChange,
 }: InspecaoTipoSelectorProps) {
   return (
-    <div className="flex items-center gap-1 rounded-[var(--fc-radius-lg)] border border-[var(--fc-border)] bg-[var(--muted)] p-1" role="tablist" aria-label="Tipo de equipamento">
+    <div className="inspecao-type-tabs" role="tablist" aria-label="Tipo de equipamento">
       <button
         type="button"
         role="tab"
         aria-selected={value === "extintor"}
         onClick={() => onChange("extintor")}
-        className={`flex flex-1 items-center justify-center gap-2 rounded-[var(--fc-radius-md)] px-3 py-2 text-sm font-bold transition ${
-          value === "extintor"
-            ? "bg-white text-[var(--fc-text-primary)] shadow-sm"
-            : "text-[var(--fc-text-secondary)]"
-        }`}
+        className={`inspecao-type-tab${value === "extintor" ? " is-active" : ""}`}
       >
-        <ExtinguisherIcon size={16} />
+        <ExtinguisherIcon size={16} className="text-slate-700" />
         <span>Extintores</span>
-        <span className={`text-xs font-extrabold ${value === "extintor" ? "text-[var(--fc-primary)]" : "text-slate-400"}`}>
-          {extintoresCount}
-        </span>
+        <span className="inspecao-type-tab__count">{extintoresCount}</span>
       </button>
-      <span className="text-slate-300" aria-hidden>|</span>
       <button
         type="button"
         role="tab"
         aria-selected={value === "hidrante"}
         onClick={() => onChange("hidrante")}
-        className={`flex flex-1 items-center justify-center gap-2 rounded-[var(--fc-radius-md)] px-3 py-2 text-sm font-bold transition ${
-          value === "hidrante"
-            ? "bg-white text-[var(--fc-text-primary)] shadow-sm"
-            : "text-[var(--fc-text-secondary)]"
-        }`}
+        className={`inspecao-type-tab${value === "hidrante" ? " is-active" : ""}`}
       >
-        <HydrantIcon size={17} />
+        <HydrantIcon size={16} className="text-slate-700" />
         <span>Hidrantes</span>
-        <span className={`text-xs font-extrabold ${value === "hidrante" ? "text-[var(--fc-primary)]" : "text-slate-400"}`}>
-          {hidrantesCount}
-        </span>
+        <span className="inspecao-type-tab__count">{hidrantesCount}</span>
       </button>
     </div>
   );

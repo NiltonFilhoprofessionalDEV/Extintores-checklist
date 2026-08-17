@@ -24,7 +24,12 @@ export function mapEquipmentNumber(codigo: string): string {
   return n < 10 ? String(n).padStart(2, "0") : String(n);
 }
 
-/** Rótulo compacto: E-25 / H-07. */
-export function formatMapMarkerLabel(kind: MapEquipmentKind, codigo: string): string {
+/** Rótulo visual E-25 / H-07. Não altera o código persistido. */
+export function formatEquipmentIdentifier(kind: MapEquipmentKind, codigo: string): string {
   return `${mapKindPrefix(kind)}-${mapEquipmentNumber(codigo)}`;
+}
+
+/** Alias usado no mapa. */
+export function formatMapMarkerLabel(kind: MapEquipmentKind, codigo: string): string {
+  return formatEquipmentIdentifier(kind, codigo);
 }
