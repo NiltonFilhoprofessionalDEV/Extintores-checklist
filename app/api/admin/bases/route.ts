@@ -29,7 +29,10 @@ export async function GET(request: Request) {
     }
 
     const { data: bases, error: basesError } = await basesQuery;
-    if (basesError) return NextResponse.json({ error: basesError.message }, { status: 400 });
+    if (basesError) {
+      console.error("[admin/bases] GET bases", basesError);
+      return NextResponse.json({ error: basesError.message }, { status: 400 });
+    }
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from("profiles")
@@ -38,13 +41,17 @@ export async function GET(request: Request) {
       .in("role", ["admin", "leadership", "user", "cliente"])
       .eq("active", true)
       .order("nome", { ascending: true });
-    if (staffError) return NextResponse.json({ error: staffError.message }, { status: 400 });
+    if (staffError) {
+      console.error("[admin/bases] GET staff", staffError);
+      return NextResponse.json({ error: staffError.message }, { status: 400 });
+    }
 
     return NextResponse.json({
       bases: bases ?? [],
       candidateAdmins: staff ?? [],
     });
   } catch (error) {
+    console.error("[admin/bases] GET", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao listar bases." },
       { status: 500 },

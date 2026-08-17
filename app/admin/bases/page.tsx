@@ -48,6 +48,7 @@ export default function AdminBasesPage() {
   const [bases, setBases] = useState<BaseItem[]>([]);
   const [candidates, setCandidates] = useState<CandidateAdmin[]>([]);
   const [message, setMessage] = useState("");
+  const [listError, setListError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editBase, setEditBase] = useState<EditState | null>(null);
@@ -103,14 +104,17 @@ export default function AdminBasesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setListError("");
     try {
       const payload = await callApi<{ bases: BaseItem[]; candidateAdmins: CandidateAdmin[] }>(
         "/api/admin/bases",
       );
-      setBases(payload.bases);
-      setCandidates(payload.candidateAdmins);
+      setBases(payload.bases ?? []);
+      setCandidates(payload.candidateAdmins ?? []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao carregar bases.");
+      const text = error instanceof Error ? error.message : "Não foi possível carregar as bases.";
+      console.error("[admin/bases] falha ao carregar lista", error);
+      setListError(text);
     } finally {
       setLoading(false);
     }
@@ -378,6 +382,14 @@ export default function AdminBasesPage() {
 
         {loading ? (
           <p className="text-sm text-[var(--muted-foreground)]">Carregando...</p>
+        ) : listError ? (
+          <div className="rounded-2xl bg-red-50 px-5 py-8 text-center">
+            <p className="font-bold text-red-800">Não foi possível carregar as bases</p>
+            <p className="mt-1 text-sm text-red-700">{listError}</p>
+            <button type="button" className="btn-primary mt-4" onClick={() => void load()}>
+              Tentar novamente
+            </button>
+          </div>
         ) : bases.length === 0 ? (
           <p className="text-sm text-[var(--muted-foreground)]">Nenhuma base vinculada ainda.</p>
         ) : (

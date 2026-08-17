@@ -53,14 +53,21 @@ export function ActiveBaseProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const bases = await fetchAccessibleBasesForUser(nextProfile.id, nextProfile.base_id);
-      const resolved = resolveActiveBaseId(bases, nextProfile.base_id, nextProfile.role);
-      if (resolved) storeActiveBaseId(resolved);
-
-      setProfile(nextProfile);
-      setAccessibleBases(bases);
-      setActiveBaseIdState(resolved);
-    } catch {
+      try {
+        const bases = await fetchAccessibleBasesForUser(nextProfile.id, nextProfile.base_id);
+        const resolved = resolveActiveBaseId(bases, nextProfile.base_id, nextProfile.role);
+        if (resolved) storeActiveBaseId(resolved);
+        setProfile(nextProfile);
+        setAccessibleBases(bases);
+        setActiveBaseIdState(resolved);
+      } catch (basesError) {
+        console.error("[active-base] falha ao carregar bases acessíveis", basesError);
+        setProfile(nextProfile);
+        setAccessibleBases([]);
+        setActiveBaseIdState(nextProfile.base_id);
+      }
+    } catch (error) {
+      console.error("[active-base] refresh falhou", error);
       setProfile(null);
       setAccessibleBases([]);
       setActiveBaseIdState(null);
@@ -70,6 +77,7 @@ export function ActiveBaseProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
 

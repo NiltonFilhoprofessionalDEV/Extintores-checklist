@@ -99,7 +99,10 @@ export async function fetchAccessibleBasesForUser(
     .select("base_id")
     .eq("user_id", userId);
 
-  if (membershipError) throw membershipError;
+  if (membershipError) {
+    console.error("[bases] falha ao ler base_memberships", membershipError);
+    throw membershipError;
+  }
   for (const row of memberships ?? []) {
     if (row.base_id) ids.add(String(row.base_id));
   }
@@ -113,7 +116,10 @@ export async function fetchAccessibleBasesForUser(
     .eq("active", true)
     .order("nome", { ascending: true });
 
-  if (basesError) throw basesError;
+  if (basesError) {
+    console.error("[bases] falha ao ler bases acessíveis", basesError);
+    throw basesError;
+  }
 
   return (bases ?? []).map((base) => ({
     id: String(base.id),
