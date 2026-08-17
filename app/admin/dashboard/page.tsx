@@ -18,8 +18,18 @@ import { checklistTemNaoConformidade } from "@/lib/checklist/types";
 import { hidranteChecklistTemNaoConformidade } from "@/lib/checklist/hidrante-types";
 import { getLocalCalendarMonthUtcIsoRange } from "@/lib/date/local-month-range";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
-import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
-import { EMPRESA_TABS, filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
+import {
+  computeHidranteVencimentoBuckets,
+  diasRestantesMangueiraCritica,
+  earliestVencimentoMangueira,
+  hidranteTemMangueiraVencida,
+  type HidranteVencimentoRow,
+} from "@/lib/hidrantes/vencimento-mangueiras";
+import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
+import { ALL_NAV_ITEMS, getVisibleNavItems } from "@/src/components/admin/admin-nav";
+import DashboardHome, { type DashAlert, type DashFaixa, type DashRecent, type DashUpcoming } from "./DashboardHome";
+import { HidranteManutencaoModal, type HidranteManutencaoModalKey } from "./HidranteVencimentoSection";
+import { filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
 import {
   dataNivel2NaFaixa,
   diasRestantesNivel2,
@@ -28,8 +38,6 @@ import {
   startOfTodayLocal,
   type ManutencaoAlertaKey,
 } from "@/lib/dashboard/manutencao-nivel2";
-import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
-import { HidranteVencimentoSection } from "./HidranteVencimentoSection";
 import ExportActions from "@/src/components/ExportActions";
 import { COLUNAS_EXTINTOR, COLUNA_TITULO_CLASS } from "@/lib/inventario/equipamento-padrao";
 
@@ -317,116 +325,81 @@ function ExtintorManutencaoModal({
   );
 }
 
-function MiniStat({ label, value, tone }: { label: string; value: number; tone: "green" | "red" | "amber" | "slate" }) {
-  const toneClass =
-    tone === "green"
-      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
-      : tone === "red"
-        ? "border-red-100 bg-red-50 text-red-800"
-        : tone === "amber"
-          ? "border-amber-100 bg-amber-50 text-amber-800"
-          : "border-slate-100 bg-slate-50 text-slate-800";
-  return (
-    <div className={`rounded-2xl border px-3 py-3 ${toneClass}`}>
-      <p className="text-2xl font-black tabular-nums">{value}</p>
-      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide opacity-70">{label}</p>
-    </div>
-  );
-}
-
-function AlertTable({
-  title,
-  subtitle,
-  color,
-  items,
-  exportLabel,
-  exportHighlight,
+function NcDetailModal({
+  extintores,
+  hidrantes,
+  onClose,
 }: {
-  title: string;
-  subtitle: string;
-  color: string;
-  items: ExtintorRow[];
-  exportLabel: string;
-  exportHighlight: AlertaVencimentoRowHighlight;
+  extintores: { e: ExtintorRow; u: ChecklistExtintorMesRow }[];
+  hidrantes: { h: HidranteVencimentoRow; u: ChecklistHidranteMesRow }[];
+  onClose: () => void;
 }) {
-  if (items.length === 0) return null;
-  const today = startOfTodayLocal();
-
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm shadow-slate-200/70">
-      <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderTop: `4px solid ${color}` }}>
-        <div>
-          <h3 className="text-base font-black text-[var(--ink)]">{title}</h3>
-          <p className="text-xs font-medium text-slate-500">{subtitle}</p>
+    <div
+      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[min(90dvh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 bg-rose-700 px-5 py-5 text-white">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/60">Detalhamento</p>
+            <h2 className="mt-1 text-xl font-black tracking-tight">Itens não conformes</h2>
+            <p className="text-sm text-white/75">Última conferência do mês, incluindo vencidos no recorte atual.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
+          >
+            Fechar
+          </button>
         </div>
-        <ExportActions
-          compact
-          onExcel={() => exportAlertasVencimento(items, exportLabel, exportHighlight)}
-          onPdf={() => exportAlertasExtintoresPdf(items, title)}
-        />
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-y border-slate-100 bg-slate-50/80">
-              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.codigo}</th>
-              <th className={COLUNA_TITULO_CLASS}>
-                {COLUNAS_EXTINTOR.pavimento} / {COLUNAS_EXTINTOR.localDetalhado}
-              </th>
-              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.tipo}</th>
-              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao2}</th>
-              <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao3}</th>
-              <th className={COLUNA_TITULO_CLASS}>Dias restantes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {items.map((e) => {
-              const days = diasRestantesNivel2(e.manutencao_2_nivel, today);
-              return (
-                <tr key={e.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-slate-900">{e.codigo}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <p>{e.setor}</p>
-                    <p className="text-xs text-slate-400">{e.local_detalhado}</p>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{e.tipo} {e.tamanho}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_2_nivel)}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <p>{formatDatePt(e.manutencao_3_nivel)}</p>
-                    <Nivel3AvisoBadge extintor={e} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {days !== null ? (
-                      <span
-                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-                        style={{
-                          background: days < 0 ? "#fee2e2" : days <= 30 ? "#fef3c7" : "#fef9c3",
-                          color: days < 0 ? "#b91c1c" : days <= 30 ? "#92400e" : "#713f12",
-                        }}
-                      >
-                        {days < 0 ? `${Math.abs(days)}d vencido` : `${days}d`}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="border-t border-slate-100 px-5 py-2.5">
-        <p className="text-xs text-slate-400">{items.length} extintor{items.length !== 1 ? "es" : ""}</p>
+        <div className="min-h-0 flex-1 space-y-5 overflow-auto bg-slate-50/70 p-5">
+          <section>
+            <h3 className="text-sm font-bold text-slate-800">Extintores ({extintores.length})</h3>
+            {extintores.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">Nenhum extintor não conforme neste mês.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                {extintores.map(({ e, u }) => (
+                  <li key={e.id} className="px-4 py-3">
+                    <p className="font-semibold text-slate-900">{formatEquipmentIdentifier("extintor", e.codigo)}</p>
+                    <p className="text-sm text-slate-500">{formatLocalLinha(e.setor, e.local_detalhado)}</p>
+                    <p className="text-xs text-slate-400">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section>
+            <h3 className="text-sm font-bold text-slate-800">Hidrantes ({hidrantes.length})</h3>
+            {hidrantes.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">Nenhum hidrante não conforme neste mês.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                {hidrantes.map(({ h, u }) => (
+                  <li key={h.id} className="px-4 py-3">
+                    <p className="font-semibold text-slate-900">{formatEquipmentIdentifier("hidrante", h.codigo)}</p>
+                    <p className="text-sm text-slate-500">{formatLocalLinha(h.pavimento ?? "", h.local_detalhado)}</p>
+                    <p className="text-xs text-slate-400">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function AdminDashboardPage() {
-  const { ready, activeBaseId, activeBase } = useActiveBase();
+  const { ready, activeBaseId, activeBase, profile } = useActiveBase();
   const showEmpresaTabs = baseHasEmpresaTabs(activeBase);
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [checklistsExtMes, setChecklistsExtMes] = useState<ChecklistExtintorMesRow[]>([]);
@@ -434,14 +407,12 @@ export default function AdminDashboardPage() {
   const [checklistsHidMes, setChecklistsHidMes] = useState<ChecklistHidranteMesRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [manutencaoModal, setManutencaoModal] = useState<ManutencaoModalKey | null>(null);
+  const [hidModal, setHidModal] = useState<HidranteManutencaoModalKey | null>(null);
+  const [ncOpen, setNcOpen] = useState(false);
   const [empresaTab, setEmpresaTab] = useState<EmpresaTab>("santa_genoveva");
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const mesAtualRange = useMemo(() => getLocalCalendarMonthUtcIsoRange(), []);
-
-  useEffect(() => {
-    if (!showEmpresaTabs) setEmpresaTab("todos");
-  }, [showEmpresaTabs]);
 
   const loadDashboard = useCallback(async () => {
     if (!ready || !activeBaseId) return;
@@ -676,6 +647,220 @@ export default function AdminDashboardPage() {
     [mesAtualRange.startIso],
   );
 
+  const hidBuckets = useMemo(
+    () => computeHidranteVencimentoBuckets(hidrantesVisiveis, today),
+    [hidrantesVisiveis, today],
+  );
+
+  const hidModalItems = useMemo(() => {
+    if (!hidModal) return [];
+    if (hidModal === "vencidos") return hidBuckets.vencidosList;
+    if (hidModal === "alerta30") return hidBuckets.alerta30List;
+    if (hidModal === "alerta60") return hidBuckets.alerta60List;
+    if (hidModal === "alerta90") return hidBuckets.alerta90List;
+    if (hidModal === "alerta120") return hidBuckets.alerta120List;
+    return hidBuckets.semPosicaoList;
+  }, [hidModal, hidBuckets]);
+
+  const inspecoesMes = useMemo(() => {
+    const extIds = new Set(extintoresVisiveis.map((item) => item.id));
+    const hidIds = new Set(hidrantesVisiveis.map((item) => item.id));
+    return (
+      checklistsExtMes.filter((row) => extIds.has(row.extintor_id)).length +
+      checklistsHidMes.filter((row) => hidIds.has(row.hidrante_id)).length
+    );
+  }, [checklistsExtMes, checklistsHidMes, extintoresVisiveis, hidrantesVisiveis]);
+
+  const faixas = useMemo<DashFaixa[]>(
+    () => [
+      { key: "alerta30", label: "30 dias", value: stats.alerta30, onClick: () => setManutencaoModal("alerta30") },
+      { key: "alerta60", label: "60 dias", value: stats.alerta60, onClick: () => setManutencaoModal("alerta60") },
+      { key: "alerta90", label: "90 dias", value: stats.alerta90, onClick: () => setManutencaoModal("alerta90") },
+      { key: "alerta120", label: "120 dias", value: stats.alerta120, onClick: () => setManutencaoModal("alerta120") },
+      { key: "alerta180", label: "180 dias", value: stats.alerta180, onClick: () => setManutencaoModal("alerta180") },
+      { key: "alerta360", label: "360 dias", value: stats.alerta360, onClick: () => setManutencaoModal("alerta360") },
+      { key: "semPosicao", label: "Sem posição", value: stats.semPosicao, onClick: () => setManutencaoModal("semPosicao") },
+    ],
+    [stats],
+  );
+
+  const alerts = useMemo<DashAlert[]>(() => {
+    const items: DashAlert[] = [];
+    const naoConformidades = extintorConferenciaMes.naoConforme + hidranteConferenciaMes.naoConforme;
+    if (naoConformidades > 0) {
+      items.push({
+        key: "nc",
+        label: "Itens não conformes",
+        count: naoConformidades,
+        tone: "bad",
+        onClick: () => setNcOpen(true),
+      });
+    }
+    if (stats.vencidos > 0) {
+      items.push({
+        key: "ext-vencidos",
+        label: "Extintores vencidos",
+        count: stats.vencidos,
+        tone: "bad",
+        onClick: () => setManutencaoModal("vencidos"),
+      });
+    }
+    if (hidBuckets.stats.vencidos > 0) {
+      items.push({
+        key: "hid-vencidos",
+        label: "Hidrantes vencidos",
+        count: hidBuckets.stats.vencidos,
+        tone: "bad",
+        onClick: () => setHidModal("vencidos"),
+      });
+    }
+    const ate30 = stats.alerta30 + hidBuckets.stats.alerta30;
+    if (ate30 > 0) {
+      items.push({
+        key: "d30",
+        label: "Vencem em até 30 dias",
+        count: ate30,
+        tone: "warn",
+        onClick: () => {
+          if (stats.alerta30 > 0) setManutencaoModal("alerta30");
+          else setHidModal("alerta30");
+        },
+      });
+    }
+    const semPosicao = stats.semPosicao + hidBuckets.stats.semPosicao;
+    if (semPosicao > 0) {
+      items.push({
+        key: "sem-posicao",
+        label: "Equipamentos sem posição",
+        count: semPosicao,
+        tone: "slate",
+        onClick: () => {
+          if (stats.semPosicao > 0) setManutencaoModal("semPosicao");
+          else setHidModal("semPosicao");
+        },
+      });
+    }
+    const proximas = stats.alerta60 + stats.alerta90;
+    if (proximas > 0) {
+      items.push({
+        key: "proximas",
+        label: "Manutenções próximas",
+        count: proximas,
+        tone: "warn",
+        onClick: () => setManutencaoModal(stats.alerta60 > 0 ? "alerta60" : "alerta90"),
+      });
+    }
+    return items;
+  }, [extintorConferenciaMes.naoConforme, hidranteConferenciaMes.naoConforme, hidBuckets.stats, stats]);
+
+  const upcoming = useMemo<DashUpcoming[]>(() => {
+    const ranked: { row: DashUpcoming; sort: number }[] = [];
+    for (const extintor of extintoresVisiveis) {
+      const dias = diasRestantesNivel2(extintor.manutencao_2_nivel, today);
+      if (dias === null) continue;
+      ranked.push({
+        sort: dias,
+        row: {
+          id: `e-${extintor.id}`,
+          codigo: formatEquipmentIdentifier("extintor", extintor.codigo),
+          tipo: `${extintor.tipo}${extintor.tamanho ? ` ${extintor.tamanho}` : ""}`.trim(),
+          local: extintor.setor || extintor.local_detalhado || "—",
+          vencimento: formatDateOnlyPt(extintor.manutencao_2_nivel),
+          dias: dias < 0 ? `${Math.abs(dias)}d` : `${dias}d`,
+          status: dias < 0 ? "Vencido" : "Próximo",
+        },
+      });
+    }
+    for (const hidrante of hidrantesVisiveis) {
+      const dias = diasRestantesMangueiraCritica(hidrante);
+      if (dias === null) continue;
+      const vencimento = earliestVencimentoMangueira(hidrante);
+      ranked.push({
+        sort: dias,
+        row: {
+          id: `h-${hidrante.id}`,
+          codigo: formatEquipmentIdentifier("hidrante", hidrante.codigo),
+          tipo: "Hidrante",
+          local: hidrante.pavimento || hidrante.local_detalhado || "—",
+          vencimento: formatDateOnlyPt(vencimento),
+          dias: dias < 0 ? `${Math.abs(dias)}d` : `${dias}d`,
+          status: dias < 0 ? "Vencido" : "Próximo",
+        },
+      });
+    }
+    return ranked.sort((a, b) => a.sort - b.sort).slice(0, 5).map((item) => item.row);
+  }, [extintoresVisiveis, hidrantesVisiveis, today]);
+
+  const recent = useMemo<DashRecent[]>(() => {
+    const extById = new Map(extintoresVisiveis.map((item) => [item.id, item]));
+    const hidById = new Map(hidrantesVisiveis.map((item) => [item.id, item]));
+    const ranked: { rec: DashRecent; at: string }[] = [];
+    for (const row of checklistsExtMes) {
+      const extintor = extById.get(row.extintor_id);
+      if (!extintor) continue;
+      ranked.push({
+        at: row.data_conferencia,
+        rec: {
+          id: `e-${row.extintor_id}-${row.data_conferencia}`,
+          codigo: formatEquipmentIdentifier("extintor", extintor.codigo),
+          meta: `${extintor.tipo}${extintor.tamanho ? ` ${extintor.tamanho}` : ""}`.trim(),
+          local: formatLocalLinha(extintor.setor, extintor.local_detalhado),
+          when: new Date(row.data_conferencia).toLocaleString("pt-BR"),
+          ok: !checklistTemNaoConformidade(row),
+        },
+      });
+    }
+    for (const row of checklistsHidMes) {
+      const hidrante = hidById.get(row.hidrante_id);
+      if (!hidrante) continue;
+      ranked.push({
+        at: row.data_conferencia,
+        rec: {
+          id: `h-${row.hidrante_id}-${row.data_conferencia}`,
+          codigo: formatEquipmentIdentifier("hidrante", hidrante.codigo),
+          meta: "Hidrante",
+          local: formatLocalLinha(hidrante.pavimento ?? "", hidrante.local_detalhado),
+          when: new Date(row.data_conferencia).toLocaleString("pt-BR"),
+          ok: !hidranteChecklistTemNaoConformidade(row as Record<string, string | null>),
+        },
+      });
+    }
+    return ranked.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((item) => item.rec);
+  }, [checklistsExtMes, checklistsHidMes, extintoresVisiveis, hidrantesVisiveis]);
+
+  const quickLinks = useMemo(() => {
+    if (!profile?.role) return [];
+    const visible = getVisibleNavItems(ALL_NAV_ITEMS, profile.role);
+    const wanted = [
+      "/admin/inspecoes-lista",
+      "/admin/importacao",
+      "/admin/usuarios",
+      "/admin/bases",
+      "/admin/configuracoes",
+    ];
+    return wanted
+      .map((href) => visible.find((item) => item.href === href))
+      .filter((item): item is (typeof visible)[number] => Boolean(item));
+  }, [profile]);
+
+  const hidroEmDia = Math.max(
+    0,
+    hidBuckets.stats.total
+      - hidBuckets.stats.vencidos
+      - hidBuckets.stats.alerta30
+      - hidBuckets.stats.alerta60
+      - hidBuckets.stats.alerta90
+      - hidBuckets.stats.alerta120,
+  );
+
+  function openUpcomingDetails() {
+    if (stats.vencidos > 0) setManutencaoModal("vencidos");
+    else if (hidBuckets.stats.vencidos > 0) setHidModal("vencidos");
+    else if (stats.alerta30 > 0) setManutencaoModal("alerta30");
+    else if (hidBuckets.stats.alerta30 > 0) setHidModal("alerta30");
+    else setManutencaoModal("alerta60");
+  }
+
   if (!ready || !activeBaseId || loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -685,416 +870,85 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="space-y-7">
-      {/* Page header */}
-      <div className="page-hero reveal-up p-6 sm:p-7">
-        <div className="page-hero-content flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--neon)]">Painel operacional</p>
-            <h1 className="font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">
-              Visão consolidada de extintores, hidrantes, conferências mensais e manutenção programada.
-            </p>
-          </div>
-          <p className="inline-flex rounded-full bg-[var(--neon)] px-3.5 py-1.5 text-xs font-extrabold capitalize text-[var(--neon-ink)] shadow-md shadow-black/20">
-            {mesLegenda}
-          </p>
-        </div>
-      </div>
+    <>
+      <DashboardHome
+        mesLegenda={mesLegenda}
+        showEmpresaTabs={showEmpresaTabs}
+        empresaTab={empresaTab}
+        onEmpresaTab={(tab) => {
+          setEmpresaTab(tab);
+          setManutencaoModal(null);
+          setHidModal(null);
+          setNcOpen(false);
+        }}
+        onRefresh={() => void loadDashboard()}
+        kpis={{
+          extintores: stats.total,
+          hidrantes: hidBuckets.stats.total,
+          inspecoesMes,
+          naoConformidades: extintorConferenciaMes.naoConforme + hidranteConferenciaMes.naoConforme,
+          vencidos: stats.vencidos + hidBuckets.stats.vencidos,
+        }}
+        onNcClick={() => setNcOpen(true)}
+        onVencidosClick={() => {
+          if (stats.vencidos > 0) setManutencaoModal("vencidos");
+          else setHidModal("vencidos");
+        }}
+        faixas={faixas}
+        extStatus={extintorConferenciaMes}
+        hidStatus={hidranteConferenciaMes}
+        hidro={{
+          vencido: hidBuckets.stats.vencidos,
+          d30: hidBuckets.stats.alerta30,
+          d60: hidBuckets.stats.alerta60,
+          d90: hidBuckets.stats.alerta90,
+          d120: hidBuckets.stats.alerta120,
+          emDia: hidroEmDia,
+          total: hidBuckets.stats.total,
+        }}
+        onHydroSelect={(bucket) => {
+          const map = {
+            vencido: "vencidos",
+            d30: "alerta30",
+            d60: "alerta60",
+            d90: "alerta90",
+            d120: "alerta120",
+          } as const;
+          setHidModal(map[bucket]);
+        }}
+        alerts={alerts}
+        upcoming={upcoming}
+        onSeeUpcoming={openUpcomingDetails}
+        recent={recent}
+        quickLinks={quickLinks}
+        extSemPosicao={stats.semPosicao}
+        hidSemPosicao={hidBuckets.stats.semPosicao}
+      />
 
-      {showEmpresaTabs && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="pl-5 pr-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
-            Empresa
-          </span>
-          {EMPRESA_TABS.map((tab) => {
-            const active = empresaTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setEmpresaTab(tab.id);
-                  setManutencaoModal(null);
-                }}
-                aria-pressed={active}
-                className={`rounded-full border px-4 py-2 text-sm font-bold transition-all ${
-                  active
-                    ? "border-[var(--neon)] bg-[var(--neon)] text-[var(--neon-ink)] shadow-sm shadow-[var(--neon)]/30"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="page-heading">
-        <div>
-          <p className="page-eyebrow">Extintores</p>
-          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Vencimento de manutenção</h2>
-        </div>
-        <p className="text-xs font-medium text-slate-500">
-          Cards baseados no vencimento anual de 2º nível. Se o 3º nível vence no mesmo ano, aparece aviso na lista.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <DashboardStatCard
-          label="Total de extintores"
-          value={stats.total}
-          color="#3b82f6"
-          icon={<DashboardStatIcon name="total" />}
-        />
-        <DashboardStatCard
-          label="Manutenção de 2º nível vencida"
-          subtitle={faixaLabels.vencidos}
-          value={stats.vencidos}
-          color="#dc2626"
-          onClick={() => setManutencaoModal("vencidos")}
-          icon={<DashboardStatIcon name="vencido" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 30 dias"
-          subtitle={faixaLabels.alerta30}
-          value={stats.alerta30}
-          color="#f59e0b"
-          onClick={() => setManutencaoModal("alerta30")}
-          icon={<DashboardStatIcon name="alerta30" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 60 dias"
-          subtitle={faixaLabels.alerta60}
-          value={stats.alerta60}
-          color="#eab308"
-          onClick={() => setManutencaoModal("alerta60")}
-          icon={<DashboardStatIcon name="alerta60" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 90 dias"
-          subtitle={faixaLabels.alerta90}
-          value={stats.alerta90}
-          color="#84cc16"
-          onClick={() => setManutencaoModal("alerta90")}
-          icon={<DashboardStatIcon name="alerta90" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 120 dias"
-          subtitle={faixaLabels.alerta120}
-          value={stats.alerta120}
-          color="#22c55e"
-          onClick={() => setManutencaoModal("alerta120")}
-          icon={<DashboardStatIcon name="alerta120" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 180 dias"
-          subtitle={faixaLabels.alerta180}
-          value={stats.alerta180}
-          color="#14b8a6"
-          onClick={() => setManutencaoModal("alerta180")}
-          icon={<DashboardStatIcon name="alerta180" />}
-        />
-        <DashboardStatCard
-          label="Vencendo em 360 dias"
-          subtitle={faixaLabels.alerta360}
-          value={stats.alerta360}
-          color="#0ea5e9"
-          onClick={() => setManutencaoModal("alerta360")}
-          icon={<DashboardStatIcon name="alerta360" />}
-        />
-        <DashboardStatCard
-          label="Sem posição no mapa"
-          value={stats.semPosicao}
-          color="#6b7280"
-          onClick={() => setManutencaoModal("semPosicao")}
-          icon={<DashboardStatIcon name="semMapa" />}
-        />
-      </div>
-
-      {manutencaoModal && (
+      {manutencaoModal ? (
         <ExtintorManutencaoModal
           modalKey={manutencaoModal}
           items={manutencaoModalItems}
           dateRangeLabel={manutencaoModalRange}
           onClose={() => setManutencaoModal(null)}
         />
-      )}
+      ) : null}
 
-      <HidranteVencimentoSection hidrantes={hidrantesVisiveis} />
+      {hidModal ? (
+        <HidranteManutencaoModal
+          modalKey={hidModal}
+          items={hidModalItems}
+          onClose={() => setHidModal(null)}
+        />
+      ) : null}
 
-      {/* Conferência no mês */}
-      <section className="professional-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-5">
-          <div>
-            <p className="page-eyebrow">Auditoria mensal</p>
-            <h2 className="mt-1 text-xl font-extrabold text-[var(--ink)]">Conferência no mês</h2>
-          </div>
-          <p className="max-w-xl text-xs font-medium text-slate-500">
-            Última conferência registrada no mês. Vencidos (manutenção ou mangueira) entram em não conforme.
-          </p>
-        </div>
-
-        <div className="grid gap-5 p-5 lg:grid-cols-2">
-          <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-[var(--ink)]">Extintores</h3>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700">
-                {extintorConferenciaMes.total} itens
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <MiniStat label="Conforme" value={extintorConferenciaMes.conforme} tone="green" />
-              <MiniStat label="Não conforme" value={extintorConferenciaMes.naoConforme} tone="red" />
-              <MiniStat label="Pendente" value={extintorConferenciaMes.pendente} tone="amber" />
-              <MiniStat label="Total" value={extintorConferenciaMes.total} tone="slate" />
-            </div>
-            {extintoresNcMes.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50">
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Código</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Local</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Última conferência</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {extintoresNcMes.map(({ e, u }) => (
-                      <tr key={e.id}>
-                        <td className="px-3 py-2 font-semibold text-slate-900">{e.codigo}</td>
-                        <td className="px-3 py-2 text-slate-600">{formatLocalLinha(e.setor, e.local_detalhado)}</td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {new Date(u.data_conferencia).toLocaleString("pt-BR")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="rounded-2xl bg-white px-4 py-3 text-xs font-medium text-slate-500">
-                Nenhum extintor com não conformidade ou vencimento na última conferência do mês.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-[var(--ink)]">Hidrantes</h3>
-              <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-orange-700">
-                {hidranteConferenciaMes.total} itens
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <MiniStat label="Conforme" value={hidranteConferenciaMes.conforme} tone="green" />
-              <MiniStat label="Não conforme" value={hidranteConferenciaMes.naoConforme} tone="red" />
-              <MiniStat label="Pendente" value={hidranteConferenciaMes.pendente} tone="amber" />
-              <MiniStat label="Total" value={hidranteConferenciaMes.total} tone="slate" />
-            </div>
-            {hidrantesNcMes.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50">
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Código</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Local</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Última conferência</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {hidrantesNcMes.map(({ h, u }) => (
-                      <tr key={h.id}>
-                        <td className="px-3 py-2 font-semibold text-slate-900">{h.codigo}</td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {formatLocalLinha(h.pavimento ?? "", h.local_detalhado)}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {new Date(u.data_conferencia).toLocaleString("pt-BR")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="rounded-2xl bg-white px-4 py-3 text-xs font-medium text-slate-500">
-                Nenhum hidrante com não conformidade ou mangueira vencida na última conferência do mês.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <div className="page-heading">
-        <div>
-          <p className="page-eyebrow">Planejamento</p>
-          <h2 className="mt-1 text-2xl font-extrabold text-[var(--ink)]">Manutenção programada</h2>
-        </div>
-        <p className="text-xs font-medium text-slate-500">
-          Extintores por vencimento da manutenção de 2º nível (anual).
-        </p>
-      </div>
-
-      {/* Summary bar */}
-      {stats.total > 0 && (
-        <div className="professional-card overflow-hidden p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-black text-[var(--ink)]">Distribuição de manutenção</p>
-              <p className="text-xs font-medium text-slate-500">Percentual dos extintores por faixa de vencimento (2º nível).</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-              {stats.total} extintor{stats.total !== 1 ? "es" : ""}
-            </span>
-          </div>
-          <div className="flex h-5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/70">
-            {stats.vencidos > 0 && (
-              <div
-                title={`Vencidos: ${stats.vencidos}`}
-                className="h-full bg-red-500"
-                style={{ width: `${(stats.vencidos / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta30 > 0 && (
-              <div
-                title={`Alerta 30d: ${stats.alerta30}`}
-                className="h-full bg-amber-400"
-                style={{ width: `${(stats.alerta30 / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta60 > 0 && (
-              <div
-                title={`Alerta 60d: ${stats.alerta60}`}
-                className="h-full bg-yellow-300"
-                style={{ width: `${(stats.alerta60 / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta90 > 0 && (
-              <div
-                title={`Alerta 90d: ${stats.alerta90}`}
-                className="h-full bg-lime-400"
-                style={{ width: `${(stats.alerta90 / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta120 > 0 && (
-              <div
-                title={`Alerta 120d: ${stats.alerta120}`}
-                className="h-full bg-green-300"
-                style={{ width: `${(stats.alerta120 / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta180 > 0 && (
-              <div
-                title={`Alerta 180d: ${stats.alerta180}`}
-                className="h-full bg-teal-400"
-                style={{ width: `${(stats.alerta180 / stats.total) * 100}%` }}
-              />
-            )}
-            {stats.alerta360 > 0 && (
-              <div
-                title={`Alerta 360d: ${stats.alerta360}`}
-                className="h-full bg-sky-400"
-                style={{ width: `${(stats.alerta360 / stats.total) * 100}%` }}
-              />
-            )}
-            <div className="h-full flex-1 bg-green-400" />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Manutenção de 2º nível vencida</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />Alerta 30d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-300" />Alerta 60d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-lime-400" />Alerta 90d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-300" />Alerta 120d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-teal-400" />Alerta 180d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" />Alerta 360d</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400" />Em dia</span>
-          </div>
-        </div>
-      )}
-
-      {/* Alert tables */}
-      <AlertTable
-        title="Manutenção de 2º nível vencida"
-        subtitle={faixaLabels.vencidos}
-        color="#dc2626"
-        items={vencidosList}
-        exportLabel="Nivel_2_vencidos"
-        exportHighlight="vencido"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 30 dias"
-        subtitle={faixaLabels.alerta30}
-        color="#f59e0b"
-        items={alerta30List}
-        exportLabel="Vencendo_30_dias"
-        exportHighlight="alerta"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 60 dias"
-        subtitle={faixaLabels.alerta60}
-        color="#eab308"
-        items={alerta60List}
-        exportLabel="Vencendo_60_dias"
-        exportHighlight="alerta"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 90 dias"
-        subtitle={faixaLabels.alerta90}
-        color="#84cc16"
-        items={alerta90List}
-        exportLabel="Vencendo_90_dias"
-        exportHighlight="alerta"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 120 dias"
-        subtitle={faixaLabels.alerta120}
-        color="#22c55e"
-        items={alerta120List}
-        exportLabel="Vencendo_120_dias"
-        exportHighlight="alerta"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 180 dias"
-        subtitle={faixaLabels.alerta180}
-        color="#14b8a6"
-        items={alerta180List}
-        exportLabel="Vencendo_180_dias"
-        exportHighlight="alerta"
-      />
-      <AlertTable
-        title="Extintores vencendo nos próximos 360 dias"
-        subtitle={faixaLabels.alerta360}
-        color="#0ea5e9"
-        items={alerta360List}
-        exportLabel="Vencendo_360_dias"
-        exportHighlight="alerta"
-      />
-
-      {/* All good banner */}
-      {stats.vencidos === 0 &&
-        stats.alerta30 === 0 &&
-        stats.alerta60 === 0 &&
-        stats.alerta90 === 0 &&
-        stats.alerta120 === 0 &&
-        stats.alerta180 === 0 &&
-        stats.alerta360 === 0 &&
-        stats.total > 0 && (
-        <div className="flex items-center gap-4 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 shadow-sm shadow-emerald-100">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-200">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-black text-emerald-900">Tudo em dia!</p>
-            <p className="text-xs font-medium text-emerald-700">
-              Nenhum extintor com manutenção de 2º nível vencida ou próxima do vencimento (até 360 dias).
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
+      {ncOpen ? (
+        <NcDetailModal
+          extintores={extintoresNcMes}
+          hidrantes={hidrantesNcMes}
+          onClose={() => setNcOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }

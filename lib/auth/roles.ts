@@ -117,6 +117,7 @@ export const CLIENT_ALLOWED_ADMIN_PATHS = [
   "/admin/dashboard",
   "/admin/extintores",
   "/admin/mapeamento",
+  "/admin/conta",
 ] as const;
 
 export function isClientAllowedAdminPath(pathname: string): boolean {
