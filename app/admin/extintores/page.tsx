@@ -1,11 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { formatDateOnlyPt, parseCalendarDateAsLocal } from "@/lib/date/date-only";
-import { COLUNAS_PADRAO, COLUNA_TITULO_CLASS, COLUNA_TITULO_CLASS_COMPACT, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
+import { COLUNAS_PADRAO, tituloEquipamento, type TipoEquipamento } from "@/lib/inventario/equipamento-padrao";
 import { exportInventarioCompleto, type HidranteInventarioCompletoRow } from "@/lib/export/excel";
 import { exportInventarioPdf } from "@/lib/export/pdf";
+import {
+  EMPTY_EXTINTOR_FORM,
+  EMPTY_HIDRANTE_FORM,
+  HIDRANTE_TESTE_M_CAMPOS,
+  SETORES_FALLBACK,
+  buildHidranteSavePayload,
+  clampQuantidadeMangueirasString,
+  parseQuantidadeMangueiras,
+  toDateInputValue,
+  toUppercaseLabel,
+  validateExtintorForm,
+  validateHidranteForm,
+  type ExtintorFormData,
+  type HidranteFormData,
+} from "@/lib/inventario/inventory-form";
+import {
+  floorsFromLabels,
+  resolveFloorSelectValue,
+  type FloorSelectOption,
+} from "@/lib/inventario/resolve-floor-select";
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import { isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
@@ -16,8 +36,17 @@ import InventarioTipoTabs from "@/src/components/InventarioTipoTabs";
 import ExportActions from "@/src/components/ExportActions";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 import RowActionsMenu from "@/src/components/RowActionsMenu";
+import FormDrawer from "@/src/components/inventory/FormDrawer";
+import ExtintorInventoryForm from "@/src/components/inventory/ExtintorInventoryForm";
+import HidranteInventoryForm from "@/src/components/inventory/HidranteInventoryForm";
+import {
+  EquipmentCode,
+  InventoryEmptyState,
+  MaintenanceCell,
+  PositionBadge,
+} from "@/src/components/inventory/InventoryVisuals";
 
-type HidranteRow = HidranteInventarioCompletoRow;
+type HidranteRow = HidranteInventarioCompletoRow & { floor_id?: string | null };
 
 type ExtintorRow = {
   id: string;
@@ -32,51 +61,10 @@ type ExtintorRow = {
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
   pavimento: string | null;
+  floor_id?: string | null;
   coord_x: number | null;
   coord_y: number | null;
   created_at: string;
-};
-
-type FormData = Omit<ExtintorRow, "id" | "coord_x" | "coord_y" | "created_at">;
-
-type HidranteFormData = {
-  codigo: string;
-  pavimento: string;
-  local_detalhado: string;
-  quantidade_mangueiras: string;
-  teste_hidrostatico_m1: string;
-  teste_hidrostatico_m2: string;
-  teste_hidrostatico_m3: string;
-  teste_hidrostatico_m4: string;
-  quantidade_chaves_storz: string;
-  quantidade_esguichos: string;
-};
-
-const EMPTY_FORM: FormData = {
-  codigo: "",
-  setor: "",
-  local_detalhado: "",
-  num_inmetro: "",
-  num_cilindro: "",
-  tipo: "",
-  tamanho: "",
-  capacidade_extintora: "",
-  manutencao_2_nivel: "",
-  manutencao_3_nivel: "",
-  pavimento: "",
-};
-
-const EMPTY_HIDRANTE_FORM: HidranteFormData = {
-  codigo: "",
-  pavimento: "",
-  local_detalhado: "",
-  quantidade_mangueiras: "",
-  teste_hidrostatico_m1: "",
-  teste_hidrostatico_m2: "",
-  teste_hidrostatico_m3: "",
-  teste_hidrostatico_m4: "",
-  quantidade_chaves_storz: "",
-  quantidade_esguichos: "",
 };
 
 type ModalMode = "create" | "edit";
@@ -105,108 +93,14 @@ function DetalheCampo({
   );
 }
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-        {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-const inputCls =
-  "field-control";
-
-const LOCALE_PT_BR = "pt-BR";
-
-function toUppercaseLabel(value: string): string {
-  return value.trim().toLocaleUpperCase(LOCALE_PT_BR);
-}
-
-const SETORES_FALLBACK = [
-  "SUBSOLO",
-  "TÉRREO",
-  "PAVIMENTO 1",
-  "GALERIA TÉCNICA",
-  "PAVIMENTO TÉCNICO",
-  "TECA",
-  "TPS 1",
-  "SCI",
-  "GUARITAS/CENTRAL DE RESÍDUOS",
-] as const;
-
-const TIPOS_EXTINTOR = ["ÁGUA", "PQS ABC", "PQS BC", "ESPUMA MECÂNICA", "CO2"] as const;
-
-const TAMANHOS_POR_TIPO: Record<string, string[]> = {
-  ÁGUA: ["10 L"],
-  "PQS ABC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
-  "PQS BC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
-  "ESPUMA MECÂNICA": ["9 L", "50 L"],
-  CO2: ["4 kg", "6 kg", "10 kg", "20 kg", "25 kg", "30 kg", "50 kg"],
-};
-
-const MANGUEIRA_OPCOES = [0, 1, 2, 3, 4] as const;
-
-const HIDRANTE_TESTE_M_CAMPOS: { key: keyof Pick<HidranteFormData, "teste_hidrostatico_m1" | "teste_hidrostatico_m2" | "teste_hidrostatico_m3" | "teste_hidrostatico_m4">; label: string }[] = [
-  { key: "teste_hidrostatico_m1", label: "Mangueira 1 (M-1)" },
-  { key: "teste_hidrostatico_m2", label: "Mangueira 2 (M-2)" },
-  { key: "teste_hidrostatico_m3", label: "Mangueira 3 (M-3)" },
-  { key: "teste_hidrostatico_m4", label: "Mangueira 4 (M-4)" },
-];
-
-function parseQuantidadeMangueiras(value: string): number {
-  if (value.trim() === "") return 0;
-  const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(4, n);
-}
-
-function clampQuantidadeMangueirasString(value: string | number | null | undefined): string {
-  if (value === null || value === undefined || value === "") return "";
-  const n = typeof value === "number" ? value : Number.parseInt(String(value), 10);
-  if (!Number.isFinite(n) || n < 0) return "0";
-  return String(Math.min(4, n));
-}
-
-function parseOptionalIntField(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const n = Number.parseInt(trimmed, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-function buildHidranteSavePayload(form: HidranteFormData) {
-  const qtd = parseQuantidadeMangueiras(form.quantidade_mangueiras);
-  return {
-    codigo: form.codigo.trim(),
-    pavimento: form.pavimento.trim() || null,
-    local_detalhado: form.local_detalhado.trim(),
-    quantidade_mangueiras: qtd,
-    teste_hidrostatico_m1: qtd >= 1 ? form.teste_hidrostatico_m1.trim() || null : null,
-    teste_hidrostatico_m2: qtd >= 2 ? form.teste_hidrostatico_m2.trim() || null : null,
-    teste_hidrostatico_m3: qtd >= 3 ? form.teste_hidrostatico_m3.trim() || null : null,
-    teste_hidrostatico_m4: qtd >= 4 ? form.teste_hidrostatico_m4.trim() || null : null,
-    quantidade_chaves_storz: parseOptionalIntField(form.quantidade_chaves_storz),
-    quantidade_esguichos: parseOptionalIntField(form.quantidade_esguichos),
-  };
-}
+const TH = "px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500";
+const TH_COMPACT = "px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500";
 
 export default function AdminExtintoresPage() {
   const { ready, activeBaseId } = useActiveBase();
   const [extintores, setExtintores] = useState<ExtintorRow[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteRow[]>([]);
-  const [setores, setSetores] = useState<string[]>([...SETORES_FALLBACK]);
+  const [floors, setFloors] = useState<FloorSelectOption[]>(floorsFromLabels(SETORES_FALLBACK));
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [filterHidrante, setFilterHidrante] = useState("");
@@ -214,8 +108,9 @@ export default function AdminExtintoresPage() {
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [modalEntity, setModalEntity] = useState<ModalEntity>("extintor");
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [form, setForm] = useState<ExtintorFormData>(EMPTY_EXTINTOR_FORM);
   const [formHidrante, setFormHidrante] = useState<HidranteFormData>(EMPTY_HIDRANTE_FORM);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [detalheView, setDetalheView] = useState<DetalheView | null>(null);
@@ -228,9 +123,17 @@ export default function AdminExtintoresPage() {
   const [confirmPhrase, setConfirmPhrase] = useState("");
   const [pendingSoftDeleteIds, setPendingSoftDeleteIds] = useState<string[]>([]);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [filtersMenuOpen, setFiltersMenuOpen] = useState(false);
+  const floorFieldTouchedRef = useRef(false);
+  const savingRef = useRef(false);
 
   const readOnly = isInventoryReadOnlyRole(actorRole);
   const canSoftDelete = isAdminLikeRole(actorRole);
+  const today = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
 
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -270,6 +173,8 @@ export default function AdminExtintoresPage() {
     if (!ready || !activeBaseId) return;
     setLoading(true);
 
+    const selectWithFloor =
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,floor_id,coord_x,coord_y,created_at,active";
     const selectWithCilindro =
       "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at,active";
     const selectLegacy =
@@ -278,23 +183,42 @@ export default function AdminExtintoresPage() {
     let extData: ExtintorRow[] | null = null;
     let extQuery = supabase
       .from("extintores")
-      .select(selectWithCilindro)
+      .select(selectWithFloor)
       .eq("base_id", activeBaseId)
       .eq("active", !showInactive)
       .order("codigo", { ascending: true });
 
-    let primary = await extQuery;
+    let { data: extRows, error: extError } = await extQuery;
 
-    if (primary.error && /active|schema cache|column/i.test(primary.error.message)) {
-      // Migration ainda não aplicada: lista tudo.
-      primary = await supabase
+    if (extError && /active|schema cache|column/i.test(extError.message)) {
+      const retry = await supabase
+        .from("extintores")
+        .select(selectWithFloor)
+        .eq("base_id", activeBaseId)
+        .order("codigo", { ascending: true });
+      extRows = retry.data as typeof extRows;
+      extError = retry.error;
+    }
+
+    if (extError && /floor_id|schema cache|column/i.test(extError.message)) {
+      let retry = await supabase
         .from("extintores")
         .select(selectWithCilindro)
         .eq("base_id", activeBaseId)
+        .eq("active", !showInactive)
         .order("codigo", { ascending: true });
+      if (retry.error && /active|schema cache|column/i.test(retry.error.message)) {
+        retry = await supabase
+          .from("extintores")
+          .select(selectWithCilindro)
+          .eq("base_id", activeBaseId)
+          .order("codigo", { ascending: true });
+      }
+      extRows = retry.data as typeof extRows;
+      extError = retry.error;
     }
 
-    if (primary.error && /num_cilindro|schema cache|column/i.test(primary.error.message)) {
+    if (extError && /num_cilindro|schema cache|column/i.test(extError.message)) {
       const fallback = await supabase
         .from("extintores")
         .select(selectLegacy)
@@ -303,23 +227,39 @@ export default function AdminExtintoresPage() {
       extData = ((fallback.data ?? []) as ExtintorRow[]).map((row) => ({
         ...row,
         num_cilindro: row.num_cilindro ?? null,
+        floor_id: row.floor_id ?? null,
       }));
     } else {
-      extData = (primary.data ?? []) as ExtintorRow[];
+      extData = ((extRows ?? []) as ExtintorRow[]).map((row) => ({
+        ...row,
+        floor_id: row.floor_id ?? null,
+      }));
     }
 
-    let hidQuery = supabase
+    const hidSelectWithFloor =
+      "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at,active,floor_id";
+    const hidSelect =
+      "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at,active";
+
+    let hidRes = await supabase
       .from("hidrantes")
-      .select(
-        "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,coord_x,coord_y,created_at,active",
-      )
+      .select(hidSelectWithFloor)
       .eq("base_id", activeBaseId)
       .eq("active", !showInactive)
       .order("codigo", { ascending: true });
-
-    const hidRes = await hidQuery;
     let hidDataRaw = hidRes.data as Array<Record<string, unknown>> | null;
-    if (hidRes.error && /active|schema cache|column/i.test(hidRes.error.message)) {
+    let hidError = hidRes.error;
+    if (hidError && /floor_id|schema cache|column/i.test(hidError.message)) {
+      const retry = await supabase
+        .from("hidrantes")
+        .select(hidSelect)
+        .eq("base_id", activeBaseId)
+        .eq("active", !showInactive)
+        .order("codigo", { ascending: true });
+      hidDataRaw = retry.data as Array<Record<string, unknown>> | null;
+      hidError = retry.error;
+    }
+    if (hidError && /active|schema cache|column/i.test(hidError.message)) {
       const hidFallback = await supabase
         .from("hidrantes")
         .select(
@@ -330,9 +270,13 @@ export default function AdminExtintoresPage() {
       hidDataRaw = (hidFallback.data ?? []).map((row) => ({ ...row, active: true }));
     }
 
-    const floors = await fetchBaseFloors(activeBaseId).catch(() => []);
-    const floorLabels = floors.map((f) => f.label).filter(Boolean);
-    setSetores(floorLabels.length > 0 ? floorLabels : [...SETORES_FALLBACK]);
+    const baseFloors = await fetchBaseFloors(activeBaseId).catch(() => []);
+    const floorOptions: FloorSelectOption[] =
+      baseFloors.length > 0
+        ? baseFloors.map((floor) => ({ id: floor.id, key: floor.key, label: floor.label }))
+        : floorsFromLabels(SETORES_FALLBACK);
+    setFloors(floorOptions);
+
     const rows = [...(extData ?? [])].sort((a, b) =>
       a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true, sensitivity: "base" }),
     );
@@ -363,6 +307,23 @@ export default function AdminExtintoresPage() {
     void loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (modalMode !== "edit" || floorFieldTouchedRef.current) return;
+    if (modalEntity === "extintor" && editId) {
+      const item = extintores.find((row) => row.id === editId);
+      if (!item) return;
+      const next = resolveFloorSelectValue(floors, item);
+      setForm((prev) => (prev.setor === next ? prev : { ...prev, setor: next }));
+      return;
+    }
+    if (modalEntity === "hidrante" && editId) {
+      const item = hidrantes.find((row) => row.id === editId);
+      if (!item) return;
+      const next = resolveFloorSelectValue(floors, item);
+      setFormHidrante((prev) => (prev.pavimento === next ? prev : { ...prev, pavimento: next }));
+    }
+  }, [floors, modalMode, modalEntity, editId, extintores, hidrantes]);
+
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
     if (!q) return extintores;
@@ -388,8 +349,13 @@ export default function AdminExtintoresPage() {
     );
   }, [hidrantes, filterHidrante]);
 
+  const searchValue = tipoLista === "extintor" ? filter : filterHidrante;
+  const setSearchValue = tipoLista === "extintor" ? setFilter : setFilterHidrante;
+
   function openCreate() {
-    setForm(EMPTY_FORM);
+    floorFieldTouchedRef.current = false;
+    setForm(EMPTY_EXTINTOR_FORM);
+    setFormErrors({});
     setEditId(null);
     setModalEntity("extintor");
     setModalMode("create");
@@ -397,7 +363,9 @@ export default function AdminExtintoresPage() {
   }
 
   function openCreateHidrante() {
+    floorFieldTouchedRef.current = false;
     setFormHidrante(EMPTY_HIDRANTE_FORM);
+    setFormErrors({});
     setEditId(null);
     setModalEntity("hidrante");
     setModalMode("create");
@@ -405,19 +373,22 @@ export default function AdminExtintoresPage() {
   }
 
   function openEdit(e: ExtintorRow) {
+    floorFieldTouchedRef.current = false;
+    const setor = resolveFloorSelectValue(floors, e);
     setForm({
       codigo: e.codigo,
-      setor: toUppercaseLabel(e.setor),
+      setor,
       local_detalhado: e.local_detalhado,
       num_inmetro: e.num_inmetro,
       num_cilindro: e.num_cilindro ?? "",
       tipo: toUppercaseLabel(e.tipo),
       tamanho: e.tamanho,
       capacidade_extintora: e.capacidade_extintora,
-      manutencao_2_nivel: e.manutencao_2_nivel ?? "",
-      manutencao_3_nivel: e.manutencao_3_nivel ?? "",
+      manutencao_2_nivel: toDateInputValue(e.manutencao_2_nivel),
+      manutencao_3_nivel: toDateInputValue(e.manutencao_3_nivel),
       pavimento: e.pavimento ?? "",
     });
+    setFormErrors({});
     setEditId(e.id);
     setModalEntity("extintor");
     setModalMode("edit");
@@ -425,30 +396,34 @@ export default function AdminExtintoresPage() {
   }
 
   function openEditHidrante(h: HidranteRow) {
+    floorFieldTouchedRef.current = false;
     const qtdStr = clampQuantidadeMangueirasString(h.quantidade_mangueiras);
     const qtd = parseQuantidadeMangueiras(qtdStr);
     setFormHidrante({
       codigo: h.codigo,
-      pavimento: h.pavimento ? toUppercaseLabel(h.pavimento) : "",
+      pavimento: resolveFloorSelectValue(floors, h),
       local_detalhado: h.local_detalhado,
       quantidade_mangueiras: qtdStr,
-      teste_hidrostatico_m1: qtd >= 1 ? (h.teste_hidrostatico_m1 ?? "") : "",
-      teste_hidrostatico_m2: qtd >= 2 ? (h.teste_hidrostatico_m2 ?? "") : "",
-      teste_hidrostatico_m3: qtd >= 3 ? (h.teste_hidrostatico_m3 ?? "") : "",
-      teste_hidrostatico_m4: qtd >= 4 ? (h.teste_hidrostatico_m4 ?? "") : "",
+      teste_hidrostatico_m1: qtd >= 1 ? toDateInputValue(h.teste_hidrostatico_m1) : "",
+      teste_hidrostatico_m2: qtd >= 2 ? toDateInputValue(h.teste_hidrostatico_m2) : "",
+      teste_hidrostatico_m3: qtd >= 3 ? toDateInputValue(h.teste_hidrostatico_m3) : "",
+      teste_hidrostatico_m4: qtd >= 4 ? toDateInputValue(h.teste_hidrostatico_m4) : "",
       quantidade_chaves_storz: h.quantidade_chaves_storz != null ? String(h.quantidade_chaves_storz) : "",
       quantidade_esguichos: h.quantidade_esguichos != null ? String(h.quantidade_esguichos) : "",
     });
+    setFormErrors({});
     setEditId(h.id);
     setModalEntity("hidrante");
     setModalMode("edit");
     setFeedback(null);
   }
 
-  function closeModal() {
+  const closeModal = useCallback(() => {
+    if (savingRef.current) return;
     setModalMode(null);
     setEditId(null);
-  }
+    setFormErrors({});
+  }, []);
 
   function openDetalheExtintor(item: ExtintorRow) {
     setDetalheView({ tipo: "extintor", item });
@@ -472,12 +447,24 @@ export default function AdminExtintoresPage() {
     closeDetalhe();
   }
 
-  function set(key: keyof FormData, value: string) {
+  function set(key: keyof ExtintorFormData, value: string) {
     setForm((p) => ({ ...p, [key]: value }));
+    setFormErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   function setHidrante(key: keyof HidranteFormData, value: string) {
     setFormHidrante((p) => ({ ...p, [key]: value }));
+    setFormErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   function setQuantidadeMangueiras(value: string) {
@@ -490,10 +477,23 @@ export default function AdminExtintoresPage() {
       if (qtd < 4) next.teste_hidrostatico_m4 = "";
       return next;
     });
+    setFormErrors((prev) => {
+      if (!prev.quantidade_mangueiras) return prev;
+      const next = { ...prev };
+      delete next.quantidade_mangueiras;
+      return next;
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const errors = validateExtintorForm(form);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    savingRef.current = true;
     setSaving(true);
     setFeedback(null);
 
@@ -509,7 +509,6 @@ export default function AdminExtintoresPage() {
       capacidade_extintora: form.capacidade_extintora.trim(),
       manutencao_2_nivel: form.manutencao_2_nivel?.trim() || null,
       manutencao_3_nivel: form.manutencao_3_nivel?.trim() || null,
-      // Alinha com o pavimento do mapa (mesmo nome do setor em Configurações da Base)
       pavimento: form.pavimento?.trim() || setorLabel || null,
     };
 
@@ -526,6 +525,7 @@ export default function AdminExtintoresPage() {
         });
       }
     } catch (err) {
+      savingRef.current = false;
       setSaving(false);
       setFeedback({
         type: "err",
@@ -534,19 +534,29 @@ export default function AdminExtintoresPage() {
       return;
     }
 
+    savingRef.current = false;
     setSaving(false);
-
     setFeedback({
       type: "ok",
       msg: modalMode === "create" ? "Extintor cadastrado com sucesso!" : "Extintor atualizado com sucesso!",
     });
     await load();
-    if (modalMode === "create") setForm(EMPTY_FORM);
-    setTimeout(() => { closeModal(); setFeedback(null); }, 1200);
+    if (modalMode === "create") setForm(EMPTY_EXTINTOR_FORM);
+    setTimeout(() => {
+      closeModal();
+      setFeedback(null);
+    }, 1200);
   }
 
   async function handleSubmitHidrante(e: React.FormEvent) {
     e.preventDefault();
+    const errors = validateHidranteForm(formHidrante);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    savingRef.current = true;
     setSaving(true);
     setFeedback(null);
 
@@ -565,6 +575,7 @@ export default function AdminExtintoresPage() {
         });
       }
     } catch (err) {
+      savingRef.current = false;
       setSaving(false);
       setFeedback({
         type: "err",
@@ -573,6 +584,7 @@ export default function AdminExtintoresPage() {
       return;
     }
 
+    savingRef.current = false;
     setSaving(false);
     setFeedback({
       type: "ok",
@@ -580,7 +592,10 @@ export default function AdminExtintoresPage() {
     });
     await load();
     if (modalMode === "create") setFormHidrante(EMPTY_HIDRANTE_FORM);
-    setTimeout(() => { closeModal(); setFeedback(null); }, 1200);
+    setTimeout(() => {
+      closeModal();
+      setFeedback(null);
+    }, 1200);
   }
 
   function toggleSelected(id: string) {
@@ -676,59 +691,53 @@ export default function AdminExtintoresPage() {
     if (!d) return false;
     const date = parseCalendarDateAsLocal(d);
     if (!date) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayLocal = new Date();
+    todayLocal.setHours(0, 0, 0, 0);
     date.setHours(0, 0, 0, 0);
-    return date < today;
+    return date < todayLocal;
   }
 
+  const hasActiveSearch = Boolean(searchValue.trim());
+  const drawerOpen = Boolean(modalMode);
+
   return (
-    <div className="space-y-5">
-      <div className="professional-card reveal-up p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-5">
-          <div>
-            <p className="page-eyebrow">Inventário</p>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Extintores e hidrantes</h1>
-            <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
-              {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} e {hidrantes.length} hidrante
-              {hidrantes.length !== 1 ? "s" : ""} cadastrados.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ExportActions
-              disabled={loading || (extintores.length === 0 && hidrantes.length === 0)}
-              onExcel={() => exportInventarioCompleto(extintores, hidrantes)}
-              onPdf={() => exportInventarioPdf(extintores, hidrantes)}
-            />
-            {tipoLista === "extintor" && !readOnly && (
-              <button
-                type="button"
-                onClick={openCreate}
-                className="btn-primary"
-              >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Novo Extintor
-              </button>
-            )}
-            {tipoLista === "hidrante" && !readOnly && (
-              <button
-                type="button"
-                onClick={openCreateHidrante}
-                className="btn-primary"
-              >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Novo Hidrante
-              </button>
-            )}
-          </div>
+    <div className="inv-page">
+      <div className="professional-card inv-header">
+        <div>
+          <p className="page-eyebrow">Inventário</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ink)]">Extintores e hidrantes</h1>
+          <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
+            {extintores.length} extintor{extintores.length !== 1 ? "es" : ""} e {hidrantes.length} hidrante
+            {hidrantes.length !== 1 ? "s" : ""} cadastrados.
+          </p>
+        </div>
+        <div className="inv-header__actions">
+          <ExportActions
+            disabled={loading || (extintores.length === 0 && hidrantes.length === 0)}
+            onExcel={() => exportInventarioCompleto(extintores, hidrantes)}
+            onPdf={() => exportInventarioPdf(extintores, hidrantes)}
+          />
+          {tipoLista === "extintor" && !readOnly && (
+            <button type="button" onClick={openCreate} className="btn-primary">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Novo Extintor
+            </button>
+          )}
+          {tipoLista === "hidrante" && !readOnly && (
+            <button type="button" onClick={openCreateHidrante} className="btn-primary">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Novo Hidrante
+            </button>
+          )}
         </div>
       </div>
 
       <InventarioTipoTabs
+        tone="quiet"
         value={tipoLista}
         onChange={(value) => {
           setTipoLista(value);
@@ -738,13 +747,16 @@ export default function AdminExtintoresPage() {
         hidrantesCount={hidrantes.length}
       />
 
-      {canSoftDelete && (
-        <div className="professional-card flex flex-wrap items-center gap-2 px-4 py-3">
-          <div className="relative">
+      <div className="professional-card inv-toolbar">
+        {canSoftDelete && (
+          <div className="inv-toolbar__status">
             <button
               type="button"
               className="btn-secondary text-xs"
-              onClick={() => setStatusMenuOpen((open) => !open)}
+              onClick={() => {
+                setStatusMenuOpen((open) => !open);
+                setFiltersMenuOpen(false);
+              }}
               aria-haspopup="listbox"
               aria-expanded={statusMenuOpen}
             >
@@ -754,17 +766,11 @@ export default function AdminExtintoresPage() {
               </svg>
             </button>
             {statusMenuOpen && (
-              <div
-                className="absolute left-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-xl"
-                role="listbox"
-              >
+              <div className="inv-menu" role="listbox">
                 <button
                   type="button"
                   role="option"
                   aria-selected={!showInactive}
-                  className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
-                    !showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
-                  }`}
                   onClick={() => {
                     setShowInactive(false);
                     exitSelectionMode();
@@ -777,9 +783,6 @@ export default function AdminExtintoresPage() {
                   type="button"
                   role="option"
                   aria-selected={showInactive}
-                  className={`flex w-full rounded-xl px-3 py-2 text-left text-xs font-bold ${
-                    showInactive ? "bg-[var(--muted)] text-slate-900" : "text-slate-600 hover:bg-slate-50"
-                  }`}
                   onClick={() => {
                     setShowInactive(true);
                     exitSelectionMode();
@@ -791,33 +794,101 @@ export default function AdminExtintoresPage() {
               </div>
             )}
           </div>
+        )}
 
-          {selectionMode && !showInactive && (
-            <>
-              <button type="button" className="btn-secondary text-xs" onClick={selectAllVisible}>
-                Selecionar todos
-              </button>
-              <button type="button" className="btn-secondary text-xs" onClick={exitSelectionMode}>
-                Cancelar seleção
-              </button>
-              {selectedIds.length > 0 && (
-                <>
-                  <button type="button" className="btn-secondary text-xs" onClick={clearSelection}>
-                    Limpar ({selectedIds.length})
-                  </button>
+        <div className="inv-toolbar__search">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2} aria-hidden>
+            <circle cx="11" cy="11" r="8" />
+            <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            type="search"
+            placeholder={
+              tipoLista === "extintor"
+                ? "Buscar equipamento por código, setor, local, tipo ou INMETRO..."
+                : "Buscar equipamento por código, pavimento ou local..."
+            }
+            aria-label="Buscar equipamento"
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+          />
+          {searchValue ? (
+            <button type="button" onClick={() => setSearchValue("")} className="text-xs font-semibold text-slate-400 hover:text-slate-600">
+              Limpar
+            </button>
+          ) : null}
+        </div>
+
+        {canSoftDelete && (
+          <div className="inv-toolbar__filters">
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => {
+                setFiltersMenuOpen((open) => !open);
+                setStatusMenuOpen(false);
+              }}
+              aria-haspopup="menu"
+              aria-expanded={filtersMenuOpen}
+            >
+              Filtros
+            </button>
+            {filtersMenuOpen && (
+              <div className="inv-menu inv-menu--right" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={selectionMode ? "is-active" : ""}
+                  onClick={() => {
+                    if (selectionMode) exitSelectionMode();
+                    else enterSelectionMode();
+                    setFiltersMenuOpen(false);
+                  }}
+                >
+                  {selectionMode ? "Sair da seleção" : "Selecionar itens"}
+                </button>
+                {hasActiveSearch ? (
                   <button
                     type="button"
-                    className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white"
-                    onClick={openBulkSoftDelete}
+                    role="menuitem"
+                    onClick={() => {
+                      setSearchValue("");
+                      setFiltersMenuOpen(false);
+                    }}
                   >
-                    Apagar selecionados ({selectedIds.length})
+                    Limpar busca
                   </button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      )}
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectionMode && !showInactive && canSoftDelete && (
+          <div className="inv-bulk">
+            <button type="button" className="btn-secondary text-xs" onClick={selectAllVisible}>
+              Selecionar todos
+            </button>
+            <button type="button" className="btn-secondary text-xs" onClick={exitSelectionMode}>
+              Cancelar seleção
+            </button>
+            {selectedIds.length > 0 && (
+              <>
+                <button type="button" className="btn-secondary text-xs" onClick={clearSelection}>
+                  Limpar ({selectedIds.length})
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white"
+                  onClick={openBulkSoftDelete}
+                >
+                  Apagar selecionados ({selectedIds.length})
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {feedback && !modalMode && (
         <p
@@ -830,118 +901,50 @@ export default function AdminExtintoresPage() {
       )}
 
       {tipoLista === "extintor" && (
-        <>
-      <div className="professional-card flex items-center gap-2 px-4 py-3">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
-          <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
-        </svg>
-        <input
-          type="search"
-          placeholder="Buscar extintor por código, setor, local, tipo ou INMETRO..."
-          className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        {filter && (
-          <button type="button" onClick={() => setFilter("")} className="text-xs text-slate-400 hover:text-slate-600">
-            Limpar
-          </button>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="professional-card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-slate-400">
-            {filter ? "Nenhum extintor encontrado para o filtro." : "Nenhum extintor cadastrado ainda."}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="modern-table">
-              <thead>
-                <tr className="text-left">
-                  {canSoftDelete && selectionMode && !showInactive && (
-                    <th className={COLUNA_TITULO_CLASS_COMPACT}>Sel.</th>
-                  )}
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.codigo}</th>
-                  <th className={COLUNA_TITULO_CLASS}>
-                    {COLUNAS_PADRAO.pavimento} / {COLUNAS_PADRAO.localDetalhado}
-                  </th>
-                  <th className={`hidden md:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.tipo} / {COLUNAS_PADRAO.tamanho}
-                  </th>
-                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.numInmetro}
-                  </th>
-                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.venctoN2}
-                  </th>
-                  <th className={`hidden xl:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.mapa}
-                  </th>
-                  {!readOnly && (
-                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.acoes}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+        <div className="professional-card overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <InventoryEmptyState
+              title={filter ? "Nenhum extintor encontrado" : "Nenhum extintor cadastrado ainda."}
+              description={
+                filter
+                  ? "Tente alterar os filtros ou o termo pesquisado."
+                  : "Cadastre o primeiro extintor para começar o inventário."
+              }
+              actionLabel={filter ? "Limpar filtros" : undefined}
+              onAction={filter ? () => setFilter("") : undefined}
+            />
+          ) : (
+            <>
+              <div className="inv-cards md:hidden">
                 {filtered.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
-                    onClick={() => openDetalheExtintor(e)}
-                  >
-                    {canSoftDelete && selectionMode && !showInactive && (
-                      <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                  <div key={e.id} className="inv-card">
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetalheExtintor(e)}>
+                      <EquipmentCode kind="extintor" codigo={e.codigo} />
+                      <p className="inv-place__floor mt-1">{e.setor}</p>
+                      <p className="inv-place__local">{e.local_detalhado}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <PositionBadge positioned={e.coord_x != null} />
+                        <MaintenanceCell date={e.manutencao_2_nivel} today={today} />
+                      </div>
+                    </button>
+                    <div className="shrink-0">
+                      {canSoftDelete && selectionMode && !showInactive ? (
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(e.id)}
                           onChange={() => toggleSelected(e.id)}
                           aria-label={`Selecionar ${e.codigo}`}
                         />
-                      </td>
-                    )}
-                    <td className="px-4 py-3 font-bold text-slate-900">{e.codigo}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-800">{e.setor}</p>
-                      <p className="text-xs text-slate-400">{e.local_detalhado}</p>
-                    </td>
-                    <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
-                      {e.tipo} {e.tamanho}
-                    </td>
-                    <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{e.num_inmetro}</td>
-                    <td className="hidden px-4 py-3 lg:table-cell">
-                      <span
-                        className="text-xs font-medium"
-                        style={{ color: isExpired(e.manutencao_2_nivel) ? "#b91c1c" : "#374151" }}
-                      >
-                        {formatDate(e.manutencao_2_nivel)}
-                      </span>
-                    </td>
-                    <td className="hidden px-4 py-3 xl:table-cell">
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        style={
-                          e.coord_x != null
-                            ? { background: "#dcfce7", color: "#15803d" }
-                            : { background: "#f2f4f7", color: "#667085" }
-                        }
-                      >
-                        {e.coord_x != null ? "Posicionado" : "Sem posição"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                      {!readOnly && showInactive && canSoftDelete ? (
+                      ) : !readOnly && showInactive && canSoftDelete ? (
                         <button
                           type="button"
                           onClick={() => openRestoreOne(e.id)}
-                          className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
+                          className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700"
                           aria-label={`Recuperar extintor ${e.codigo}`}
-                          title="Recuperar"
                         >
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 1 0 3-6.7" />
@@ -952,11 +955,7 @@ export default function AdminExtintoresPage() {
                         <RowActionsMenu
                           label={`extintor ${e.codigo}`}
                           onEdit={() => openEdit(e)}
-                          onSelect={
-                            canSoftDelete
-                              ? () => enterSelectionMode(e.id)
-                              : undefined
-                          }
+                          onSelect={canSoftDelete ? () => enterSelectionMode(e.id) : undefined}
                           onDelete={
                             canSoftDelete
                               ? () => {
@@ -968,109 +967,146 @@ export default function AdminExtintoresPage() {
                           }
                         />
                       ) : null}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-        </>
+              </div>
+
+              <div className="inv-table-wrap hidden md:block">
+                <table className="modern-table inv-table">
+                  <thead>
+                    <tr>
+                      {canSoftDelete && selectionMode && !showInactive && <th className={TH_COMPACT}>Sel.</th>}
+                      <th className={TH}>{COLUNAS_PADRAO.codigoCurto}</th>
+                      <th className={TH}>
+                        {COLUNAS_PADRAO.pavimento} / {COLUNAS_PADRAO.localDetalhado}
+                      </th>
+                      <th className={`hidden lg:table-cell ${TH}`}>
+                        {COLUNAS_PADRAO.tipo} / {COLUNAS_PADRAO.tamanho}
+                      </th>
+                      <th className={`hidden lg:table-cell ${TH}`}>{COLUNAS_PADRAO.numInmetro}</th>
+                      <th className={`hidden lg:table-cell ${TH}`}>{COLUNAS_PADRAO.venctoN2}</th>
+                      <th className={`hidden xl:table-cell ${TH}`}>{COLUNAS_PADRAO.mapa}</th>
+                      {!readOnly && <th className={TH}>{COLUNAS_PADRAO.acoes}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((e) => (
+                      <tr key={e.id} onClick={() => openDetalheExtintor(e)}>
+                        {canSoftDelete && selectionMode && !showInactive && (
+                          <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(e.id)}
+                              onChange={() => toggleSelected(e.id)}
+                              aria-label={`Selecionar ${e.codigo}`}
+                            />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <EquipmentCode kind="extintor" codigo={e.codigo} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="inv-place">
+                            <p className="inv-place__floor">{e.setor}</p>
+                            <p className="inv-place__local">{e.local_detalhado}</p>
+                          </div>
+                        </td>
+                        <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">
+                          {e.tipo} {e.tamanho}
+                        </td>
+                        <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{e.num_inmetro}</td>
+                        <td className="hidden px-4 py-3 lg:table-cell">
+                          <MaintenanceCell date={e.manutencao_2_nivel} today={today} />
+                        </td>
+                        <td className="hidden px-4 py-3 xl:table-cell">
+                          <PositionBadge positioned={e.coord_x != null} />
+                        </td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          {!readOnly && showInactive && canSoftDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => openRestoreOne(e.id)}
+                              className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
+                              aria-label={`Recuperar extintor ${e.codigo}`}
+                              title="Recuperar"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 1 0 3-6.7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4v5h5" />
+                              </svg>
+                            </button>
+                          ) : !readOnly ? (
+                            <RowActionsMenu
+                              label={`extintor ${e.codigo}`}
+                              onEdit={() => openEdit(e)}
+                              onSelect={canSoftDelete ? () => enterSelectionMode(e.id) : undefined}
+                              onDelete={
+                                canSoftDelete
+                                  ? () => {
+                                      setPendingSoftDeleteIds([e.id]);
+                                      setConfirmPhrase("");
+                                      setBulkConfirmOpen(true);
+                                    }
+                                  : undefined
+                              }
+                            />
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {tipoLista === "hidrante" && (
-        <>
-      <div className="professional-card flex items-center gap-2 px-4 py-3">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" strokeWidth={2}>
-          <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" />
-        </svg>
-        <input
-          type="search"
-          placeholder="Buscar hidrante por código, pavimento ou local..."
-          className="flex-1 bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
-          value={filterHidrante}
-          onChange={(e) => setFilterHidrante(e.target.value)}
-        />
-        {filterHidrante && (
-          <button type="button" onClick={() => setFilterHidrante("")} className="text-xs text-slate-400 hover:text-slate-600">
-            Limpar
-          </button>
-        )}
-      </div>
-
-      <div className="professional-card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
-          </div>
-        ) : filteredHidrantes.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-slate-400">
-            {filterHidrante ? "Nenhum hidrante encontrado para o filtro." : "Nenhum hidrante cadastrado ainda."}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="modern-table">
-              <thead>
-                <tr className="text-left">
-                  {canSoftDelete && selectionMode && !showInactive && (
-                    <th className={COLUNA_TITULO_CLASS_COMPACT}>Sel.</th>
-                  )}
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.codigoCurto}</th>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.pavimento}</th>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.localDetalhado}</th>
-                  <th className={`hidden md:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.mangueiras}
-                  </th>
-                  <th className={`hidden lg:table-cell ${COLUNA_TITULO_CLASS}`}>
-                    {COLUNAS_PADRAO.mapa}
-                  </th>
-                  {!readOnly && (
-                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_PADRAO.acoes}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+        <div className="professional-card overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="h-7 w-7 animate-spin rounded-full border-4 border-[var(--neon)] border-t-transparent" />
+            </div>
+          ) : filteredHidrantes.length === 0 ? (
+            <InventoryEmptyState
+              title={filterHidrante ? "Nenhum hidrante encontrado" : "Nenhum hidrante cadastrado ainda."}
+              description={
+                filterHidrante
+                  ? "Tente alterar os filtros ou o termo pesquisado."
+                  : "Cadastre o primeiro hidrante para começar o inventário."
+              }
+              actionLabel={filterHidrante ? "Limpar filtros" : undefined}
+              onAction={filterHidrante ? () => setFilterHidrante("") : undefined}
+            />
+          ) : (
+            <>
+              <div className="inv-cards md:hidden">
                 {filteredHidrantes.map((h) => (
-                  <tr
-                    key={h.id}
-                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
-                    onClick={() => openDetalheHidrante(h)}
-                  >
-                    {canSoftDelete && selectionMode && !showInactive && (
-                      <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                  <div key={h.id} className="inv-card">
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetalheHidrante(h)}>
+                      <EquipmentCode kind="hidrante" codigo={h.codigo} />
+                      <p className="inv-place__floor mt-1">{h.pavimento ?? "—"}</p>
+                      <p className="inv-place__local">{h.local_detalhado || "—"}</p>
+                      <div className="mt-2">
+                        <PositionBadge positioned={h.coord_x != null} />
+                      </div>
+                    </button>
+                    <div className="shrink-0">
+                      {canSoftDelete && selectionMode && !showInactive ? (
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(h.id)}
                           onChange={() => toggleSelected(h.id)}
                           aria-label={`Selecionar ${h.codigo}`}
                         />
-                      </td>
-                    )}
-                    <td className="px-4 py-3 font-bold text-slate-900">{h.codigo}</td>
-                    <td className="px-4 py-3 text-slate-600">{h.pavimento ?? "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{h.local_detalhado || "—"}</td>
-                    <td className="hidden px-4 py-3 text-slate-600 md:table-cell">{h.quantidade_mangueiras ?? "—"}</td>
-                    <td className="hidden px-4 py-3 lg:table-cell">
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        style={
-                          h.coord_x != null
-                            ? { background: "#dcfce7", color: "#15803d" }
-                            : { background: "#f2f4f7", color: "#667085" }
-                        }
-                      >
-                        {h.coord_x != null ? "Posicionado" : "Sem posição"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                      {!readOnly && showInactive && canSoftDelete ? (
+                      ) : !readOnly && showInactive && canSoftDelete ? (
                         <button
                           type="button"
                           onClick={() => openRestoreOne(h.id)}
-                          className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
+                          className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700"
                           aria-label={`Recuperar hidrante ${h.codigo}`}
-                          title="Recuperar"
                         >
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 1 0 3-6.7" />
@@ -1081,11 +1117,7 @@ export default function AdminExtintoresPage() {
                         <RowActionsMenu
                           label={`hidrante ${h.codigo}`}
                           onEdit={() => openEditHidrante(h)}
-                          onSelect={
-                            canSoftDelete
-                              ? () => enterSelectionMode(h.id)
-                              : undefined
-                          }
+                          onSelect={canSoftDelete ? () => enterSelectionMode(h.id) : undefined}
                           onDelete={
                             canSoftDelete
                               ? () => {
@@ -1097,379 +1129,197 @@ export default function AdminExtintoresPage() {
                           }
                         />
                       ) : null}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-        </>
-      )}
-
-      {/* Create / Edit Modal */}
-      {modalMode && modalEntity === "extintor" && (
-        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
-            {/* Modal header */}
-            <div
-              className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white"
-            >
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
-                  {modalMode === "create" ? "Cadastro Manual" : "Editar Extintor"}
-                </p>
-                <h2 className="text-lg font-black text-white">
-                  {modalMode === "create" ? "Novo Extintor" : form.codigo}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/10"
-              >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="max-h-[75vh] overflow-y-auto px-6 py-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-                <Field label={COLUNAS_PADRAO.codigo} required>
-                  <input required className={inputCls} placeholder="Ex: EXT-001" value={form.codigo} onChange={(e) => set("codigo", e.target.value)} />
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.numInmetro} required>
-                  <input required className={inputCls} placeholder="Número do INMETRO" value={form.num_inmetro} onChange={(e) => set("num_inmetro", e.target.value)} />
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.numCilindro}>
-                  <input
-                    className={inputCls}
-                    placeholder="Número do cilindro"
-                    value={form.num_cilindro ?? ""}
-                    onChange={(e) => set("num_cilindro", e.target.value)}
-                  />
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.pavimento} required>
-                  <select
-                    required
-                    className={`${inputCls} uppercase`}
-                    value={form.setor}
-                    onChange={(e) => set("setor", e.target.value)}
-                  >
-                    <option value="">Selecione o pavimento...</option>
-                    {setores.map((setor) => (
-                      <option key={setor} value={setor}>
-                        {setor}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.localDetalhado} required>
-                  <input required className={`${inputCls} sm:col-span-2`} placeholder="Descrição detalhada do local" value={form.local_detalhado} onChange={(e) => set("local_detalhado", e.target.value)} />
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.tipo} required>
-                  <select
-                    required
-                    className={`${inputCls} uppercase`}
-                    value={form.tipo}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        tipo: e.target.value,
-                        tamanho: "",
-                      }))
-                    }
-                  >
-                    <option value="">Selecione o tipo de agente...</option>
-                    {TIPOS_EXTINTOR.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.tamanho} required>
-                  <select
-                    required
-                    className={inputCls}
-                    value={form.tamanho}
-                    onChange={(e) => set("tamanho", e.target.value)}
-                    disabled={!form.tipo}
-                  >
-                    <option value="">
-                      {form.tipo ? "Selecione a carga nominal..." : "Selecione um tipo primeiro"}
-                    </option>
-                    {(TAMANHOS_POR_TIPO[form.tipo] ?? []).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.capacidadeExtintora} required>
-                  <input
-                    required
-                    readOnly={modalMode === "edit"}
-                    className={
-                      modalMode === "edit"
-                        ? `${inputCls} cursor-not-allowed bg-slate-50 text-slate-500`
-                        : inputCls
-                    }
-                    placeholder="Ex: 2-A 20-B:C"
-                    value={form.capacidade_extintora}
-                    onChange={(e) => set("capacidade_extintora", e.target.value)}
-                  />
-                </Field>
-
-                <div className="sm:col-span-2">
-                  <div className="mb-2 border-t border-slate-100 pt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Datas de Manutenção
-                    </p>
-                  </div>
-                </div>
-
-                <Field label={COLUNAS_PADRAO.venctoN2}>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={form.manutencao_2_nivel ?? ""}
-                    onChange={(e) => set("manutencao_2_nivel", e.target.value)}
-                  />
-                </Field>
-
-                <Field label={COLUNAS_PADRAO.venctoN3}>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={form.manutencao_3_nivel ?? ""}
-                    onChange={(e) => set("manutencao_3_nivel", e.target.value)}
-                  />
-                </Field>
               </div>
 
-              {feedback && (
-                <div
-                  className="mt-4 rounded-xl px-4 py-3 text-sm font-semibold"
-                  style={
-                    feedback.type === "ok"
-                      ? { background: "#dcfce7", color: "#15803d" }
-                      : { background: "#fee2e2", color: "#b91c1c" }
-                  }
-                >
-                  {feedback.msg}
-                </div>
-              )}
-
-              <div className="mt-5 flex gap-3 border-t border-slate-100 pt-4">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-primary flex-1"
-                >
-                  {saving
-                    ? "Salvando..."
-                    : modalMode === "create"
-                      ? "Cadastrar Extintor"
-                      : "Salvar Alterações"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
+              <div className="inv-table-wrap hidden md:block">
+                <table className="modern-table inv-table">
+                  <thead>
+                    <tr>
+                      {canSoftDelete && selectionMode && !showInactive && <th className={TH_COMPACT}>Sel.</th>}
+                      <th className={TH}>{COLUNAS_PADRAO.codigoCurto}</th>
+                      <th className={TH}>{COLUNAS_PADRAO.pavimento}</th>
+                      <th className={TH}>{COLUNAS_PADRAO.localDetalhado}</th>
+                      <th className={`hidden lg:table-cell ${TH}`}>{COLUNAS_PADRAO.mangueiras}</th>
+                      <th className={`hidden lg:table-cell ${TH}`}>{COLUNAS_PADRAO.mapa}</th>
+                      {!readOnly && <th className={TH}>{COLUNAS_PADRAO.acoes}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHidrantes.map((h) => (
+                      <tr key={h.id} onClick={() => openDetalheHidrante(h)}>
+                        {canSoftDelete && selectionMode && !showInactive && (
+                          <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(h.id)}
+                              onChange={() => toggleSelected(h.id)}
+                              aria-label={`Selecionar ${h.codigo}`}
+                            />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <EquipmentCode kind="hidrante" codigo={h.codigo} />
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{h.pavimento ?? "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">{h.local_detalhado || "—"}</td>
+                        <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">
+                          {h.quantidade_mangueiras ?? "—"}
+                        </td>
+                        <td className="hidden px-4 py-3 lg:table-cell">
+                          <PositionBadge positioned={h.coord_x != null} />
+                        </td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          {!readOnly && showInactive && canSoftDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => openRestoreOne(h.id)}
+                              className="grid h-9 w-9 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
+                              aria-label={`Recuperar hidrante ${h.codigo}`}
+                              title="Recuperar"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 1 0 3-6.7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4v5h5" />
+                              </svg>
+                            </button>
+                          ) : !readOnly ? (
+                            <RowActionsMenu
+                              label={`hidrante ${h.codigo}`}
+                              onEdit={() => openEditHidrante(h)}
+                              onSelect={canSoftDelete ? () => enterSelectionMode(h.id) : undefined}
+                              onDelete={
+                                canSoftDelete
+                                  ? () => {
+                                      setPendingSoftDeleteIds([h.id]);
+                                      setConfirmPhrase("");
+                                      setBulkConfirmOpen(true);
+                                    }
+                                  : undefined
+                              }
+                            />
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </form>
-          </div>
+            </>
+          )}
         </div>
       )}
 
-      {modalMode && modalEntity === "hidrante" && (
-        <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
-            <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
-                  {modalMode === "create" ? "Cadastro Manual" : "Editar Hidrante"}
-                </p>
-                <h2 className="text-lg font-black text-white">
-                  {modalMode === "create" ? "Novo Hidrante" : formHidrante.codigo}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/10"
-              >
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+      {drawerOpen && modalEntity === "extintor" && (
+        <FormDrawer
+          eyebrow={modalMode === "create" ? "Novo extintor" : "Editar extintor"}
+          title={modalMode === "create" ? "Cadastrar extintor" : `Extintor ${form.codigo || ""}`.trim()}
+          description={
+            modalMode === "create"
+              ? "Preencha as informações para adicionar um novo extintor ao inventário."
+              : "Atualize as informações cadastrais deste equipamento."
+          }
+          onClose={closeModal}
+          footer={
+            <>
+              <button type="button" onClick={closeModal} className="btn-secondary" disabled={saving}>
+                Cancelar
               </button>
-            </div>
-
-            <form onSubmit={handleSubmitHidrante} className="max-h-[75vh] overflow-y-auto px-6 py-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Código do Local" required>
-                  <input
-                    required
-                    className={inputCls}
-                    placeholder="Ex: HID-001"
-                    value={formHidrante.codigo}
-                    onChange={(e) => setHidrante("codigo", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Pavimento">
-                  <select
-                    className={`${inputCls} uppercase`}
-                    value={formHidrante.pavimento}
-                    onChange={(e) => setHidrante("pavimento", e.target.value)}
-                  >
-                    <option value="">Selecione o pavimento...</option>
-                    {setores.map((setor) => (
-                      <option key={setor} value={setor}>
-                        {setor}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label="Localização Detalhada" required>
-                  <input
-                    required
-                    className={inputCls}
-                    placeholder="Descrição detalhada do local"
-                    value={formHidrante.local_detalhado}
-                    onChange={(e) => setHidrante("local_detalhado", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Quantidade de Mangueiras">
-                  <select
-                    required
-                    className={inputCls}
-                    value={formHidrante.quantidade_mangueiras}
-                    onChange={(e) => setQuantidadeMangueiras(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Selecione a quantidade...
-                    </option>
-                    {MANGUEIRA_OPCOES.map((n) => (
-                      <option key={n} value={String(n)}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label="Quantidade de Chaves Storz">
-                  <input
-                    type="number"
-                    min={0}
-                    className={inputCls}
-                    placeholder="Ex: 2"
-                    value={formHidrante.quantidade_chaves_storz}
-                    onChange={(e) => setHidrante("quantidade_chaves_storz", e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Quantidade de Esguichos">
-                  <input
-                    type="number"
-                    min={0}
-                    className={inputCls}
-                    placeholder="Ex: 1"
-                    value={formHidrante.quantidade_esguichos}
-                    onChange={(e) => setHidrante("quantidade_esguichos", e.target.value)}
-                  />
-                </Field>
-
-                <div className="sm:col-span-2">
-                  <div className="mb-2 border-t border-slate-100 pt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Datas do Último Teste Hidrostático
-                    </p>
-                    {parseQuantidadeMangueiras(formHidrante.quantidade_mangueiras) === 0 && (
-                      <p className="mt-1 text-sm text-slate-500">
-                        Nenhuma mangueira cadastrada — não há datas de teste a informar.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {HIDRANTE_TESTE_M_CAMPOS.slice(0, parseQuantidadeMangueiras(formHidrante.quantidade_mangueiras)).map(
-                  ({ key, label }) => (
-                    <Field key={key} label={label}>
-                      <input
-                        type="date"
-                        className={inputCls}
-                        value={formHidrante[key]}
-                        onChange={(e) => setHidrante(key, e.target.value)}
-                      />
-                    </Field>
-                  ),
-                )}
+              <button type="submit" form="inv-extintor-form" disabled={saving} className="btn-primary">
+                {saving ? "Salvando..." : modalMode === "create" ? "Cadastrar extintor" : "Salvar alterações"}
+              </button>
+            </>
+          }
+        >
+          <form id="inv-extintor-form" noValidate onSubmit={(event) => void handleSubmit(event)}>
+            <ExtintorInventoryForm
+              mode={modalMode ?? "create"}
+              form={form}
+              floors={floors}
+              errors={formErrors}
+              onChange={set}
+              onTipoChange={(tipo) =>
+                setForm((prev) => ({
+                  ...prev,
+                  tipo,
+                  tamanho: "",
+                }))
+              }
+              onPavimentoChange={(value) => {
+                floorFieldTouchedRef.current = true;
+                set("setor", value);
+              }}
+            />
+            {feedback ? (
+              <div className={`inv-form-feedback ${feedback.type === "ok" ? "inv-form-feedback--ok" : "inv-form-feedback--err"}`}>
+                {feedback.msg}
               </div>
+            ) : null}
+          </form>
+        </FormDrawer>
+      )}
 
-              {feedback && (
-                <div
-                  className="mt-4 rounded-xl px-4 py-3 text-sm font-semibold"
-                  style={
-                    feedback.type === "ok"
-                      ? { background: "#dcfce7", color: "#15803d" }
-                      : { background: "#fee2e2", color: "#b91c1c" }
-                  }
-                >
-                  {feedback.msg}
-                </div>
-              )}
-
-              <div className="mt-5 flex gap-3 border-t border-slate-100 pt-4">
-                <button type="submit" disabled={saving} className="btn-primary flex-1">
-                  {saving
-                    ? "Salvando..."
-                    : modalMode === "create"
-                      ? "Cadastrar Hidrante"
-                      : "Salvar Alterações"}
-                </button>
-                <button type="button" onClick={closeModal} className="btn-secondary">
-                  Cancelar
-                </button>
+      {drawerOpen && modalEntity === "hidrante" && (
+        <FormDrawer
+          eyebrow={modalMode === "create" ? "Novo hidrante" : "Editar hidrante"}
+          title={modalMode === "create" ? "Cadastrar hidrante" : `Hidrante ${formHidrante.codigo || ""}`.trim()}
+          description={
+            modalMode === "create"
+              ? "Preencha as informações para adicionar um novo hidrante ao inventário."
+              : "Atualize as informações cadastrais deste equipamento."
+          }
+          onClose={closeModal}
+          footer={
+            <>
+              <button type="button" onClick={closeModal} className="btn-secondary" disabled={saving}>
+                Cancelar
+              </button>
+              <button type="submit" form="inv-hidrante-form" disabled={saving} className="btn-primary">
+                {saving ? "Salvando..." : modalMode === "create" ? "Cadastrar hidrante" : "Salvar alterações"}
+              </button>
+            </>
+          }
+        >
+          <form id="inv-hidrante-form" noValidate onSubmit={(event) => void handleSubmitHidrante(event)}>
+            <HidranteInventoryForm
+              form={formHidrante}
+              floors={floors}
+              errors={formErrors}
+              onChange={setHidrante}
+              onPavimentoChange={(value) => {
+                floorFieldTouchedRef.current = true;
+                setHidrante("pavimento", value);
+              }}
+              onQuantidadeMangueiras={setQuantidadeMangueiras}
+            />
+            {feedback ? (
+              <div className={`inv-form-feedback ${feedback.type === "ok" ? "inv-form-feedback--ok" : "inv-form-feedback--err"}`}>
+                {feedback.msg}
               </div>
-            </form>
-          </div>
-        </div>
+            ) : null}
+          </form>
+        </FormDrawer>
       )}
 
       {detalheView && (
         <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30">
-            <div className="flex items-center justify-between bg-[var(--forest)] px-6 py-4 text-white">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--orange)]">
                   Detalhes do equipamento
                 </p>
-                <h2 className="text-lg font-black text-white">
+                <h2 className="mt-1 text-lg font-bold text-slate-900">
                   {tituloEquipamento(detalheView.item.codigo, detalheView.tipo)}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closeDetalhe}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/10"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+                aria-label="Fechar"
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1491,10 +1341,7 @@ export default function AdminExtintoresPage() {
                     className="sm:col-span-2"
                   />
                   <DetalheCampo label={COLUNAS_PADRAO.numInmetro} value={detalheView.item.num_inmetro || "—"} />
-                  <DetalheCampo
-                    label={COLUNAS_PADRAO.numCilindro}
-                    value={detalheView.item.num_cilindro || "—"}
-                  />
+                  <DetalheCampo label={COLUNAS_PADRAO.numCilindro} value={detalheView.item.num_cilindro || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.tipo} value={detalheView.item.tipo || "—"} />
                   <DetalheCampo label={COLUNAS_PADRAO.tamanho} value={detalheView.item.tamanho || "—"} />
                   <DetalheCampo
@@ -1547,13 +1394,13 @@ export default function AdminExtintoresPage() {
                 </div>
               )}
 
-              <div className="mt-5 flex gap-3">
+              <div className="mt-5 flex justify-end gap-3">
                 {!readOnly && (
-                  <button type="button" onClick={editarFromDetalhe} className="btn-primary flex-1">
+                  <button type="button" onClick={editarFromDetalhe} className="btn-primary">
                     Editar
                   </button>
                 )}
-                <button type="button" onClick={closeDetalhe} className={`btn-secondary ${readOnly ? "flex-1" : ""}`}>
+                <button type="button" onClick={closeDetalhe} className="btn-secondary">
                   Fechar
                 </button>
               </div>
@@ -1562,7 +1409,6 @@ export default function AdminExtintoresPage() {
         </div>
       )}
 
-      {/* Confirmação de apagar / recuperar (soft-delete) */}
       {bulkConfirmOpen && (
         <div className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl shadow-[var(--forest)]/30">
@@ -1626,23 +1472,7 @@ export default function AdminExtintoresPage() {
                 />
               </>
             )}
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => void confirmSoftDeleteOrRestore()}
-                disabled={
-                  deleting ||
-                  (!showInactive &&
-                    confirmPhrase.trim().toLocaleUpperCase("pt-BR") !== SOFT_DELETE_CONFIRM_PHRASE)
-                }
-                className="btn-primary flex-1 disabled:opacity-50"
-              >
-                {deleting
-                  ? "Processando..."
-                  : showInactive
-                    ? "Sim, recuperar"
-                    : "Confirmar: quero apagar estes itens"}
-              </button>
+            <div className="mt-5 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1654,6 +1484,22 @@ export default function AdminExtintoresPage() {
               >
                 Cancelar
               </button>
+              <button
+                type="button"
+                onClick={() => void confirmSoftDeleteOrRestore()}
+                disabled={
+                  deleting ||
+                  (!showInactive &&
+                    confirmPhrase.trim().toLocaleUpperCase("pt-BR") !== SOFT_DELETE_CONFIRM_PHRASE)
+                }
+                className="btn-primary disabled:opacity-50"
+              >
+                {deleting
+                  ? "Processando..."
+                  : showInactive
+                    ? "Sim, recuperar"
+                    : "Confirmar: quero apagar estes itens"}
+              </button>
             </div>
           </div>
         </div>
@@ -1661,4 +1507,3 @@ export default function AdminExtintoresPage() {
     </div>
   );
 }
-
