@@ -8,19 +8,22 @@ type ChecklistProgressBarProps = {
 export default function ChecklistProgressBar({ progress, label = "Inspeção" }: ChecklistProgressBarProps) {
   return (
     <div className="checklist-progress">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-[var(--fc-text-primary)]">{label}</p>
-        <p className="text-xs font-semibold text-[var(--fc-text-secondary)]">
-          {progress.answered} de {progress.total} respondidos
+      <div className="checklist-progress__row">
+        <p className="checklist-progress__label">{label}</p>
+        <p className="checklist-progress__meta">
+          {progress.answered} de {progress.total} respondidos · {progress.percent}%
         </p>
       </div>
-      <div className="checklist-progress__track" aria-hidden>
-        <div
-          className="checklist-progress__fill"
-          style={{ width: `${progress.percent}%` }}
-        />
+      <div
+        className="checklist-progress__track"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress.percent}
+      >
+        <div className="checklist-progress__fill" style={{ width: `${progress.percent}%` }} />
       </div>
-      <p className="text-[10px] font-semibold text-[var(--fc-text-secondary)]">{progress.percent}%</p>
     </div>
   );
 }

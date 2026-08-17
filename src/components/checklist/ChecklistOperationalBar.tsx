@@ -1,4 +1,5 @@
 import type { ChecklistProgress } from "@/lib/inspecao/checklist-progress";
+import { ChecklistCheckIcon, ChecklistChevronIcon } from "./ChecklistUiIcons";
 
 type ChecklistOperationalBarProps = {
   progress: ChecklistProgress;
@@ -20,33 +21,29 @@ export default function ChecklistOperationalBar({
   return (
     <div className="checklist-operational-bar">
       <div className="checklist-operational-bar__status">
-        <span className="text-xs font-bold text-[var(--fc-text-primary)]">
-          {progress.answered}/{progress.total} respondidos
+        <span className="checklist-operational-bar__count">
+          {progress.answered} de {progress.total} respondidos
         </span>
-        {complete ? (
-          <span className="text-[11px] font-semibold text-[var(--fc-success)]">Pronto para finalizar</span>
-        ) : (
-          <span className="text-[11px] font-semibold text-[var(--fc-text-secondary)]">
-            Continue respondendo o checklist
-          </span>
-        )}
+        <span className="checklist-operational-bar__percent">{progress.percent}% concluído</span>
       </div>
       {complete ? (
         <button
           type="button"
           disabled={isSaving || !isValid}
           onClick={onFinalize}
-          className="btn-primary checklist-operational-bar__cta pressable"
+          className="checklist-operational-bar__cta pressable"
         >
-          {isSaving ? "Finalizando..." : "Finalizar inspeção"}
+          {isSaving ? "Finalizando..." : "Concluir inspeção"}
+          {!isSaving ? <ChecklistCheckIcon size={16} /> : null}
         </button>
       ) : (
         <button
           type="button"
           onClick={onContinue}
-          className="btn-secondary checklist-operational-bar__cta pressable"
+          className="checklist-operational-bar__cta pressable"
         >
           Continuar
+          <ChecklistChevronIcon size={16} />
         </button>
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChecklistCheckIcon } from "./ChecklistUiIcons";
 
 type MarkAllConformeButtonProps = {
   onConfirm: () => void;
@@ -16,21 +17,22 @@ export default function MarkAllConformeButton({ onConfirm, disabled = false }: M
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="text-xs font-bold text-[var(--fc-primary-deep)] underline-offset-2 hover:underline"
+        className="checklist-mark-all"
       >
-        Marcar todos como Conforme
+        <ChecklistCheckIcon size={16} />
+        Marcar todos como conforme
       </button>
     );
   }
 
   return (
-    <div className="rounded-[var(--fc-radius-lg)] border border-[var(--fc-border)] bg-[var(--muted)] p-3">
-      <p className="text-sm font-bold text-[var(--fc-text-primary)]">Marcar todos os itens como Conforme?</p>
-      <p className="mt-1 text-xs text-[var(--fc-text-secondary)]">
+    <div className="checklist-mark-all-confirm">
+      <p className="checklist-mark-all-confirm__title">Marcar todos os itens como Conforme?</p>
+      <p className="checklist-mark-all-confirm__hint">
         Você poderá alterar individualmente qualquer resposta antes de finalizar.
       </p>
-      <div className="mt-3 flex gap-2">
-        <button type="button" onClick={() => setOpen(false)} className="btn-secondary !py-2 !text-xs">
+      <div className="checklist-mark-all-confirm__actions">
+        <button type="button" onClick={() => setOpen(false)} className="checklist-mark-all-confirm__cancel">
           Cancelar
         </button>
         <button
@@ -39,7 +41,7 @@ export default function MarkAllConformeButton({ onConfirm, disabled = false }: M
             onConfirm();
             setOpen(false);
           }}
-          className="btn-primary !py-2 !text-xs"
+          className="checklist-mark-all-confirm__ok"
         >
           Marcar todos
         </button>
