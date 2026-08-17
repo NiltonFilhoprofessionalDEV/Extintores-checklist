@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { InspecaoFilters, InspecaoOrdenacao, InspecaoStatusFilter } from "@/lib/inspecao/filter-types";
 
 type InspecaoFiltersPanelProps = {
@@ -16,15 +16,6 @@ type InspecaoFiltersPanelProps = {
   onClose: () => void;
 };
 
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-2">
-      <span className="text-xs font-bold text-[var(--fc-text-primary)]">{label}</span>
-      {children}
-    </label>
-  );
-}
-
 const STATUS_OPTIONS: { value: InspecaoStatusFilter; label: string }[] = [
   { value: "all", label: "Todos" },
   { value: "pendente", label: "Pendentes" },
@@ -38,6 +29,35 @@ const ORDENACAO_OPTIONS: { value: InspecaoOrdenacao; label: string }[] = [
   { value: "pavimento", label: "Pavimento" },
 ];
 
+const SECTION_LABEL = "mb-2 block text-xs font-bold uppercase tracking-wide text-zinc-500";
+const SELECT_CLASS =
+  "w-full rounded-xl border border-slate-200 bg-[#fafafa] px-3 py-2.5 text-sm font-semibold text-slate-700";
+
+function ChoiceButton({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+        selected
+          ? "border-[var(--orange)] bg-[var(--orange-soft)] text-[var(--orange-deep)]"
+          : "border-slate-200 bg-white text-slate-700"
+      }`}
+      aria-pressed={selected}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function InspecaoFiltersPanel({
   open,
   tipo,
@@ -45,7 +65,6 @@ export default function InspecaoFiltersPanel({
   pavimentos,
   tipos,
   capacidades,
-  resultCount,
   onChange,
   onClear,
   onClose,
@@ -63,37 +82,45 @@ export default function InspecaoFiltersPanel({
 
   return (
     <div
-      className="modal-layer fixed inset-0 flex items-end justify-center bg-slate-950/35 p-0 backdrop-blur-[2px] lg:items-center lg:p-4"
+      className="modal-layer fixed inset-0 z-[1800] flex items-end md:items-stretch md:justify-end"
+      style={{ background: "rgba(15, 23, 42, 0.4)" }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="inspecao-filters-title"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-t-[1.75rem] bg-white shadow-2xl lg:rounded-[1.75rem]"
+        className="flex max-h-[min(86dvh,640px)] w-full flex-col rounded-t-[1.5rem] bg-white shadow-2xl md:h-full md:max-h-none md:max-w-md md:rounded-none"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between border-b border-[var(--fc-border)] px-5 py-4">
-          <div>
-            <p className="page-eyebrow">Refinar lista</p>
-            <h2 id="inspecao-filters-title" className="mt-1 text-xl font-extrabold text-[var(--fc-text-primary)]">
-              Filtros
-            </h2>
-          </div>
+        <div className="flex justify-center pt-3 md:hidden">
+          <div className="h-1 w-10 rounded-full bg-zinc-300" />
+        </div>
+
+        <div className="flex items-center justify-between px-5 pb-2 pt-3">
+          <h2 id="inspecao-filters-title" className="text-lg font-extrabold text-zinc-900">
+            Filtros
+          </h2>
           <button
             type="button"
+            className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400"
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[var(--muted)] text-lg text-slate-600"
-            aria-label="Fechar filtros"
+            aria-label="Fechar"
           >
-            ×
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <div className="max-h-[70dvh] space-y-4 overflow-y-auto px-5 py-4">
-          <FilterField label="Pavimento">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          <div className="mb-5">
+            <label htmlFor="inspecao-filter-pavimento" className={SECTION_LABEL}>
+              Pavimento
+            </label>
             <select
-              className="field-control field-control--touch"
+              id="inspecao-filter-pavimento"
+              className={SELECT_CLASS}
               value={filters.pavimento}
               onChange={(event) => onChange({ ...filters, pavimento: event.target.value })}
             >
@@ -102,13 +129,17 @@ export default function InspecaoFiltersPanel({
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
-          </FilterField>
+          </div>
 
-          {tipo === "extintor" && (
+          {tipo === "extintor" ? (
             <>
-              <FilterField label="Tipo de agente">
+              <div className="mb-5">
+                <label htmlFor="inspecao-filter-tipo" className={SECTION_LABEL}>
+                  Tipo de agente
+                </label>
                 <select
-                  className="field-control field-control--touch"
+                  id="inspecao-filter-tipo"
+                  className={SELECT_CLASS}
                   value={filters.tipo}
                   onChange={(event) => onChange({ ...filters, tipo: event.target.value })}
                 >
@@ -117,11 +148,15 @@ export default function InspecaoFiltersPanel({
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
-              </FilterField>
+              </div>
 
-              <FilterField label="Capacidade">
+              <div className="mb-5">
+                <label htmlFor="inspecao-filter-capacidade" className={SECTION_LABEL}>
+                  Capacidade
+                </label>
                 <select
-                  className="field-control field-control--touch"
+                  id="inspecao-filter-capacidade"
+                  className={SELECT_CLASS}
                   value={filters.capacidade}
                   onChange={(event) => onChange({ ...filters, capacidade: event.target.value })}
                 >
@@ -130,56 +165,55 @@ export default function InspecaoFiltersPanel({
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-              </FilterField>
+              </div>
             </>
-          )}
+          ) : null}
 
-          <FilterField label="Status">
-            <div className="grid grid-cols-2 gap-2">
-              {STATUS_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onChange({ ...filters, status: option.value })}
-                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                    filters.status === option.value
-                      ? "border-[var(--fc-primary)] bg-[var(--fc-primary-soft)] text-[var(--fc-primary-deep)]"
-                      : "border-[var(--fc-border)] bg-white text-[var(--fc-text-secondary)]"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </FilterField>
+          <p className={SECTION_LABEL}>Status</p>
+          <div className="mb-5 grid grid-cols-2 gap-2">
+            {STATUS_OPTIONS.map((option) => (
+              <ChoiceButton
+                key={option.value}
+                selected={filters.status === option.value}
+                onClick={() => onChange({ ...filters, status: option.value })}
+              >
+                {option.label}
+              </ChoiceButton>
+            ))}
+          </div>
 
-          <FilterField label="Ordenação">
+          <div>
+            <label htmlFor="inspecao-filter-ordenacao" className={SECTION_LABEL}>
+              Ordenação
+            </label>
             <select
-              className="field-control field-control--touch"
+              id="inspecao-filter-ordenacao"
+              className={SELECT_CLASS}
               value={filters.ordenacao}
-              onChange={(event) =>
-                onChange({ ...filters, ordenacao: event.target.value as InspecaoOrdenacao })
-              }
+              onChange={(event) => onChange({ ...filters, ordenacao: event.target.value as InspecaoOrdenacao })}
             >
               {ORDENACAO_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
-          </FilterField>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--fc-border)] px-5 py-4">
-          <p className="text-xs font-semibold text-[var(--fc-text-secondary)]">
-            {resultCount} equipamento{resultCount === 1 ? "" : "s"}
-          </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClear} className="btn-secondary !py-2 !text-xs">
-              Limpar
-            </button>
-            <button type="button" onClick={onClose} className="btn-primary !py-2 !text-xs">
-              Aplicar
-            </button>
-          </div>
+        <div className="flex shrink-0 gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600"
+            onClick={onClear}
+          >
+            Limpar filtros
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-xl bg-[var(--orange)] py-3 text-sm font-bold text-white shadow-sm"
+            onClick={onClose}
+          >
+            Aplicar filtros
+          </button>
         </div>
       </div>
     </div>

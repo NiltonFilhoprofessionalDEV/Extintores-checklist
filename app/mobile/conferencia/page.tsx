@@ -1084,21 +1084,17 @@ export default function MobileConferenciaPage() {
         <button
           type="button"
           onClick={() => setFiltersOpen(true)}
-          className={`flex h-[var(--fc-input-height)] shrink-0 items-center gap-1.5 rounded-[var(--fc-radius-lg)] border px-3 text-xs font-bold transition ${
-            activeFilterCount > 0
-              ? "border-[var(--fc-primary)] bg-[var(--fc-primary-soft)] text-[var(--fc-primary-deep)]"
-              : "border-[var(--fc-border)] bg-[var(--fc-surface)] text-[var(--fc-text-secondary)]"
-          }`}
-          aria-label="Abrir filtros"
+          className={`map-toolbar__filters${activeFilterCount > 0 ? " is-active" : ""}`}
+          aria-label={activeFilterCount > 0 ? `Filtros • ${activeFilterCount}` : "Filtros"}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+            <path strokeLinecap="round" d="M4 8h10M18 8h2M4 16h2M10 16h10" />
+            <circle cx="16" cy="8" r="2.25" />
+            <circle cx="8" cy="16" r="2.25" />
           </svg>
-          Filtros
+          <span>Filtros</span>
           {activeFilterCount > 0 ? (
-            <span className="rounded-full bg-[var(--fc-primary)] px-1.5 py-0.5 text-[10px] text-white">
-              {activeFilterCount}
-            </span>
+            <span className="map-toolbar__badge">{activeFilterCount}</span>
           ) : null}
         </button>
       </div>
