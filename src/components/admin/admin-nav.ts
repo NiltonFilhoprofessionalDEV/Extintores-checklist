@@ -17,7 +17,9 @@ export type AdminIconName =
   | "settings"
   | "audit"
   | "menu"
-  | "logout";
+  | "logout"
+  | "account"
+  | "history";
 
 export type AdminNavItem = {
   href: string;
@@ -27,39 +29,68 @@ export type AdminNavItem = {
   adminLikeOnly?: boolean;
 };
 
-export const PRIMARY_NAV_ITEMS: AdminNavItem[] = [
-  { href: "/admin/dashboard", label: "Início", icon: "dashboard" },
-  { href: "/admin/extintores", label: "Inventário", icon: "inventory" },
-  { href: "/admin/mapeamento", label: "Mapa", icon: "map" },
-  { href: "/admin/inspecoes-lista", label: "Checklist", icon: "checks" },
+export type AdminNavGroup = {
+  id: "operacao" | "gestao" | "sistema";
+  label: string;
+  items: AdminNavItem[];
+};
+
+export const NAV_GROUPS: AdminNavGroup[] = [
+  {
+    id: "operacao",
+    label: "Operação",
+    items: [
+      { href: "/admin/dashboard", label: "Dashboard", icon: "dashboard" },
+      { href: "/admin/extintores", label: "Inventário", icon: "inventory" },
+      { href: "/admin/mapeamento", label: "Mapa", icon: "map" },
+      { href: "/admin/inspecoes-lista", label: "Checklist", icon: "checks" },
+      { href: "/admin/conferencias", label: "Conferências", icon: "history" },
+    ],
+  },
+  {
+    id: "gestao",
+    label: "Gestão",
+    items: [
+      { href: "/admin/usuarios", label: "Usuários", icon: "users" },
+      { href: "/admin/bases", label: "Bases", icon: "bases", adminCorporativoOnly: true },
+      { href: "/admin/importacao", label: "Importar dados", icon: "import" },
+      {
+        href: "/admin/posicionamento",
+        label: "Posicionar equipamentos",
+        icon: "map",
+        adminLikeOnly: true,
+      },
+    ],
+  },
+  {
+    id: "sistema",
+    label: "Sistema",
+    items: [
+      {
+        href: "/admin/auditoria",
+        label: "Auditoria",
+        icon: "audit",
+        adminCorporativoOnly: true,
+      },
+      {
+        href: "/admin/configuracoes",
+        label: "Configurações",
+        icon: "settings",
+        adminLikeOnly: true,
+      },
+    ],
+  },
 ];
+
+export const PRIMARY_NAV_ITEMS: AdminNavItem[] = NAV_GROUPS[0].items.slice(0, 4);
 
 export const SECONDARY_NAV_ITEMS: AdminNavItem[] = [
-  { href: "/admin/conferencias", label: "Conferências", icon: "checks" },
-  { href: "/admin/usuarios", label: "Usuários", icon: "users" },
-  { href: "/admin/bases", label: "Bases", icon: "bases", adminCorporativoOnly: true },
-  { href: "/admin/importacao", label: "Importar dados", icon: "import" },
-  {
-    href: "/admin/auditoria",
-    label: "Auditoria",
-    icon: "audit",
-    adminCorporativoOnly: true,
-  },
-  {
-    href: "/admin/posicionamento",
-    label: "Posicionar equipamentos",
-    icon: "map",
-    adminLikeOnly: true,
-  },
-  {
-    href: "/admin/configuracoes",
-    label: "Configurações da base",
-    icon: "settings",
-    adminLikeOnly: true,
-  },
+  ...NAV_GROUPS[0].items.slice(4),
+  ...NAV_GROUPS[1].items,
+  ...NAV_GROUPS[2].items,
 ];
 
-export const ALL_NAV_ITEMS: AdminNavItem[] = [...PRIMARY_NAV_ITEMS, ...SECONDARY_NAV_ITEMS];
+export const ALL_NAV_ITEMS: AdminNavItem[] = NAV_GROUPS.flatMap((group) => group.items);
 
 export function canShowNavItem(item: AdminNavItem, role: UserRole): boolean {
   if (item.adminCorporativoOnly && role !== "admin_corporativo") return false;
@@ -74,6 +105,12 @@ export function canShowNavItem(item: AdminNavItem, role: UserRole): boolean {
 
 export function getVisibleNavItems(items: AdminNavItem[], role: UserRole): AdminNavItem[] {
   return items.filter((item) => canShowNavItem(item, role));
+}
+
+export function getVisibleNavGroups(role: UserRole): AdminNavGroup[] {
+  return NAV_GROUPS
+    .map((group) => ({ ...group, items: getVisibleNavItems(group.items, role) }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function getNavInitials(name: string): string {

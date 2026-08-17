@@ -13,7 +13,15 @@ import {
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
 import ExportActions from "@/src/components/ExportActions";
 
-type ManutencaoModalKey = "vencidos" | "alerta30" | "alerta60" | "alerta90" | "alerta120" | "semPosicao";
+export type HidranteManutencaoModalKey =
+  | "vencidos"
+  | "alerta30"
+  | "alerta60"
+  | "alerta90"
+  | "alerta120"
+  | "semPosicao";
+
+type ManutencaoModalKey = HidranteManutencaoModalKey;
 
 const ALERTA_EXPORT_HIGHLIGHT: Record<ManutencaoModalKey, AlertaVencimentoRowHighlight> = {
   vencidos: "vencido",
@@ -88,7 +96,7 @@ function DaysBadge({ days }: { days: number | null }) {
   );
 }
 
-function HidranteManutencaoModal({
+export function HidranteManutencaoModal({
   modalKey,
   items,
   onClose,

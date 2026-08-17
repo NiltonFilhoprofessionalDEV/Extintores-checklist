@@ -47,6 +47,22 @@ export default function AdminNavIcon({ name, size = 20 }: { name: AdminIconName;
       </svg>
     );
   }
+  if (name === "history") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8.25" />
+        <path d="M12 8v4l2.5 1.5" />
+      </svg>
+    );
+  }
+  if (name === "account") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="8" r="3.25" />
+        <path d="M5.5 19.25c.9-3.1 3.4-4.75 6.5-4.75s5.6 1.65 6.5 4.75" />
+      </svg>
+    );
+  }
   if (name === "logout") {
     return <svg {...common}><path d="M10 17l5-5-5-5m5 5H3m12-8h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /></svg>;
   }
