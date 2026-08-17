@@ -4,7 +4,6 @@ import AuthGuard from "@/src/components/AuthGuard";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
-import FlaticonCredits from "@/src/components/FlaticonCredits";
 import MobileBottomNav from "@/src/components/mobile/MobileBottomNav";
 import MobileNavRail from "@/src/components/mobile/MobileNavRail";
 import { useMobileNavCollapse } from "@/src/components/mobile/useMobileNavCollapse";
@@ -73,7 +72,6 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
                 }
               >
                 {children}
-                {!isMapaRoute ? <FlaticonCredits className="mt-6 pb-2" /> : null}
               </div>
             </main>
           </div>
