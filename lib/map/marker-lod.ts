@@ -3,7 +3,8 @@ export type MarkerLod = "dot" | "icon" | "detail";
 
 /**
  * Converte zoom atual vs zoom de “ajuste à tela” em LOD.
- * delta < 0.75 → ponto compacto; < 2 → ícone; resto → ícone + código.
+ * O código do equipamento permanece visível em todos os níveis.
+ * delta < 0.75 → badge compacto; < 2 → badge médio; resto → número + ícone.
  */
 export function markerLodFromZoom(currentZoom: number, fitZoom: number): MarkerLod {
   const delta = currentZoom - fitZoom;

@@ -4,6 +4,7 @@ export type PersistedMapViewState = {
   floorKey?: string;
   mode?: "edicao" | "inspecao";
   filtroEquipe?: string;
+  filtroStatus?: string;
   showExtintor?: boolean;
   showHidrante?: boolean;
 };

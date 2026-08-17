@@ -31,20 +31,24 @@ export default function MapZoomControls({ bounds, bottomOffset = 0, compact = fa
     map.zoomOut(undefined, { animate: false });
   };
 
-  const btnClass = compact
-    ? "map-zoom-btn map-zoom-btn--compact"
-    : "map-zoom-btn";
+  const btnClass = compact ? "map-zoom-btn map-zoom-btn--compact" : "map-zoom-btn";
 
   return (
     <div className="map-zoom-controls" aria-label="Controles de zoom do mapa">
       <button type="button" className={btnClass} onClick={zoomIn} aria-label="Aumentar zoom">
-        +
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+          <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+        </svg>
       </button>
       <button type="button" className={btnClass} onClick={zoomOut} aria-label="Diminuir zoom">
-        −
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+          <path strokeLinecap="round" d="M5 12h14" />
+        </svg>
       </button>
       <button type="button" className={btnClass} onClick={fitToScreen} aria-label="Ajustar à tela">
-        ⊡
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 3H4v4M16 3h4v4M8 21H4v-4M16 21h4v-4" />
+        </svg>
       </button>
     </div>
   );

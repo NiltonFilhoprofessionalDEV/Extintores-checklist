@@ -22,30 +22,24 @@ export default function MapViewportSync({
   const fitZoomRef = useRef<number | null>(null);
   const lastTapRef = useRef(0);
 
-  const publishLod = () => {
-    const current = map.getZoom();
-    const fit = fitZoomRef.current ?? current;
-    onLodChange(markerLodFromZoom(current, fit));
-  };
-
   useEffect(() => {
     const onZoomEnd = () => {
       if (fitZoomRef.current == null) {
         fitZoomRef.current = map.getZoom();
         onFitZoomChange?.(fitZoomRef.current);
       }
-      publishLod();
+      const current = map.getZoom();
+      const fit = fitZoomRef.current ?? current;
+      onLodChange(markerLodFromZoom(current, fit));
     };
 
     map.on("zoomend", onZoomEnd);
-    map.on("moveend", publishLod);
 
     const id = globalThis.setTimeout(onZoomEnd, 400);
 
     return () => {
       globalThis.clearTimeout(id);
       map.off("zoomend", onZoomEnd);
-      map.off("moveend", publishLod);
     };
   }, [map, onFitZoomChange, onLodChange]);
 
