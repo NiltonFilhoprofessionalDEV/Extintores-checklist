@@ -25,7 +25,12 @@ import {
 } from "@/lib/supabase/checklists-do-mes";
 import { isCargoLabel, resolveConferenteNome } from "@/lib/auth/conferente";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
-import { canUseMapEditing, canUseMapInspection } from "@/lib/auth/roles";
+import {
+  canUseMapEditing,
+  canUseMapInspection,
+  isMapInspectionOnlyRole,
+  normalizeUserRole,
+} from "@/lib/auth/roles";
 import { useOptionalActiveBase } from "@/lib/auth/active-base-context";
 import {
   baseHasEquipesConferencia,
@@ -389,7 +394,7 @@ function InspecaoModalFrame({
 
 export default function MapView() {
   const activeBaseCtx = useOptionalActiveBase();
-  const [mode, setMode] = useState<Mode>("edicao");
+  const [mode, setMode] = useState<Mode>("inspecao");
   const [pavimentos, setPavimentos] = useState<PavimentoOption[]>(FALLBACK_PAVIMENTOS);
   const [pavimento, setPavimento] = useState<PavimentoOption>(FALLBACK_PAVIMENTOS[0]);
   const [extintores, setExtintores] = useState<Extintor[]>([]);
@@ -634,7 +639,6 @@ export default function MapView() {
           }
           return mapped.find((item) => item.key === prev.key) ?? mapped[0];
         });
-        if (persisted?.mode) setMode(persisted.mode);
         if (persisted?.filtroEquipe !== undefined) setFiltroEquipe(persisted.filtroEquipe as EquipeConferenciaId | "");
         if (persisted?.filtroStatus !== undefined) setFiltroStatus(parseMapStatusFilter(persisted.filtroStatus));
         if (persisted?.showExtintor !== undefined || persisted?.showHidrante !== undefined) {
@@ -767,6 +771,8 @@ export default function MapView() {
               !prev.conferente.trim() || isCargoLabel(prev.conferente) ? nome : prev.conferente,
           }));
           setMode(() => {
+            const normalizedRole = role ? normalizeUserRole(role) : null;
+            if (normalizedRole && isMapInspectionOnlyRole(normalizedRole)) return "inspecao";
             const persisted = readMapViewState(profile?.base_id ?? null);
             if (inspectAllowed && !editAllowed) return "inspecao";
             if (persisted?.mode === "edicao" && !editAllowed) return "inspecao";
@@ -1141,34 +1147,16 @@ export default function MapView() {
     pavimento.label,
   ]);
 
+  const inspectionOnlyRole =
+    actorProfile?.role != null && isMapInspectionOnlyRole(actorProfile.role);
+
   const mostrarFiltroEquipe =
     mode === "inspecao" && canInspect && baseHasEquipesConferencia(activeBase);
 
-  const mapModeActions =
-    canEdit ? (
-      <>
-        <button
-          type="button"
-          className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
-            mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-          }`}
-          onClick={() => setMode("edicao")}
-        >
-          {isMobile ? "Edição" : "Modo edição"}
-        </button>
-        {canInspect ? (
-          <button
-            type="button"
-            className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
-              mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-            }`}
-            onClick={() => setMode("inspecao")}
-          >
-            {isMobile ? "Inspeção" : "Modo inspeção"}
-          </button>
-        ) : null}
-      </>
-    ) : null;
+  useEffect(() => {
+    if (!inspectionOnlyRole) return;
+    setMode("inspecao");
+  }, [inspectionOnlyRole, activeBaseId]);
 
   const mapToolbar = (
     <MapToolbar
@@ -1189,7 +1177,6 @@ export default function MapView() {
       }
       onOpenFilters={() => setFiltersOpen(true)}
       activeFilterCount={activeFilterCount}
-      actions={mapModeActions}
     />
   );
 
