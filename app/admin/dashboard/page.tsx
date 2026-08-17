@@ -28,6 +28,7 @@ import {
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import { ALL_NAV_ITEMS, getVisibleNavItems } from "@/src/components/admin/admin-nav";
 import DashboardHome, { type DashAlert, type DashFaixa, type DashRecent, type DashUpcoming } from "./DashboardHome";
+import DashboardDetailDrawer, { RemainingDaysBadge } from "./DashboardDetailDrawer";
 import { HidranteManutencaoModal, type HidranteManutencaoModalKey } from "./HidranteVencimentoSection";
 import { filtrarPorEmpresa, type EmpresaTab } from "@/lib/dashboard/empresa-filter";
 import {
@@ -38,8 +39,6 @@ import {
   startOfTodayLocal,
   type ManutencaoAlertaKey,
 } from "@/lib/dashboard/manutencao-nivel2";
-import ExportActions from "@/src/components/ExportActions";
-import { COLUNAS_EXTINTOR, COLUNA_TITULO_CLASS } from "@/lib/inventario/equipamento-padrao";
 
 type Stats = {
   total: number;
@@ -176,11 +175,7 @@ function Nivel3AvisoBadge({ extintor }: { extintor: ExtintorRow }) {
   if (!nivel3VenceNoMesmoAnoQueNivel2(extintor.manutencao_2_nivel, extintor.manutencao_3_nivel)) {
     return null;
   }
-  return (
-    <span className="mt-1 inline-flex max-w-[11rem] rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold leading-snug text-violet-800">
-      3º nível também vence neste ano
-    </span>
-  );
+  return <span className="dash-nivel3">3º nível vence este ano</span>;
 }
 
 function ExtintorManutencaoModal({
@@ -195,133 +190,60 @@ function ExtintorManutencaoModal({
   onClose: () => void;
 }) {
   const meta = MANUTENCAO_MODAL_META[modalKey];
-  const showManutencaoCols = modalKey !== "semPosicao";
+  const showManutencao = modalKey !== "semPosicao";
   const today = startOfTodayLocal();
 
   return (
-    <div
-      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+    <DashboardDetailDrawer
+      title={meta.title}
+      subtitle={meta.subtitle}
+      periodLabel={dateRangeLabel}
+      countLabel={`${items.length} extintor${items.length !== 1 ? "es" : ""}`}
+      onClose={onClose}
+      onExcel={items.length > 0 ? () => exportAlertasVencimento(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey]) : undefined}
+      onPdf={items.length > 0 ? () => exportAlertasExtintoresPdf(items, meta.title) : undefined}
     >
-      <div
-        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex shrink-0 items-start justify-between gap-3 px-5 py-5 text-white"
-          style={{ background: `linear-gradient(135deg, ${meta.color}, #0f172a)` }}
-        >
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/60">Detalhamento</p>
-            <h2 className="mt-1 text-xl font-black tracking-tight">{meta.title}</h2>
-            <p className="text-sm text-white/75">{meta.subtitle}</p>
-            {dateRangeLabel ? (
-              <p className="mt-1 text-xs font-semibold text-white/90">
-                Período contabilizado: {dateRangeLabel}
-              </p>
-            ) : null}
-            <p className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold text-white">
-              {items.length} extintor{items.length !== 1 ? "es" : ""}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {items.length > 0 && (
-              <ExportActions
-                compact
-                tone="dark"
-                onExcel={() => exportAlertasVencimento(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])}
-                onPdf={() => exportAlertasExtintoresPdf(items, meta.title)}
-              />
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto bg-slate-50/70">
-          {items.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-500">Nenhum extintor nesta categoria.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 shadow-sm shadow-slate-200/60">
-                <tr>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.codigo}</th>
-                  <th className={COLUNA_TITULO_CLASS}>
-                    {COLUNAS_EXTINTOR.pavimento} / {COLUNAS_EXTINTOR.localDetalhado}
-                  </th>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.pavimento}</th>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.tipo}</th>
-                  <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.numInmetro}</th>
-                  {showManutencaoCols ? (
-                    <>
-                      <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao2}</th>
-                      <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.manutencao3}</th>
-                      <th className={COLUNA_TITULO_CLASS}>Dias</th>
-                    </>
-                  ) : (
-                    <th className={COLUNA_TITULO_CLASS}>{COLUNAS_EXTINTOR.capacidadeExtintora}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.map((e) => {
-                  const days = showManutencaoCols
-                    ? diasRestantesNivel2(e.manutencao_2_nivel, today)
-                    : null;
-                  return (
-                    <tr key={e.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-semibold text-slate-900">{e.codigo}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        <p>{e.setor}</p>
-                        <p className="text-xs text-slate-400">{e.local_detalhado}</p>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{e.pavimento?.trim() || "—"}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {e.tipo} {e.tamanho}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{e.num_inmetro}</td>
-                      {showManutencaoCols ? (
-                        <>
-                          <td className="px-4 py-3 text-slate-600">{formatDatePt(e.manutencao_2_nivel)}</td>
-                          <td className="px-4 py-3 text-slate-600">
-                            <p>{formatDatePt(e.manutencao_3_nivel)}</p>
-                            <Nivel3AvisoBadge extintor={e} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {days !== null ? (
-                              <span
-                                className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
-                                style={{
-                                  background: days < 0 ? "#fee2e2" : days <= 30 ? "#fef3c7" : "#fef9c3",
-                                  color: days < 0 ? "#b91c1c" : days <= 30 ? "#92400e" : "#713f12",
-                                }}
-                              >
-                                {days < 0 ? `${Math.abs(days)}d vencido` : `${days}d`}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                        </>
-                      ) : (
-                        <td className="px-4 py-3 text-slate-600">{e.capacidade_extintora || "—"}</td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
+      {items.length === 0 ? (
+        <p className="dash-drawer__empty">Nenhum extintor nesta categoria.</p>
+      ) : (
+        <ul className="dash-equip-list">
+          {items.map((extintor) => {
+            const days = showManutencao ? diasRestantesNivel2(extintor.manutencao_2_nivel, today) : null;
+            return (
+              <li key={extintor.id} className="dash-equip">
+                <div className="dash-equip__top">
+                  <p className="dash-equip__id">{formatEquipmentIdentifier("extintor", extintor.codigo)}</p>
+                  {showManutencao ? <RemainingDaysBadge days={days} /> : null}
+                </div>
+                <p className="dash-equip__type">
+                  {extintor.tipo}
+                  {extintor.tamanho ? ` · ${extintor.tamanho}` : ""}
+                </p>
+                <p className="dash-equip__place">{extintor.pavimento?.trim() || extintor.setor || "—"}</p>
+                {extintor.local_detalhado ? <p className="dash-equip__detail">{extintor.local_detalhado}</p> : null}
+                {showManutencao ? (
+                  <dl className="dash-equip__meta">
+                    <div>
+                      <dt>Manutenção 2º nível</dt>
+                      <dd>{formatDatePt(extintor.manutencao_2_nivel)}</dd>
+                    </div>
+                    <div>
+                      <dt>Manutenção 3º nível</dt>
+                      <dd>
+                        {formatDatePt(extintor.manutencao_3_nivel)}
+                        <Nivel3AvisoBadge extintor={extintor} />
+                      </dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="dash-equip__detail">{extintor.capacidade_extintora || "Sem posição no mapa"}</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </DashboardDetailDrawer>
   );
 }
 
@@ -334,67 +256,51 @@ function NcDetailModal({
   hidrantes: { h: HidranteVencimentoRow; u: ChecklistHidranteMesRow }[];
   onClose: () => void;
 }) {
+  const total = extintores.length + hidrantes.length;
   return (
-    <div
-      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+    <DashboardDetailDrawer
+      title="Itens não conformes"
+      subtitle="Última conferência do mês, incluindo vencidos no recorte atual."
+      countLabel={`${total} item${total !== 1 ? "ns" : ""}`}
+      onClose={onClose}
     >
-      <div
-        className="flex max-h-[min(90dvh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-start justify-between gap-3 bg-rose-700 px-5 py-5 text-white">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/60">Detalhamento</p>
-            <h2 className="mt-1 text-xl font-black tracking-tight">Itens não conformes</h2>
-            <p className="text-sm text-white/75">Última conferência do mês, incluindo vencidos no recorte atual.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
-          >
-            Fechar
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 space-y-5 overflow-auto bg-slate-50/70 p-5">
-          <section>
-            <h3 className="text-sm font-bold text-slate-800">Extintores ({extintores.length})</h3>
-            {extintores.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">Nenhum extintor não conforme neste mês.</p>
-            ) : (
-              <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                {extintores.map(({ e, u }) => (
-                  <li key={e.id} className="px-4 py-3">
-                    <p className="font-semibold text-slate-900">{formatEquipmentIdentifier("extintor", e.codigo)}</p>
-                    <p className="text-sm text-slate-500">{formatLocalLinha(e.setor, e.local_detalhado)}</p>
-                    <p className="text-xs text-slate-400">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <section>
-            <h3 className="text-sm font-bold text-slate-800">Hidrantes ({hidrantes.length})</h3>
-            {hidrantes.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">Nenhum hidrante não conforme neste mês.</p>
-            ) : (
-              <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                {hidrantes.map(({ h, u }) => (
-                  <li key={h.id} className="px-4 py-3">
-                    <p className="font-semibold text-slate-900">{formatEquipmentIdentifier("hidrante", h.codigo)}</p>
-                    <p className="text-sm text-slate-500">{formatLocalLinha(h.pavimento ?? "", h.local_detalhado)}</p>
-                    <p className="text-xs text-slate-400">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      </div>
-    </div>
+      <section className="dash-drawer__group">
+        <h3>Extintores ({extintores.length})</h3>
+        {extintores.length === 0 ? (
+          <p className="dash-drawer__empty">Nenhum extintor não conforme neste mês.</p>
+        ) : (
+          <ul className="dash-equip-list">
+            {extintores.map(({ e, u }) => (
+              <li key={e.id} className="dash-equip">
+                <p className="dash-equip__id">{formatEquipmentIdentifier("extintor", e.codigo)}</p>
+                <p className="dash-equip__type">{`${e.tipo}${e.tamanho ? ` · ${e.tamanho}` : ""}`}</p>
+                <p className="dash-equip__place">{e.setor || "—"}</p>
+                {e.local_detalhado ? <p className="dash-equip__detail">{e.local_detalhado}</p> : null}
+                <p className="dash-equip__detail">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="dash-drawer__group">
+        <h3>Hidrantes ({hidrantes.length})</h3>
+        {hidrantes.length === 0 ? (
+          <p className="dash-drawer__empty">Nenhum hidrante não conforme neste mês.</p>
+        ) : (
+          <ul className="dash-equip-list">
+            {hidrantes.map(({ h, u }) => (
+              <li key={h.id} className="dash-equip">
+                <p className="dash-equip__id">{formatEquipmentIdentifier("hidrante", h.codigo)}</p>
+                <p className="dash-equip__type">Hidrante</p>
+                <p className="dash-equip__place">{h.pavimento || "—"}</p>
+                {h.local_detalhado ? <p className="dash-equip__detail">{h.local_detalhado}</p> : null}
+                <p className="dash-equip__detail">{new Date(u.data_conferencia).toLocaleString("pt-BR")}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </DashboardDetailDrawer>
   );
 }
 

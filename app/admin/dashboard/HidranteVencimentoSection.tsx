@@ -10,7 +10,9 @@ import {
   listarMangueirasAtivas,
   type HidranteVencimentoRow,
 } from "@/lib/hidrantes/vencimento-mangueiras";
+import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import { DashboardStatCard, DashboardStatIcon } from "./dashboard-stat-card";
+import DashboardDetailDrawer, { RemainingDaysBadge } from "./DashboardDetailDrawer";
 import ExportActions from "@/src/components/ExportActions";
 
 export type HidranteManutencaoModalKey =
@@ -106,108 +108,49 @@ export function HidranteManutencaoModal({
   onClose: () => void;
 }) {
   const meta = MODAL_META[modalKey];
-  const showVencimentoCols = modalKey !== "semPosicao";
+  const showVencimento = modalKey !== "semPosicao";
 
   return (
-    <div
-      className="modal-layer fixed inset-0 flex items-center justify-center bg-[var(--forest)]/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+    <DashboardDetailDrawer
+      title={meta.title}
+      subtitle={meta.subtitle}
+      countLabel={`${items.length} hidrante${items.length !== 1 ? "s" : ""}`}
+      onClose={onClose}
+      onExcel={
+        items.length > 0
+          ? () => exportAlertasVencimentoHidrantes(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])
+          : undefined
+      }
+      onPdf={items.length > 0 ? () => exportAlertasHidrantesPdf(items, meta.title) : undefined}
     >
-      <div
-        className="flex max-h-[min(90dvh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[var(--forest)]/30"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex shrink-0 items-start justify-between gap-3 px-5 py-5 text-white"
-          style={{ background: `linear-gradient(135deg, ${meta.color}, #0f172a)` }}
-        >
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/60">Detalhamento</p>
-            <h2 className="mt-1 text-xl font-black tracking-tight">{meta.title}</h2>
-            <p className="text-sm text-white/75">{meta.subtitle}</p>
-            <p className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold text-white">
-              {items.length} hidrante{items.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {items.length > 0 && (
-              <ExportActions
-                compact
-                tone="dark"
-                onExcel={() =>
-                  exportAlertasVencimentoHidrantes(items, meta.exportLabel, ALERTA_EXPORT_HIGHLIGHT[modalKey])
-                }
-                onPdf={() => exportAlertasHidrantesPdf(items, meta.title)}
-              />
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto bg-slate-50/70">
-          {items.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-500">Nenhum hidrante nesta categoria.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 shadow-sm shadow-slate-200/60">
-                <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Código
-                  </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Pavimento / local
-                  </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Mangueiras
-                  </th>
-                  {showVencimentoCols ? (
-                    <>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Venc. mais próximo
-                      </th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Dias
-                      </th>
-                    </>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.map((h) => (
-                  <tr key={h.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-semibold text-slate-900">{h.codigo}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatLocalLinha(h.pavimento ?? "", h.local_detalhado)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{h.quantidade_mangueiras ?? "—"}</td>
-                    {showVencimentoCols ? (
-                      <>
-                        <td className="px-4 py-3 text-slate-600">
-                          {listarMangueirasAtivas(h)
-                            .map((m) => `M-${m.numero}: ${formatVencimentoMangueira(m.ultimaRealizacao)}`)
-                            .join(" · ")}
-                        </td>
-                        <td className="px-4 py-3">
-                          <DaysBadge days={diasRestantesMangueiraCritica(h)} />
-                        </td>
-                      </>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
+      {items.length === 0 ? (
+        <p className="dash-drawer__empty">Nenhum hidrante nesta categoria.</p>
+      ) : (
+        <ul className="dash-equip-list">
+          {items.map((hidrante) => (
+            <li key={hidrante.id} className="dash-equip">
+              <div className="dash-equip__top">
+                <p className="dash-equip__id">{formatEquipmentIdentifier("hidrante", hidrante.codigo)}</p>
+                {showVencimento ? <RemainingDaysBadge days={diasRestantesMangueiraCritica(hidrante)} /> : null}
+              </div>
+              <p className="dash-equip__type">Hidrante</p>
+              <p className="dash-equip__place">{hidrante.pavimento?.trim() || "—"}</p>
+              {hidrante.local_detalhado ? <p className="dash-equip__detail">{hidrante.local_detalhado}</p> : null}
+              <p className="dash-equip__detail">
+                {hidrante.quantidade_mangueiras ?? "—"} mangueira{(hidrante.quantidade_mangueiras ?? 0) === 1 ? "" : "s"}
+              </p>
+              {showVencimento ? (
+                <p className="dash-equip__detail">
+                  {listarMangueirasAtivas(hidrante)
+                    .map((slot) => `M-${slot.numero}: ${formatVencimentoMangueira(slot.ultimaRealizacao)}`)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </DashboardDetailDrawer>
   );
 }
 

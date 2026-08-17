@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ActiveBaseProvider } from "@/lib/auth/active-base-context";
+import { AdminMobileNavProvider } from "@/lib/admin/admin-mobile-nav";
 import { readSidebarCollapsed, storeSidebarCollapsed } from "@/lib/admin/sidebar-collapsed";
 import AuthGuard from "@/src/components/AuthGuard";
 import AdminAreaGuard from "@/src/components/AdminAreaGuard";
@@ -13,6 +14,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const isMapFullBleed =
     pathname?.includes("/mapeamento") || pathname?.includes("/posicionamento");
+  const isDashboard = pathname === "/admin/dashboard";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuPath, setMenuPath] = useState(pathname);
@@ -51,44 +53,53 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
+  const mobileNav = useMemo(
+    () => ({ openMobileNav: () => setMobileOpen(true) }),
+    [],
+  );
+
   return (
     <AuthGuard allowedRoles={["admin", "admin_corporativo", "leadership", "cliente", "corporativo"]}>
       <ActiveBaseProvider>
         <AdminAreaGuard>
-          <div
-            className={`app-shell-bg admin-shell${collapsed ? " is-sidebar-collapsed" : ""}${
-              isMapFullBleed ? " admin-shell--map" : ""
-            }`}
-          >
-            <header className="admin-mobile-bar lg:hidden">
-              <button
-                type="button"
-                className="admin-mobile-bar__menu"
-                aria-label="Abrir menu"
-                onClick={() => setMobileOpen(true)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
-                  <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
-                </svg>
-              </button>
-              <BrandLogo height={28} />
-            </header>
+          <AdminMobileNavProvider value={mobileNav}>
+            <div
+              className={`app-shell-bg admin-shell${collapsed ? " is-sidebar-collapsed" : ""}${
+                isMapFullBleed ? " admin-shell--map" : ""
+              }${isDashboard ? " admin-shell--dash" : ""}`}
+            >
+              {!isDashboard ? (
+                <header className="admin-mobile-bar lg:hidden">
+                  <button
+                    type="button"
+                    className="admin-mobile-bar__menu"
+                    aria-label="Abrir menu"
+                    onClick={() => setMobileOpen(true)}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+                      <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
+                    </svg>
+                  </button>
+                  <BrandLogo height={28} />
+                </header>
+              ) : null}
 
-            <AdminSidebar
-              collapsed={collapsed}
-              mobileOpen={mobileOpen}
-              onToggleCollapsed={toggleCollapsed}
-              onCloseMobile={() => setMobileOpen(false)}
-            />
+              <AdminSidebar
+                collapsed={collapsed}
+                mobileOpen={mobileOpen}
+                onToggleCollapsed={toggleCollapsed}
+                onCloseMobile={() => setMobileOpen(false)}
+              />
 
-            <div className={`admin-shell__content ${isMapFullBleed ? "admin-shell__content--map" : ""}`}>
-              {isMapFullBleed ? (
-                <div className="admin-shell__map">{children}</div>
-              ) : (
-                <main className="admin-shell__main">{children}</main>
-              )}
+              <div className={`admin-shell__content ${isMapFullBleed ? "admin-shell__content--map" : ""}`}>
+                {isMapFullBleed ? (
+                  <div className="admin-shell__map">{children}</div>
+                ) : (
+                  <main className="admin-shell__main">{children}</main>
+                )}
+              </div>
             </div>
-          </div>
+          </AdminMobileNavProvider>
         </AdminAreaGuard>
       </ActiveBaseProvider>
     </AuthGuard>
