@@ -18,6 +18,8 @@ export default function MapEquipmentSearch({
 }: MapEquipmentSearchProps) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const safeIndex = results.length === 0 ? 0 : Math.min(activeIndex, results.length - 1);
@@ -33,50 +35,83 @@ export default function MapEquipmentSearch({
     return () => document.removeEventListener("mousedown", onPointer);
   }, [showList]);
 
+  function dismissKeyboard() {
+    inputRef.current?.blur();
+  }
+
   function selectHit(hit: MapSearchHit) {
-    onSelect(hit);
+    dismissKeyboard();
     setOpen(false);
+    onSelect(hit);
+  }
+
+  function submitSearch() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    dismissKeyboard();
+    setOpen(false);
+    const hit = results[safeIndex] ?? results[0];
+    if (hit) onSelect(hit);
+    globalThis.setTimeout(() => {
+      submittingRef.current = false;
+    }, 400);
   }
 
   return (
     <div ref={rootRef} className="map-search">
-      <input
-        type="search"
-        role="combobox"
-        aria-label="Buscar equipamento na base"
-        aria-expanded={showList}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        placeholder="Buscar equipamento..."
-        className="map-toolbar__search"
-        value={query}
-        autoComplete="off"
-        onChange={(event) => {
-          onQueryChange(event.target.value);
-          setActiveIndex(0);
-          setOpen(true);
+      <form
+        className="map-search__form"
+        action="#"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitSearch();
         }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (!showList || results.length === 0) {
-            if (event.key === "Escape") setOpen(false);
-            return;
-          }
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.min(results.length - 1, index + 1));
-          } else if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.max(0, index - 1));
-          } else if (event.key === "Enter") {
-            event.preventDefault();
-            const hit = results[safeIndex];
-            if (hit) selectHit(hit);
-          } else if (event.key === "Escape") {
-            setOpen(false);
-          }
-        }}
-      />
+      >
+        <input
+          ref={inputRef}
+          type="search"
+          role="combobox"
+          enterKeyHint="search"
+          inputMode="search"
+          aria-label="Buscar equipamento na base"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          placeholder="Buscar equipamento..."
+          className="map-toolbar__search"
+          value={query}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+            setActiveIndex(0);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submitSearch();
+              return;
+            }
+            if (event.key === "Escape") {
+              setOpen(false);
+              dismissKeyboard();
+              return;
+            }
+            if (!showList || results.length === 0) return;
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setActiveIndex((index) => Math.min(results.length - 1, index + 1));
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setActiveIndex((index) => Math.max(0, index - 1));
+            }
+          }}
+        />
+      </form>
 
       {showList ? (
         <ul id={listId} role="listbox" className="map-search__list">
