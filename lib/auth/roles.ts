@@ -138,6 +138,11 @@ export function canUseMapInspection(role: UserRole): boolean {
   return role === "admin" || role === "admin_corporativo" || role === "leadership" || role === "user";
 }
 
+/** Mapa sempre em modo inspeção (sem alternância edição/inspeção). */
+export function isMapInspectionOnlyRole(role: UserRole): boolean {
+  return role === "admin" || role === "admin_corporativo" || role === "leadership";
+}
+
 export function isInventoryReadOnlyRole(role: UserRole): boolean {
   return role === "cliente" || role === "corporativo";
 }
