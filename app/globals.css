@@ -417,7 +417,7 @@ h3,
 
 .admin-shell__content {
   min-width: 0;
-  padding-top: calc(var(--admin-mobile-bar-height) + env(safe-area-inset-top, 0px));
+  padding-top: 0;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   transition: margin-left 200ms ease;
 }
@@ -455,7 +455,7 @@ h3,
   left: 0;
   right: 0;
   z-index: calc(var(--z-dock) - 1);
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.75rem;
   height: calc(var(--admin-mobile-bar-height) + env(safe-area-inset-top, 0px));
@@ -498,6 +498,16 @@ h3,
   transform: translateX(0);
 }
 
+@media (max-width: 1023px) {
+  .admin-shell__content {
+    padding-top: calc(var(--admin-mobile-bar-height) + env(safe-area-inset-top, 0px));
+  }
+
+  .admin-mobile-bar {
+    display: flex;
+  }
+}
+
 @media (min-width: 1024px) {
   .admin-shell__content {
     margin-left: var(--admin-sidebar-current);
@@ -517,10 +527,10 @@ h3,
   .admin-sidebar-backdrop {
     display: none;
   }
-}
 
-.admin-shell--dash .admin-shell__content {
-  padding-top: env(safe-area-inset-top, 0px);
+  .admin-mobile-bar {
+    display: none;
+  }
 }
 
 .admin-sidebar__inner {
@@ -3750,7 +3760,23 @@ body[data-inspection-active="true"] {
 }
 
 .inv-table-wrap {
+  display: none;
   overflow-x: auto;
+}
+
+.inv-cards {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .inv-cards {
+    display: none;
+  }
+
+  .inv-table-wrap {
+    display: block;
+  }
 }
 
 .inv-table.modern-table tbody tr {
@@ -3848,11 +3874,6 @@ body[data-inspection-active="true"] {
 .inv-maint--bad .inv-maint__date,
 .inv-maint--bad .inv-maint__days {
   color: #b91c1c;
-}
-
-.inv-cards {
-  display: flex;
-  flex-direction: column;
 }
 
 .inv-card {
@@ -4003,18 +4024,28 @@ body[data-inspection-active="true"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.85rem 0.75rem;
+  align-items: end;
 }
 
-.inv-field--full {
-  grid-column: 1 / -1;
+.inv-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .inv-field__label {
   display: block;
   margin-bottom: 0.35rem;
+  min-height: 2.4em;
   font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.2;
   color: #475569;
+}
+
+.inv-field--full {
+  grid-column: 1 / -1;
 }
 
 .inv-field__req {
@@ -4057,6 +4088,10 @@ body[data-inspection-active="true"] {
 @media (max-width: 639px) {
   .inv-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inv-field__label {
+    min-height: 0;
   }
 
   .inv-drawer-layer {

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { EmpresaTab } from "@/lib/dashboard/empresa-filter";
 import { EMPRESA_TABS } from "@/lib/dashboard/empresa-filter";
-import { useAdminMobileNav } from "@/lib/admin/admin-mobile-nav";
 import { ExtinguisherIcon, HydrantIcon } from "@/src/components/EquipmentIcons";
 import AdminNavIcon from "@/src/components/admin/AdminNavIcon";
 import type { AdminNavItem } from "@/src/components/admin/admin-nav";
@@ -140,7 +139,6 @@ export default function DashboardHome({
   extSemPosicao,
   hidSemPosicao,
 }: DashboardHomeProps) {
-  const mobileNav = useAdminMobileNav();
   const hidroTotal = Math.max(hidro.total, 1);
   const barWidth = (value: number) => `${(value / hidroTotal) * 100}%`;
   const visibleAlerts = alerts.filter((alert) => alert.count > 0);
@@ -148,18 +146,6 @@ export default function DashboardHome({
   return (
     <div className="dash-page">
       <div className="dash-intro">
-        {mobileNav ? (
-          <button
-            type="button"
-            className="dash-menu-btn lg:hidden"
-            aria-label="Abrir menu"
-            onClick={mobileNav.openMobileNav}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
-              <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-        ) : null}
         <div>
           <h1>Dashboard</h1>
           <p>Visão consolidada de extintores, hidrantes, conferências e manutenções.</p>

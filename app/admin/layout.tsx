@@ -14,7 +14,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const isMapFullBleed =
     pathname?.includes("/mapeamento") || pathname?.includes("/posicionamento");
-  const isDashboard = pathname === "/admin/dashboard";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuPath, setMenuPath] = useState(pathname);
@@ -66,23 +65,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div
               className={`app-shell-bg admin-shell${collapsed ? " is-sidebar-collapsed" : ""}${
                 isMapFullBleed ? " admin-shell--map" : ""
-              }${isDashboard ? " admin-shell--dash" : ""}`}
+              }`}
             >
-              {!isDashboard ? (
-                <header className="admin-mobile-bar lg:hidden">
-                  <button
-                    type="button"
-                    className="admin-mobile-bar__menu"
-                    aria-label="Abrir menu"
-                    onClick={() => setMobileOpen(true)}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
-                      <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
-                    </svg>
-                  </button>
-                  <BrandLogo height={28} />
-                </header>
-              ) : null}
+              <header className="admin-mobile-bar">
+                <button
+                  type="button"
+                  className="admin-mobile-bar__menu"
+                  aria-label="Abrir menu"
+                  onClick={() => setMobileOpen(true)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+                    <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
+                  </svg>
+                </button>
+                <BrandLogo height={28} />
+              </header>
 
               <AdminSidebar
                 collapsed={collapsed}
