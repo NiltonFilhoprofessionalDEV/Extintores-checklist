@@ -70,7 +70,6 @@ import {
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { getLocalCalendarMonthUtcIsoRange, isIsoDateWithinInclusiveRange } from "@/lib/date/local-month-range";
 import {
-  EQUIPES_CONFERENCIA,
   filtrarPorEquipe,
   type EquipeConferenciaId,
 } from "@/lib/equipes/conferencia-filtro";
@@ -81,8 +80,19 @@ import {
 } from "@/lib/map/marker-styles";
 import { effectiveMarkerLod, type MarkerLod } from "@/lib/map/marker-lod";
 import { extinguisherIcon, hydrantIcon } from "@/lib/map/marker-icons";
+import {
+  countActiveMapFilters,
+  matchesInspectionStatus,
+  parseMapStatusFilter,
+  type MapFilterState,
+  type MapStatusFilter,
+} from "@/lib/map/map-filters";
 import MapZoomControls from "@/src/components/map/MapZoomControls";
 import MapViewportSync from "@/src/components/map/MapViewportSync";
+import MapSearchFocus from "@/src/components/map/MapSearchFocus";
+import MapToolbar from "@/src/components/map/MapToolbar";
+import MapFiltersSheet from "@/src/components/map/MapFiltersSheet";
+import MapLegendControl from "@/src/components/map/MapLegendControl";
 import MapEquipmentDetailPanel, {
   type MapEquipmentDetail,
 } from "@/src/components/map/MapEquipmentDetailPanel";
@@ -445,7 +455,8 @@ export default function MapView() {
   const [infoHidrante, setInfoHidrante] = useState<HidranteRow | null>(null);
   const [markerLod, setMarkerLod] = useState<MarkerLod>("icon");
   const [buscaEquipamento, setBuscaEquipamento] = useState("");
-  const [filtroPendentes, setFiltroPendentes] = useState(false);
+  const [filtroStatus, setFiltroStatus] = useState<MapStatusFilter>("todos");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [plantStatus, setPlantStatus] = useState<FloorPlantLoadStatus>("loading");
   const [plantRetryKey, setPlantRetryKey] = useState(0);
 
@@ -608,6 +619,7 @@ export default function MapView() {
         });
         if (persisted?.mode) setMode(persisted.mode);
         if (persisted?.filtroEquipe !== undefined) setFiltroEquipe(persisted.filtroEquipe as EquipeConferenciaId | "");
+        if (persisted?.filtroStatus !== undefined) setFiltroStatus(parseMapStatusFilter(persisted.filtroStatus));
         if (persisted?.showExtintor !== undefined || persisted?.showHidrante !== undefined) {
           setShowLayers({
             extintor: persisted.showExtintor ?? true,
@@ -698,10 +710,11 @@ export default function MapView() {
       floorKey: pavimento.key,
       mode,
       filtroEquipe,
+      filtroStatus,
       showExtintor: showLayers.extintor,
       showHidrante: showLayers.hidrante,
     });
-  }, [activeBaseId, pavimento.key, mode, filtroEquipe, showLayers.extintor, showLayers.hidrante]);
+  }, [activeBaseId, pavimento.key, mode, filtroEquipe, filtroStatus, showLayers.extintor, showLayers.hidrante]);
 
   useEffect(() => {
     let mounted = true;
@@ -864,28 +877,91 @@ export default function MapView() {
     return filtrarPorEquipe(list, filtroEquipe, "hidrante");
   }, [hidrantes, floorRef, filtroEquipe]);
 
-  const highlightedMarkerId = infoMarker?.id ?? infoHidrante?.id ?? null;
-
   const filteredMarkersDoPavimento = useMemo(() => {
     const q = buscaEquipamento.trim().toLowerCase();
     return markersDoPavimento.filter((item) => {
-      if (filtroPendentes && conferidosNoMesIds.has(item.id)) return false;
+      const conferido = conferidosNoMesIds.has(item.id);
+      const ult = ultimoChecklistExtintorMes.get(item.id);
+      const nc = ult ? checklistTemNaoConformidade(ult) : false;
+      if (!matchesInspectionStatus(conferido, nc, filtroStatus)) return false;
       if (!q) return true;
       const loc = formatExtintorLocalizacao(item).toLowerCase();
       const tipo = formatExtintorTipoCapacidade(item).toLowerCase();
       return item.codigo.toLowerCase().includes(q) || loc.includes(q) || tipo.includes(q);
     });
-  }, [markersDoPavimento, buscaEquipamento, filtroPendentes, conferidosNoMesIds]);
+  }, [
+    markersDoPavimento,
+    buscaEquipamento,
+    filtroStatus,
+    conferidosNoMesIds,
+    ultimoChecklistExtintorMes,
+  ]);
 
   const filteredHidrantesDoPavimento = useMemo(() => {
     const q = buscaEquipamento.trim().toLowerCase();
     return hidrantesDoPavimento.filter((h) => {
-      if (filtroPendentes && conferidosHidranteMesIds.has(h.id)) return false;
+      const conferido = conferidosHidranteMesIds.has(h.id);
+      const ult = ultimoChecklistHidranteMes.get(h.id);
+      const nc = ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false;
+      if (!matchesInspectionStatus(conferido, nc, filtroStatus)) return false;
       if (!q) return true;
       const loc = (h.local_detalhado ?? "").toLowerCase();
       return h.codigo.toLowerCase().includes(q) || loc.includes(q);
     });
-  }, [hidrantesDoPavimento, buscaEquipamento, filtroPendentes, conferidosHidranteMesIds]);
+  }, [
+    hidrantesDoPavimento,
+    buscaEquipamento,
+    filtroStatus,
+    conferidosHidranteMesIds,
+    ultimoChecklistHidranteMes,
+  ]);
+
+  const searchFocusItem = useMemo(() => {
+    if (infoMarker || infoHidrante) return null;
+    const q = buscaEquipamento.trim().toLowerCase();
+    if (!q) return null;
+    const extExact = filteredMarkersDoPavimento.filter((item) => item.codigo.toLowerCase() === q);
+    const hidExact = filteredHidrantesDoPavimento.filter((h) => h.codigo.toLowerCase() === q);
+    if (extExact.length === 1 && hidExact.length === 0) return extExact[0];
+    if (hidExact.length === 1 && extExact.length === 0) return hidExact[0];
+    if (filteredMarkersDoPavimento.length === 1 && filteredHidrantesDoPavimento.length === 0) {
+      return filteredMarkersDoPavimento[0];
+    }
+    if (filteredHidrantesDoPavimento.length === 1 && filteredMarkersDoPavimento.length === 0) {
+      return filteredHidrantesDoPavimento[0];
+    }
+    return null;
+  }, [
+    infoMarker,
+    infoHidrante,
+    buscaEquipamento,
+    filteredMarkersDoPavimento,
+    filteredHidrantesDoPavimento,
+  ]);
+
+  const searchFocusPosition = useMemo(() => {
+    if (!searchFocusItem) return null;
+    return resolveLeafletPosition(searchFocusItem, mapImageSize.width, mapImageSize.height);
+  }, [searchFocusItem, mapImageSize.width, mapImageSize.height]);
+
+  const highlightedMarkerId = infoMarker?.id ?? infoHidrante?.id ?? searchFocusItem?.id ?? null;
+
+  const appliedFilters = useMemo<MapFilterState>(
+    () => ({
+      layers: showLayers,
+      status: filtroStatus,
+      equipe: filtroEquipe,
+    }),
+    [showLayers, filtroStatus, filtroEquipe],
+  );
+
+  const activeFilterCount = countActiveMapFilters(appliedFilters);
+
+  function applyMapFilters(next: MapFilterState) {
+    setShowLayers(next.layers);
+    setFiltroStatus(next.status);
+    setFiltroEquipe(next.equipe);
+  }
 
   const equipmentDetail = useMemo((): MapEquipmentDetail | null => {
     if (infoMarker) {
@@ -936,6 +1012,60 @@ export default function MapView() {
 
   const mostrarFiltroEquipe =
     mode === "inspecao" && canInspect && baseHasEquipesConferencia(activeBase);
+
+  const mapModeActions =
+    canEdit ? (
+      <>
+        <button
+          type="button"
+          className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
+            mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
+          }`}
+          onClick={() => setMode("edicao")}
+        >
+          {isMobile ? "Edição" : "Modo edição"}
+        </button>
+        {canInspect ? (
+          <button
+            type="button"
+            className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
+              mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
+            }`}
+            onClick={() => setMode("inspecao")}
+          >
+            {isMobile ? "Inspeção" : "Modo inspeção"}
+          </button>
+        ) : null}
+      </>
+    ) : null;
+
+  const mapToolbar = (
+    <MapToolbar
+      pavimentos={pavimentos}
+      pavimentoKey={pavimento.key}
+      onPavimentoChange={(key) => {
+        const selected = pavimentos.find((item) => item.key === key);
+        if (selected) setPavimento(selected);
+      }}
+      busca={buscaEquipamento}
+      onBuscaChange={setBuscaEquipamento}
+      showSearch={canInspect && mode === "inspecao"}
+      onOpenFilters={() => setFiltersOpen(true)}
+      activeFilterCount={activeFilterCount}
+      actions={mapModeActions}
+    />
+  );
+
+  const mapFiltersSheet = (
+    <MapFiltersSheet
+      open={filtersOpen}
+      variant={isMobile ? "sheet" : "drawer"}
+      value={appliedFilters}
+      showEquipe={mostrarFiltroEquipe}
+      onClose={() => setFiltersOpen(false)}
+      onApply={applyMapFilters}
+    />
+  );
 
   useEffect(() => {
     if (!baseHasEquipesConferencia(activeBase)) {
@@ -1580,6 +1710,7 @@ export default function MapView() {
       crs={L.CRS.Simple}
       preferCanvas={false}
       className="h-full w-full"
+      zoomControl={false}
       zoomSnap={isMobile ? 0.5 : 0.25}
       zoomDelta={isMobile ? 1 : 0.5}
       zoomAnimation={false}
@@ -1604,6 +1735,7 @@ export default function MapView() {
       />
       <MapZoomStabilityGuard />
       <MapViewportSync onLodChange={setMarkerLod} enableDoubleTapZoom={isMobile} />
+      <MapSearchFocus position={searchFocusPosition} />
       <MapZoomControls
         bounds={mapBounds as LatLngBoundsLiteral}
         compact={isMobile}
@@ -1775,135 +1907,12 @@ export default function MapView() {
 
   if (isMobile) {
     return (
-      <main className="flex min-h-0 flex-1 w-full flex-col overflow-hidden bg-[#f4f5f6]">
-        {/* ── Barra conferente: setor + busca + filtros ── */}
-        <div className="shrink-0 border-b border-[var(--border)] bg-white shadow-sm">
-          <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-1">
-            <select
-              aria-label="Selecionar setor"
-              className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[#fafafa] px-3 py-2 text-xs font-semibold text-slate-700"
-              value={pavimento.key}
-              onChange={(event) => {
-                const selected = pavimentos.find((item) => item.key === event.target.value);
-                if (selected) setPavimento(selected);
-              }}
-            >
-              {pavimentos.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            {canEdit && (
-              <button
-                type="button"
-                className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
-                  mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setMode("edicao")}
-              >
-                Edição
-              </button>
-            )}
-            {canInspect && canEdit && (
-              <button
-                type="button"
-                className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold ${
-                  mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setMode("inspecao")}
-              >
-                Inspeção
-              </button>
-            )}
-          </div>
-
-          {canInspect && mode === "inspecao" && (
-            <div className="flex items-center gap-1.5 px-2 pb-1">
-              <input
-                type="search"
-                aria-label="Buscar equipamento"
-                placeholder="Buscar equipamento"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700"
-                value={buscaEquipamento}
-                onChange={(e) => setBuscaEquipamento(e.target.value)}
-              />
-              <button
-                type="button"
-                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${
-                  filtroPendentes ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setFiltroPendentes((prev) => !prev)}
-              >
-                Pendentes
-              </button>
-            </div>
-          )}
-
-          {mostrarFiltroEquipe && (
-            <div className="px-2 pb-1">
-              <select
-                aria-label="Filtrar por equipe"
-                className="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-700"
-                value={filtroEquipe}
-                onChange={(e) => setFiltroEquipe(e.target.value as EquipeConferenciaId | "")}
-              >
-                <option value="">Todas as equipes</option>
-                {EQUIPES_CONFERENCIA.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Linha 2: camadas + legenda */}
-          <div className="flex items-center gap-1 px-2 pb-1.5">
-            {(
-              [
-                ["extintor", "Ext"],
-                ["hidrante", "Hid"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setShowLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
-                  showLayers[key] ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-
-            {/* Legenda inline como popover simples (details) */}
-            <details className="relative ml-auto text-[10px]">
-              <summary className="cursor-pointer list-none rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 marker:content-none [&::-webkit-details-marker]:hidden">
-                Legenda
-              </summary>
-              <div className="absolute right-0 top-full z-[2000] mt-1 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                <p className="font-semibold text-slate-700">Centro (fundo)</p>
-                <p className="mt-0.5 text-slate-600">
-                  <span className="font-semibold text-yellow-700">Âmbar</span> pendente ·{" "}
-                  <span className="font-semibold text-green-700">Verde</span> conferido ok ·{" "}
-                  <span className="font-semibold text-red-700">Vermelho</span> pendência ou NC
-                </p>
-                <p className="mt-1 font-semibold text-slate-700">Anel (conferência / alerta)</p>
-                <p className="mt-0.5 text-slate-600">
-                  <span className="font-semibold text-green-700">Verde</span> conferido no mês ·{" "}
-                  <span className="font-semibold text-red-700">Vermelho</span> vencido ou NC após conferência
-                </p>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  Extintor vencido conferido: centro vermelho, anel verde. Hidrante com problema conferido: centro
-                  vermelho, anel verde.
-                </p>
-              </div>
-            </details>
-          </div>
+      <main className="flex min-h-0 flex-1 w-full flex-col overflow-hidden bg-white">
+        <div className="shrink-0 border-b border-[var(--border)] bg-white px-2 py-1.5">
+          {mapToolbar}
         </div>
+
+        {mapFiltersSheet}
 
         {/* Painel de edição — só aparece para admin no modo edição */}
         {canEdit && mode === "edicao" && (
@@ -1971,6 +1980,7 @@ export default function MapView() {
         <div className="map-viewport-root relative flex-1 min-h-0 w-full overflow-hidden">
           <MapErrorBoundary>{mapContent}</MapErrorBoundary>
           {plantStatusOverlay}
+          <MapLegendControl variant="sheet" />
 
           {/* Toasts flutuantes sobre o mapa — não empurram o layout */}
           {savingPosition && (
@@ -2153,89 +2163,22 @@ export default function MapView() {
   }
 
   return (
-    <main className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
-      <header className="professional-card flex shrink-0 flex-col gap-3 p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="page-eyebrow">Planta técnica</p>
-            <h1 className="mt-1 text-xl font-extrabold leading-tight text-[var(--ink)]">
-              {canInspect ? "Mapa operacional" : "Mapeamento de equipamentos"}
-            </h1>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-              Navegue por pavimento, filtre camadas e selecione um marcador para ver detalhes.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-1 rounded-2xl bg-[var(--muted)] p-1">
-            {canEdit && (
-              <button
-                type="button"
-                className={`rounded-xl px-3 py-2 text-xs font-bold ${
-                  mode === "edicao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setMode("edicao")}
-              >
-                Modo edição
-              </button>
-            )}
-            {canInspect && canEdit && (
-              <button
-                type="button"
-                className={`rounded-xl px-3 py-2 text-xs font-bold ${
-                  mode === "inspecao" ? "brand-gradient text-[var(--neon-ink)]" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setMode("inspecao")}
-              >
-                Modo inspeção
-              </button>
-            )}
-          </div>
+    <main className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-2 overflow-hidden px-3 py-3 sm:px-4">
+      {mapFiltersSheet}
+      <header className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-3 py-2.5 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h1 className="text-base font-extrabold text-[var(--ink)]">
+            {canInspect ? "Mapa" : "Mapeamento de equipamentos"}
+          </h1>
         </div>
-        <details className="rounded-xl border border-[var(--border)] bg-[#fafafa] text-[11px] leading-snug text-slate-700 sm:text-xs sm:leading-relaxed">
-          <summary className="cursor-pointer list-none px-3 py-2 font-bold text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden hover:bg-slate-100">
-            Como interpretar os marcadores
-          </summary>
-          <div className="border-t border-slate-200 px-2 py-2 sm:px-3">
-            <p className="text-slate-600">
-              Vale para o <span className="font-semibold text-slate-800">mês em curso</span>; ao mudar o mês, o que
-              estiver pendente é atualizado.
-            </p>
-
-            <p className="mt-1.5 font-semibold text-slate-800">1) Centro do marcador</p>
-            <ul className="mt-0.5 list-disc space-y-0.5 pl-3.5 text-slate-600">
-              <li>
-                <span className="font-semibold text-yellow-700">Âmbar:</span> ainda não conferido no mês.
-              </li>
-              <li>
-                <span className="font-semibold text-green-700">Verde:</span> conferido e sem pendências.
-              </li>
-              <li>
-                <span className="font-semibold text-red-700">Vermelho:</span> pendente com vencimento, NC ou item em
-                falta (hidrante).
-              </li>
-            </ul>
-
-            <p className="mt-1.5 font-semibold text-slate-800">2) Anel ao redor</p>
-            <ul className="mt-0.5 list-disc space-y-0.5 pl-3.5 text-slate-600">
-              <li>
-                <span className="font-semibold text-green-700">Verde:</span> conferido no mês (anel de conferência).
-              </li>
-              <li>
-                <span className="font-semibold text-red-700">Vermelho:</span> não conformidade após conferência, ou
-                pendência antes da conferência.
-              </li>
-              <li>
-                Conferido com alerta: extintor vencido → centro vermelho e anel verde; NC sem vencimento → centro
-                verde e anel vermelho; hidrante com problema → centro vermelho e anel verde.
-              </li>
-            </ul>
-          </div>
-        </details>
+        {mapToolbar}
       </header>
 
       {/* relative wrapper → filho absolute inset-0 garante altura concreta ao Leaflet */}
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden lg:flex-row">
-        <aside className="professional-card flex shrink-0 flex-col overflow-y-auto p-4 lg:w-[310px] lg:overflow-y-auto">
+        {(equipmentDetail || (canEdit && mode === "edicao")) && (
+        <aside className="professional-card flex max-h-[40%] shrink-0 flex-col overflow-y-auto p-4 lg:max-h-none lg:w-[310px]">
           {equipmentDetail && !isMobile && (
             <div className="mb-4">
               <MapEquipmentDetailPanel
@@ -2273,99 +2216,6 @@ export default function MapView() {
               />
             </div>
           )}
-
-          <p className="page-eyebrow mb-3">Filtros do mapa</p>
-          <label htmlFor="pavimento" className="mb-1.5 block text-xs font-bold text-slate-700">
-            Pavimento
-          </label>
-          <select
-            id="pavimento"
-            className="field-control !rounded-xl"
-            value={pavimento.key}
-            onChange={(event) => {
-              const selected = pavimentos.find((item) => item.key === event.target.value);
-              if (selected) setPavimento(selected);
-            }}
-          >
-            {pavimentos.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          {canInspect && mode === "inspecao" && (
-            <>
-              <label htmlFor="busca-equipamento" className="mb-1 mt-3 block text-xs font-bold text-slate-700">
-                Buscar equipamento
-              </label>
-              <input
-                id="busca-equipamento"
-                type="search"
-                className="field-control !rounded-xl"
-                placeholder="Código ou local"
-                value={buscaEquipamento}
-                onChange={(e) => setBuscaEquipamento(e.target.value)}
-              />
-              <button
-                type="button"
-                className={`mt-2 w-full rounded-xl px-3 py-2 text-xs font-bold ${
-                  filtroPendentes ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => setFiltroPendentes((prev) => !prev)}
-              >
-                {filtroPendentes ? "Mostrando pendentes" : "Filtrar pendentes"}
-              </button>
-            </>
-          )}
-
-          {mostrarFiltroEquipe && (
-            <>
-              <label htmlFor="filtro-equipe" className="mb-1 mt-3 block text-sm font-semibold text-slate-700">
-                Equipe (inspeção)
-              </label>
-              <select
-                id="filtro-equipe"
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                value={filtroEquipe}
-                onChange={(e) => setFiltroEquipe(e.target.value as EquipeConferenciaId | "")}
-              >
-                <option value="">Todas as equipes</option>
-                {EQUIPES_CONFERENCIA.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-
-          <div className="mt-3 flex flex-wrap gap-1">
-            {(
-              [
-                ["extintor", "Extintores"],
-                ["hidrante", "Hidrantes"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setShowLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className={`rounded-xl px-3 py-2 text-xs font-bold ${
-                  showLayers[key] ? "bg-[var(--orange)] text-white" : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">
-            <span>Pendentes no mês</span>
-            <span className="rounded-full bg-white px-2 py-0.5 font-extrabold shadow-sm">
-              {extintores.filter((item) => !conferidosNoMesIds.has(item.id)).length}
-            </span>
-          </div>
 
           {canEdit && mode === "edicao" && (
             <div className="mt-4 space-y-3">
@@ -2467,10 +2317,12 @@ export default function MapView() {
           {savingPosition && <p className="mt-1 text-xs text-amber-700">Salvando posição...</p>}
           {message && <p className="mt-2 rounded bg-slate-100 p-2 text-xs text-slate-700">{message}</p>}
         </aside>
+        )}
 
         <section className="professional-card map-viewport-root relative min-h-0 flex-1 overflow-hidden">
           <div className="absolute inset-0">{mapContent}</div>
           {plantStatusOverlay}
+          <MapLegendControl variant="popover" />
         </section>
         </div>
       </div>

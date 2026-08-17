@@ -1109,8 +1109,7 @@ h3,
   }
 
   /* Durante o gesto de zoom, não repintar labels a cada frame intermediário */
-  .leaflet-zoom-anim .map-marker-mobile__label,
-  .leaflet-dragging .map-marker-mobile__label {
+  .leaflet-zoom-anim .map-marker-mobile__label {
     visibility: hidden;
   }
 }
@@ -1131,6 +1130,67 @@ h3,
 .map-mobile-marker-icon {
   background: transparent;
   border: 0;
+}
+
+.map-marker-badge-icon {
+  background: transparent;
+  border: 0;
+}
+
+.map-marker-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--marker-bg);
+  color: #fff;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  border: 1.5px solid rgb(255 255 255 / 0.92);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.28);
+  pointer-events: none;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+}
+
+.map-marker-badge--hyd.map-marker-badge--mid,
+.map-marker-badge--hyd.map-marker-badge--detail {
+  border-radius: 8px;
+}
+
+.map-marker-badge--detail {
+  gap: 3px;
+  padding: 0 6px 0 4px;
+}
+
+.map-marker-badge__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.map-marker-badge__glyph img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+}
+
+.map-marker-badge__code {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.map-marker-badge--selected {
+  box-shadow:
+    0 0 0 3px rgb(249 115 22 / 0.45),
+    0 2px 8px rgb(15 23 42 / 0.28);
 }
 
 .map-marker-mobile {
@@ -1236,28 +1296,121 @@ h3,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  border: 1px solid rgb(0 0 0 / 0.08);
-  background: rgb(255 255 255 / 0.94);
+  border: 1px solid rgb(15 23 42 / 0.08);
+  background: #fff;
   color: #1e293b;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.08);
   cursor: pointer;
 }
 
 .map-zoom-btn--compact {
-  width: 34px;
-  height: 34px;
-  font-size: 16px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
 
 .map-zoom-btn:active {
   transform: scale(0.96);
+}
+
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+.map-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.map-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.map-toolbar__sector,
+.map-toolbar__search {
+  min-width: 0;
+  flex: 1 1 auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--fc-border);
+  background: #fafafa;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+}
+
+.map-toolbar__search {
+  font-weight: 500;
+}
+
+.map-toolbar__filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(249 115 22 / 0.45);
+  background: #fff;
+  color: var(--orange-deep);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.5rem 0.7rem;
+  box-shadow: 0 0 0 1px rgb(249 115 22 / 0.08);
+}
+
+.map-toolbar__filters.is-active {
+  background: var(--orange-soft);
+}
+
+.map-toolbar__badge {
+  display: inline-flex;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 800;
+  padding: 0 0.28rem;
+}
+
+.map-legend-btn {
+  border-radius: 0.7rem;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  background: #fff;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.08);
+}
+
+@media (min-width: 640px) {
+  .map-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .map-toolbar__row {
+    flex: 1 1 auto;
+  }
+
+  .map-toolbar__sector {
+    flex: 0 0 11rem;
+    max-width: 13rem;
+  }
 }
 
 @media (max-width: 768px) {
