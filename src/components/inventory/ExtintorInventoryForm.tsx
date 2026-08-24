@@ -11,7 +11,6 @@ import { withCurrentFloorOption } from "@/lib/inventario/resolve-floor-select";
 import { FormField, FormSection, fieldControlClass } from "@/src/components/inventory/FormPrimitives";
 
 type ExtintorInventoryFormProps = {
-  mode: "create" | "edit";
   form: ExtintorFormData;
   floors: FloorSelectOption[];
   errors: Record<string, string>;
@@ -21,7 +20,6 @@ type ExtintorInventoryFormProps = {
 };
 
 export default function ExtintorInventoryForm({
-  mode,
   form,
   floors,
   errors,
@@ -135,11 +133,7 @@ export default function ExtintorInventoryForm({
           className="inv-field--full"
         >
           <input
-            readOnly={mode === "edit"}
-            className={fieldControlClass(
-              errors.capacidade_extintora,
-              mode === "edit" ? "cursor-not-allowed bg-slate-50 text-slate-500" : "",
-            )}
+            className={fieldControlClass(errors.capacidade_extintora)}
             placeholder="Ex: 2-A 20-B:C"
             value={form.capacidade_extintora}
             onChange={(event) => onChange("capacidade_extintora", event.target.value)}

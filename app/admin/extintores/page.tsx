@@ -1223,7 +1223,6 @@ export default function AdminExtintoresPage() {
         >
           <form id="inv-extintor-form" noValidate onSubmit={(event) => void handleSubmit(event)}>
             <ExtintorInventoryForm
-              mode={modalMode ?? "create"}
               form={form}
               floors={floors}
               errors={formErrors}
