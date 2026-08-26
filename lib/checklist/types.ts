@@ -199,9 +199,18 @@ export function checklistTemNaoConformidade(row: {
   medidor_pressao_status?: string | null;
   cilindro_status?: string | null;
   answers_json?: Record<string, string | null> | null;
+  observacoes?: string | null;
 }): boolean {
   if (CHECKLIST_ITEM_KEYS.some((k) => row[k] === "nao_conforme")) return true;
+
   const extras = row.answers_json;
-  if (!extras || typeof extras !== "object") return false;
-  return Object.values(extras).some((value) => value === "nao_conforme");
+  if (extras && typeof extras === "object") {
+    if (Object.values(extras).some((value) => value === "nao_conforme")) return true;
+  }
+
+  // Texto legado / blocos de mergeObservacoesComNaoConformidades (ex.: "[Não conforme — Mangueira]").
+  const obs = row.observacoes ?? "";
+  if (/\[\s*não conforme/i.test(obs) || /\bnao_conforme\b/i.test(obs)) return true;
+
+  return false;
 }

@@ -990,6 +990,7 @@ export default function MobileConferenciaPage() {
         medidor_pressao_status: getChecklistAnswer(data, "medidor_pressao_status"),
         cilindro_status: getChecklistAnswer(data, "cilindro_status"),
         answers_json: buildChecklistAnswersJson(data),
+        observacoes: data.observacoes?.trim() || null,
       });
       return next;
     });
@@ -1015,6 +1016,7 @@ export default function MobileConferenciaPage() {
         hidrante_integridade: getHidranteAnswer(data, "hidrante_integridade"),
         documentacao_acesso: getHidranteAnswer(data, "documentacao_acesso"),
         answers_json: buildHidranteAnswersJson(data),
+        observacoes: data.observacoes?.trim() || null,
       });
       return next;
     });
