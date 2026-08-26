@@ -83,6 +83,7 @@ import {
 import {
   extintorMarkerColors,
   hidranteMarkerColors,
+  preferChecklistComNaoConformidade,
   type MarkerColors,
 } from "@/lib/map/marker-styles";
 import { effectiveMarkerLod, type MarkerLod } from "@/lib/map/marker-lod";
@@ -562,7 +563,14 @@ export default function MapView() {
     );
     if (!ok) return;
 
-    setUltimoChecklistExtintorMes(buildUltimoPorExtintor(rows));
+    const fromServer = buildUltimoPorExtintor(rows);
+    setUltimoChecklistExtintorMes((prev) => {
+      const merged = new Map<string, ChecklistExtintorMesRow>();
+      for (const [id, server] of fromServer.entries()) {
+        merged.set(id, preferChecklistComNaoConformidade(prev.get(id), server, checklistTemNaoConformidade));
+      }
+      return merged;
+    });
     setConferidosNoMesIds(new Set(rows.map((r) => r.extintor_id).filter(Boolean)));
   }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId]);
 
@@ -610,7 +618,19 @@ export default function MapView() {
     );
     if (!ok) return;
 
-    setUltimoChecklistHidranteMes(buildUltimoPorHidrante(rows));
+    const fromServer = buildUltimoPorHidrante(rows);
+    setUltimoChecklistHidranteMes((prev) => {
+      const merged = new Map<string, ChecklistHidranteMesRow>();
+      for (const [id, server] of fromServer.entries()) {
+        merged.set(
+          id,
+          preferChecklistComNaoConformidade(prev.get(id), server, (row) =>
+            hidranteChecklistTemNaoConformidade(row as Record<string, string | null>),
+          ),
+        );
+      }
+      return merged;
+    });
     setConferidosHidranteMesIds(new Set(rows.map((r) => r.hidrante_id).filter(Boolean)));
   }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId]);
 
@@ -1527,6 +1547,7 @@ export default function MapView() {
         medidor_pressao_status: getChecklistAnswer(checklistForm, "medidor_pressao_status"),
         cilindro_status: getChecklistAnswer(checklistForm, "cilindro_status"),
         answers_json: answersJson,
+        observacoes: (payload.observacoes as string | null | undefined) ?? null,
       };
       setUltimoChecklistExtintorMes((prev) => {
         const next = new Map(prev);
@@ -1635,6 +1656,7 @@ export default function MapView() {
         hidrante_integridade: getHidranteAnswer(hidranteChecklistForm, "hidrante_integridade"),
         documentacao_acesso: getHidranteAnswer(hidranteChecklistForm, "documentacao_acesso"),
         answers_json: answersJsonH,
+        observacoes: (payload.observacoes as string | null | undefined) ?? null,
       };
       setUltimoChecklistHidranteMes((prev) => {
         const next = new Map(prev);
@@ -1903,12 +1925,15 @@ export default function MapView() {
           if (!position) return null;
           const lod = effectiveMarkerLod(item.id, markerLod, highlightedMarkerId);
           const selected = item.id === highlightedMarkerId;
+          const markerColors = extintorMarkerStyle(item);
+          const ult = ultimoChecklistExtintorMes.get(item.id);
+          const nc = ult ? checklistTemNaoConformidade(ult) : false;
           return (
           <Marker
-            key={item.id}
+            key={`ext-${item.id}-${markerColors.bg}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${nc ? 1 : 0}`}
             position={position}
             icon={extinguisherIcon(
-              extintorMarkerStyle(item),
+              markerColors,
               item.codigo,
               lod,
               selected,
@@ -1930,7 +1955,7 @@ export default function MapView() {
           >
             {!(isMobile && mode === "inspecao") && (
               <Popup
-                key={`ext-${item.id}-${isDataVencida(item.manutencao_2_nivel) ? 1 : 0}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${ultimoChecklistExtintorMes.get(item.id)?.data_conferencia ?? ""}`}
+                key={`ext-popup-${item.id}-${isDataVencida(item.manutencao_2_nivel) ? 1 : 0}-${conferidosNoMesIds.has(item.id) ? 1 : 0}-${nc ? 1 : 0}-${ult?.data_conferencia ?? ""}`}
               >
                 <div className="text-sm" style={{ minWidth: 160 }}>
                   <p className="font-semibold">{formatMapMarkerLabel("extintor", item.codigo)}</p>
@@ -1938,23 +1963,17 @@ export default function MapView() {
                   {isDataVencida(item.manutencao_2_nivel) && (
                     <p className="mt-1 text-xs font-semibold text-red-700">⚠ Teste nível 2 vencido</p>
                   )}
-                  {(() => {
-                    const ult = ultimoChecklistExtintorMes.get(item.id);
-                    const nc = ult ? checklistTemNaoConformidade(ult) : false;
-                    return (
-                      <p
-                        className={`mt-1 text-xs font-semibold ${
-                          nc ? "text-red-700" : conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-yellow-700"
-                        }`}
-                      >
-                        {nc
-                          ? "⚠ Não conformidade no mês"
-                          : conferidosNoMesIds.has(item.id)
-                            ? "✓ Conferido no mês"
-                            : "⚠ Não conferido no mês"}
-                      </p>
-                    );
-                  })()}
+                  <p
+                    className={`mt-1 text-xs font-semibold ${
+                      nc ? "text-red-700" : conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-yellow-700"
+                    }`}
+                  >
+                    {nc
+                      ? "⚠ Não conformidade no mês"
+                      : conferidosNoMesIds.has(item.id)
+                        ? "✓ Conferido no mês"
+                        : "⚠ Não conferido no mês"}
+                  </p>
                   <p
                     className={`text-xs font-semibold ${
                       getMaintenanceStatus(item) === "Vencido"
@@ -2002,12 +2021,17 @@ export default function MapView() {
           if (!position) return null;
           const lod = effectiveMarkerLod(h.id, markerLod, highlightedMarkerId);
           const selected = h.id === highlightedMarkerId;
+          const markerColors = hidranteMarkerStyle(h);
+          const ult = ultimoChecklistHidranteMes.get(h.id);
+          const nc = ult
+            ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>)
+            : false;
           return (
           <Marker
-            key={h.id}
+            key={`hid-${h.id}-${markerColors.bg}-${conferidosHidranteMesIds.has(h.id) ? 1 : 0}-${nc ? 1 : 0}`}
             position={position}
             icon={hydrantIcon(
-              hidranteMarkerStyle(h),
+              markerColors,
               h.codigo,
               lod,
               selected,

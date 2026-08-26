@@ -17,6 +17,7 @@ type ExtintorMarkerInput = {
 };
 
 type ChecklistExtResumo = {
+  data_conferencia?: string;
   local_correto?: string | null;
   dados_corretos?: string | null;
   sinalizacao_correta?: string | null;
@@ -26,6 +27,7 @@ type ChecklistExtResumo = {
   medidor_pressao_status?: string | null;
   cilindro_status?: string | null;
   answers_json?: Record<string, string | null> | null;
+  observacoes?: string | null;
 };
 
 export function extintorMarkerColors(
@@ -34,19 +36,7 @@ export function extintorMarkerColors(
   ultimoChecklist: ChecklistExtResumo | undefined,
 ): MarkerColors {
   const vencido = isDataVencida(item.manutencao_2_nivel);
-  const temNc = ultimoChecklist
-    ? checklistTemNaoConformidade({
-        local_correto: ultimoChecklist.local_correto ?? null,
-        dados_corretos: ultimoChecklist.dados_corretos ?? null,
-        sinalizacao_correta: ultimoChecklist.sinalizacao_correta ?? null,
-        mangueira_status: ultimoChecklist.mangueira_status ?? null,
-        bico_difusor_status: ultimoChecklist.bico_difusor_status ?? null,
-        alca_gatilho_status: ultimoChecklist.alca_gatilho_status ?? null,
-        medidor_pressao_status: ultimoChecklist.medidor_pressao_status ?? null,
-        cilindro_status: ultimoChecklist.cilindro_status ?? null,
-        answers_json: ultimoChecklist.answers_json ?? null,
-      })
-    : false;
+  const temNc = ultimoChecklist ? checklistTemNaoConformidade(ultimoChecklist) : false;
 
   // Cor do badge = status (atenção sempre vermelho; conforme só se conferido e sem alerta).
   if (vencido || temNc) {
@@ -62,7 +52,11 @@ export function hidranteMarkerColors(
   h: HidranteVencimentoRow,
   conferidoNoMes: boolean,
   ultimoChecklist:
-    | (Record<string, string | null> & { answers_json?: Record<string, string | null> | null })
+    | (Record<string, string | null> & {
+        data_conferencia?: string;
+        answers_json?: Record<string, string | null> | null;
+        observacoes?: string | null;
+      })
     | undefined,
 ): MarkerColors {
   const temNc = ultimoChecklist ? hidranteChecklistTemNaoConformidade(ultimoChecklist) : false;
@@ -78,4 +72,22 @@ export function hidranteMarkerColors(
   }
 
   return { bg: MARKER_AMBER, ring: MARKER_AMBER };
+}
+
+/** Evita que um refetch incompleto apague NC já conhecida no estado local. */
+export function preferChecklistComNaoConformidade<T extends { data_conferencia?: string }>(
+  local: T | undefined,
+  server: T,
+  hasNc: (row: T) => boolean,
+): T {
+  if (!local) return server;
+  if (hasNc(server) || !hasNc(local)) return server;
+  const localMs = new Date(local.data_conferencia ?? 0).getTime();
+  const serverMs = new Date(server.data_conferencia ?? 0).getTime();
+  if (!Number.isFinite(localMs) || localMs + 5000 < serverMs) return server;
+  return {
+    ...server,
+    ...local,
+    data_conferencia: server.data_conferencia || local.data_conferencia,
+  };
 }

@@ -14,6 +14,8 @@ export type ChecklistExtintorMesRow = {
   cilindro_status: string | null;
   /** Respostas (nativas + custom); essencial para manter NC em vermelho no mapa. */
   answers_json: Record<string, string | null> | null;
+  /** Texto com blocos de NC quando o insert cai no fallback legado. */
+  observacoes: string | null;
 };
 
 /** Linhas de `checklists_hidrantes` filtradas pelo mês. */
@@ -29,23 +31,24 @@ export type ChecklistHidranteMesRow = {
   hidrante_integridade: string | null;
   documentacao_acesso: string | null;
   answers_json: Record<string, string | null> | null;
+  observacoes: string | null;
 };
 
 const EXT_SELECT_FULL =
-  "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,answers_json";
+  "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,answers_json,observacoes";
 
 const EXT_SELECT_COLUMNS =
-  "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status";
+  "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,observacoes";
 
-const EXT_SELECT_JSON = "extintor_id,data_conferencia,answers_json";
+const EXT_SELECT_JSON = "extintor_id,data_conferencia,answers_json,observacoes";
 
 const HID_SELECT_FULL =
-  "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,answers_json";
+  "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,answers_json,observacoes";
 
 const HID_SELECT_COLUMNS =
-  "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso";
+  "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,observacoes";
 
-const HID_SELECT_JSON = "hidrante_id,data_conferencia,answers_json";
+const HID_SELECT_JSON = "hidrante_id,data_conferencia,answers_json,observacoes";
 
 function normalizeAnswersJson(value: unknown): Record<string, string | null> | null {
   if (!value) return null;
@@ -79,6 +82,7 @@ function padExtintorMesRow(row: Record<string, unknown>): ChecklistExtintorMesRo
     medidor_pressao_status: (row.medidor_pressao_status as string | null | undefined) ?? null,
     cilindro_status: (row.cilindro_status as string | null | undefined) ?? null,
     answers_json: normalizeAnswersJson(row.answers_json),
+    observacoes: (row.observacoes as string | null | undefined) ?? null,
   };
 }
 
@@ -95,6 +99,7 @@ function padHidranteMesRow(row: Record<string, unknown>): ChecklistHidranteMesRo
     hidrante_integridade: (row.hidrante_integridade as string | null | undefined) ?? null,
     documentacao_acesso: (row.documentacao_acesso as string | null | undefined) ?? null,
     answers_json: normalizeAnswersJson(row.answers_json),
+    observacoes: (row.observacoes as string | null | undefined) ?? null,
   };
 }
 
