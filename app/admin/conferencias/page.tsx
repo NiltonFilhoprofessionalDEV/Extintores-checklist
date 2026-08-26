@@ -9,6 +9,7 @@ import {
 } from "@/lib/equipes/conferencia-filtro";
 import {
   exportConferenciasHistorico,
+  compareCodigo,
   type ConferenciaHistoricoExtintorRow,
   type ConferenciaHistoricoHidranteRow,
 } from "@/lib/export/excel";
@@ -38,11 +39,13 @@ import ConferenciaDetailDrawer from "./ConferenciaDetailDrawer";
 import ConferenciaFilterDrawer from "./ConferenciaFilterDrawer";
 import {
   OPCOES_FILTRO_STATUS,
+  OPCOES_ORDENACAO,
   detectarPeriodoPreset,
   filtrosPadraoMesVigente,
   getDatasPadraoMesVigente,
   labelPeriodo,
   type ConferenciaFiltrosDraft,
+  type ConferenciaOrdenacao,
   type FiltroStatusConferencia,
 } from "./conferencia-filtros";
 import type { ConferenciaItem } from "./conferencia-view";
@@ -52,6 +55,33 @@ function equipeLabelForCodigo(codigo: string, tipo: TipoEquipamento): string {
     if (codigoPertenceEquipe(codigo, eq.id, tipo)) return eq.label;
   }
   return "";
+}
+
+function ordenarConferencias(
+  list: ConferenciaItem[],
+  ordenacao: ConferenciaOrdenacao,
+): ConferenciaItem[] {
+  const sorted = [...list];
+  if (ordenacao === "codigo_asc") {
+    sorted.sort(
+      (a, b) =>
+        compareCodigo(a.codigo, b.codigo) ||
+        new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+    );
+    return sorted;
+  }
+  if (ordenacao === "codigo_desc") {
+    sorted.sort(
+      (a, b) =>
+        compareCodigo(b.codigo, a.codigo) ||
+        new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+    );
+    return sorted;
+  }
+  sorted.sort(
+    (a, b) => new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+  );
+  return sorted;
 }
 
 function startOfDayIso(dateStr: string): string | null {
@@ -138,6 +168,7 @@ export default function AdminConferenciasPage() {
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatusConferencia>("");
   const [filtroLocal, setFiltroLocal] = useState("");
   const [filtroConferente, setFiltroConferente] = useState("");
+  const [ordenacao, setOrdenacao] = useState<ConferenciaOrdenacao>("data_desc");
   const [exportando, setExportando] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -335,12 +366,18 @@ export default function AdminConferenciasPage() {
   ]);
 
   const filteredExt = useMemo(
-    () => filteredBase.filter((r) => r.tipo === "extintor"),
-    [filteredBase],
+    () => ordenarConferencias(
+      filteredBase.filter((r) => r.tipo === "extintor"),
+      ordenacao,
+    ),
+    [filteredBase, ordenacao],
   );
   const filteredHid = useMemo(
-    () => filteredBase.filter((r) => r.tipo === "hidrante"),
-    [filteredBase],
+    () => ordenarConferencias(
+      filteredBase.filter((r) => r.tipo === "hidrante"),
+      ordenacao,
+    ),
+    [filteredBase, ordenacao],
   );
   const visiveis = tipoLista === "extintor" ? filteredExt : filteredHid;
   const totalExportacao = filteredExt.length + filteredHid.length;
@@ -355,6 +392,7 @@ export default function AdminConferenciasPage() {
     Boolean(filtroLocal),
     Boolean(filtroConferente),
     periodoPersonalizado,
+    ordenacao !== "data_desc",
   ].filter(Boolean).length;
   const temFiltrosAtivos = filtrosAvancadosAtivos > 0 || Boolean(busca.trim());
 
@@ -395,6 +433,7 @@ export default function AdminConferenciasPage() {
     dataFim,
     local: filtroLocal,
     conferente: filtroConferente,
+    ordenacao,
   };
 
   const equipeLabelAtiva = filtroEquipe
@@ -402,6 +441,8 @@ export default function AdminConferenciasPage() {
     : "";
   const statusLabelAtivo =
     OPCOES_FILTRO_STATUS.find((op) => op.value === filtroStatus)?.label ?? "";
+  const ordenacaoLabelAtiva =
+    OPCOES_ORDENACAO.find((op) => op.value === ordenacao)?.label ?? "";
 
   function aplicarFiltros(next: ConferenciaFiltrosDraft) {
     datasEditadasPeloUsuarioRef.current = detectarPeriodoPreset(next.dataInicio, next.dataFim) !== "mes";
@@ -411,6 +452,7 @@ export default function AdminConferenciasPage() {
     setDataFim(next.dataFim);
     setFiltroLocal(next.local);
     setFiltroConferente(next.conferente);
+    setOrdenacao(next.ordenacao);
   }
 
   function limparFiltrosAvancados() {
@@ -420,6 +462,7 @@ export default function AdminConferenciasPage() {
     setFiltroStatus("");
     setFiltroLocal("");
     setFiltroConferente("");
+    setOrdenacao(padrao.ordenacao);
     setDataInicio(padrao.dataInicio);
     setDataFim(padrao.dataFim);
   }
@@ -591,6 +634,9 @@ export default function AdminConferenciasPage() {
           ) : null}
           {showEquipeFilter && filtroEquipe ? (
             <Chip label={equipeLabelAtiva} onRemove={() => setFiltroEquipe("")} />
+          ) : null}
+          {ordenacao !== "data_desc" ? (
+            <Chip label={ordenacaoLabelAtiva} onRemove={() => setOrdenacao("data_desc")} />
           ) : null}
           <button type="button" className="conf-chips__clear" onClick={limparFiltros}>
             Limpar filtros

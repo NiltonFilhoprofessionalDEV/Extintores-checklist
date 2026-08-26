@@ -25,6 +25,7 @@ type ChecklistExtResumo = {
   alca_gatilho_status?: string | null;
   medidor_pressao_status?: string | null;
   cilindro_status?: string | null;
+  answers_json?: Record<string, string | null> | null;
 };
 
 export function extintorMarkerColors(
@@ -43,6 +44,7 @@ export function extintorMarkerColors(
         alca_gatilho_status: ultimoChecklist.alca_gatilho_status ?? null,
         medidor_pressao_status: ultimoChecklist.medidor_pressao_status ?? null,
         cilindro_status: ultimoChecklist.cilindro_status ?? null,
+        answers_json: ultimoChecklist.answers_json ?? null,
       })
     : false;
 
@@ -59,7 +61,9 @@ export function extintorMarkerColors(
 export function hidranteMarkerColors(
   h: HidranteVencimentoRow,
   conferidoNoMes: boolean,
-  ultimoChecklist: Record<string, string | null> | undefined,
+  ultimoChecklist:
+    | (Record<string, string | null> & { answers_json?: Record<string, string | null> | null })
+    | undefined,
 ): MarkerColors {
   const temNc = ultimoChecklist ? hidranteChecklistTemNaoConformidade(ultimoChecklist) : false;
   const mangueiraVencida = hidranteTemMangueiraVencida(h);

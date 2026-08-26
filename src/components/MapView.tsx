@@ -52,6 +52,7 @@ import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client
 import {
   CHECKLIST_INITIAL,
   CHECKLIST_ITEM_KEYS,
+  buildChecklistAnswersJson,
   getChecklistAnswer,
   checklistTemNaoConformidade,
   isDataVencida,
@@ -63,6 +64,7 @@ import {
   HIDRANTE_ACTIVE_ITEM_KEYS,
   HIDRANTE_CHECKLIST_INITIAL,
   HIDRANTE_ITEM_LABELS,
+  buildHidranteAnswersJson,
   getHidranteAnswer,
   hidranteChecklistTemNaoConformidade,
   type HidranteChecklistData,
@@ -1507,6 +1509,12 @@ export default function MapView() {
       }
 
       const ts = String(payload.data_conferencia);
+      const answersJson =
+        (payload.answers_json as Record<string, string | null> | undefined) ??
+        buildChecklistAnswersJson(
+          checklistForm,
+          fields.map((field) => field.key),
+        );
       const checklistRowMes: ChecklistExtintorMesRow = {
         extintor_id: selectedMarker.id,
         data_conferencia: ts,
@@ -1518,6 +1526,7 @@ export default function MapView() {
         alca_gatilho_status: getChecklistAnswer(checklistForm, "alca_gatilho_status"),
         medidor_pressao_status: getChecklistAnswer(checklistForm, "medidor_pressao_status"),
         cilindro_status: getChecklistAnswer(checklistForm, "cilindro_status"),
+        answers_json: answersJson,
       };
       setUltimoChecklistExtintorMes((prev) => {
         const next = new Map(prev);
@@ -1608,6 +1617,12 @@ export default function MapView() {
       }
 
       const tsH = String(payload.data_conferencia);
+      const answersJsonH =
+        (payload.answers_json as Record<string, string | null> | undefined) ??
+        buildHidranteAnswersJson(
+          hidranteChecklistForm,
+          fields.map((field) => field.key),
+        );
       const hidRowMes: ChecklistHidranteMesRow = {
         hidrante_id: selectedHidrante.id,
         data_conferencia: tsH,
@@ -1619,6 +1634,7 @@ export default function MapView() {
         gabinete_caixa: getHidranteAnswer(hidranteChecklistForm, "gabinete_caixa"),
         hidrante_integridade: getHidranteAnswer(hidranteChecklistForm, "hidrante_integridade"),
         documentacao_acesso: getHidranteAnswer(hidranteChecklistForm, "documentacao_acesso"),
+        answers_json: answersJsonH,
       };
       setUltimoChecklistHidranteMes((prev) => {
         const next = new Map(prev);

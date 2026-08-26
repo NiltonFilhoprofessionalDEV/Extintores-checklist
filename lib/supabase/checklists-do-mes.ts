@@ -12,6 +12,8 @@ export type ChecklistExtintorMesRow = {
   alca_gatilho_status: string | null;
   medidor_pressao_status: string | null;
   cilindro_status: string | null;
+  /** Respostas (nativas + custom); essencial para manter NC em vermelho no mapa. */
+  answers_json: Record<string, string | null> | null;
 };
 
 /** Linhas de `checklists_hidrantes` filtradas pelo mês. */
@@ -26,13 +28,43 @@ export type ChecklistHidranteMesRow = {
   gabinete_caixa: string | null;
   hidrante_integridade: string | null;
   documentacao_acesso: string | null;
+  answers_json: Record<string, string | null> | null;
 };
 
 const EXT_SELECT_FULL =
+  "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status,answers_json";
+
+const EXT_SELECT_COLUMNS =
   "extintor_id,data_conferencia,local_correto,dados_corretos,sinalizacao_correta,mangueira_status,bico_difusor_status,alca_gatilho_status,medidor_pressao_status,cilindro_status";
 
+const EXT_SELECT_JSON = "extintor_id,data_conferencia,answers_json";
+
 const HID_SELECT_FULL =
+  "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso,answers_json";
+
+const HID_SELECT_COLUMNS =
   "hidrante_id,data_conferencia,acesso_desobstruido,identificacao_sinalizacao,mangueira_esguicho,valvulas_registros,pressao_abastecimento,gabinete_caixa,hidrante_integridade,documentacao_acesso";
+
+const HID_SELECT_JSON = "hidrante_id,data_conferencia,answers_json";
+
+function normalizeAnswersJson(value: unknown): Record<string, string | null> | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, string | null>;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, string | null>;
+  }
+  return null;
+}
 
 function padExtintorMesRow(row: Record<string, unknown>): ChecklistExtintorMesRow {
   return {
@@ -46,6 +78,7 @@ function padExtintorMesRow(row: Record<string, unknown>): ChecklistExtintorMesRo
     alca_gatilho_status: (row.alca_gatilho_status as string | null | undefined) ?? null,
     medidor_pressao_status: (row.medidor_pressao_status as string | null | undefined) ?? null,
     cilindro_status: (row.cilindro_status as string | null | undefined) ?? null,
+    answers_json: normalizeAnswersJson(row.answers_json),
   };
 }
 
@@ -61,6 +94,7 @@ function padHidranteMesRow(row: Record<string, unknown>): ChecklistHidranteMesRo
     gabinete_caixa: (row.gabinete_caixa as string | null | undefined) ?? null,
     hidrante_integridade: (row.hidrante_integridade as string | null | undefined) ?? null,
     documentacao_acesso: (row.documentacao_acesso as string | null | undefined) ?? null,
+    answers_json: normalizeAnswersJson(row.answers_json),
   };
 }
 
@@ -97,51 +131,22 @@ export async function fetchChecklistsExtintoresDoMes(
   endInclusiveIso: string,
   baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistExtintorMesRow[] }> {
-  const q1 = await runMonthQuery(supabase, "checklists", EXT_SELECT_FULL, startIso, endInclusiveIso, baseId);
-
-  if (!q1.error) {
-    return {
-      ok: true,
-      rows: (q1.data ?? []).map((r) => padExtintorMesRow(r as Record<string, unknown>)),
-    };
-  }
-
-  const q2 = await runMonthQuery(
-    supabase,
-    "checklists",
+  const selects = [
+    EXT_SELECT_FULL,
+    EXT_SELECT_COLUMNS,
+    EXT_SELECT_JSON,
     "extintor_id,data_conferencia,observacoes",
-    startIso,
-    endInclusiveIso,
-    baseId,
-  );
-
-  if (!q2.error) {
-    return {
-      ok: true,
-      rows: (q2.data ?? []).map((r) => {
-        const row = r as Record<string, unknown>;
-        return padExtintorMesRow({
-          extintor_id: row.extintor_id,
-          data_conferencia: row.data_conferencia,
-        });
-      }),
-    };
-  }
-
-  const q3 = await runMonthQuery(
-    supabase,
-    "checklists",
     "extintor_id,data_conferencia",
-    startIso,
-    endInclusiveIso,
-    baseId,
-  );
+  ];
 
-  if (!q3.error) {
-    return {
-      ok: true,
-      rows: (q3.data ?? []).map((r) => padExtintorMesRow(r as Record<string, unknown>)),
-    };
+  for (const select of selects) {
+    const result = await runMonthQuery(supabase, "checklists", select, startIso, endInclusiveIso, baseId);
+    if (!result.error) {
+      return {
+        ok: true,
+        rows: (result.data ?? []).map((r) => padExtintorMesRow(r as Record<string, unknown>)),
+      };
+    }
   }
 
   return { ok: false, rows: [] };
@@ -154,58 +159,29 @@ export async function fetchChecklistsHidrantesDoMes(
   endInclusiveIso: string,
   baseId?: string | null,
 ): Promise<{ ok: boolean; rows: ChecklistHidranteMesRow[] }> {
-  const q1 = await runMonthQuery(
-    supabase,
-    "checklists_hidrantes",
+  const selects = [
     HID_SELECT_FULL,
-    startIso,
-    endInclusiveIso,
-    baseId,
-  );
-
-  if (!q1.error) {
-    return {
-      ok: true,
-      rows: (q1.data ?? []).map((r) => padHidranteMesRow(r as Record<string, unknown>)),
-    };
-  }
-
-  const q2 = await runMonthQuery(
-    supabase,
-    "checklists_hidrantes",
+    HID_SELECT_COLUMNS,
+    HID_SELECT_JSON,
     "hidrante_id,data_conferencia,observacoes",
-    startIso,
-    endInclusiveIso,
-    baseId,
-  );
-
-  if (!q2.error) {
-    return {
-      ok: true,
-      rows: (q2.data ?? []).map((r) => {
-        const row = r as Record<string, unknown>;
-        return padHidranteMesRow({
-          hidrante_id: row.hidrante_id,
-          data_conferencia: row.data_conferencia,
-        });
-      }),
-    };
-  }
-
-  const q3 = await runMonthQuery(
-    supabase,
-    "checklists_hidrantes",
     "hidrante_id,data_conferencia",
-    startIso,
-    endInclusiveIso,
-    baseId,
-  );
+  ];
 
-  if (!q3.error) {
-    return {
-      ok: true,
-      rows: (q3.data ?? []).map((r) => padHidranteMesRow(r as Record<string, unknown>)),
-    };
+  for (const select of selects) {
+    const result = await runMonthQuery(
+      supabase,
+      "checklists_hidrantes",
+      select,
+      startIso,
+      endInclusiveIso,
+      baseId,
+    );
+    if (!result.error) {
+      return {
+        ok: true,
+        rows: (result.data ?? []).map((r) => padHidranteMesRow(r as Record<string, unknown>)),
+      };
+    }
   }
 
   return { ok: false, rows: [] };

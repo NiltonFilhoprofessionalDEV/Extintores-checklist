@@ -3,6 +3,7 @@ import type { ConferenciaExportStatus } from "@/lib/export/conferencia-historico
 
 export type PeriodoPreset = "hoje" | "7d" | "mes" | "custom";
 export type FiltroStatusConferencia = ConferenciaExportStatus | "";
+export type ConferenciaOrdenacao = "data_desc" | "codigo_asc" | "codigo_desc";
 
 export type ConferenciaFiltrosDraft = {
   equipe: EquipeConferenciaId | "";
@@ -11,12 +12,19 @@ export type ConferenciaFiltrosDraft = {
   dataFim: string;
   local: string;
   conferente: string;
+  ordenacao: ConferenciaOrdenacao;
 };
 
 export const OPCOES_FILTRO_STATUS: { value: FiltroStatusConferencia; label: string }[] = [
   { value: "conforme", label: "Conforme" },
   { value: "alerta", label: "Não conforme" },
   { value: "vencido", label: "Vencido" },
+];
+
+export const OPCOES_ORDENACAO: { value: ConferenciaOrdenacao; label: string }[] = [
+  { value: "data_desc", label: "Mais recentes" },
+  { value: "codigo_asc", label: "Código crescente" },
+  { value: "codigo_desc", label: "Código decrescente" },
 ];
 
 export const PERIODO_PRESETS: { id: Exclude<PeriodoPreset, "custom">; label: string }[] = [
@@ -89,5 +97,6 @@ export function filtrosPadraoMesVigente(): ConferenciaFiltrosDraft {
     dataFim: fim,
     local: "",
     conferente: "",
+    ordenacao: "data_desc",
   };
 }
