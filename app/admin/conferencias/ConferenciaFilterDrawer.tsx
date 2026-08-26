@@ -4,10 +4,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { EQUIPES_CONFERENCIA, type EquipeConferenciaId } from "@/lib/equipes/conferencia-filtro";
 import {
   OPCOES_FILTRO_STATUS,
+  OPCOES_ORDENACAO,
   PERIODO_PRESETS,
   datasParaPreset,
   detectarPeriodoPreset,
   type ConferenciaFiltrosDraft,
+  type ConferenciaOrdenacao,
   type FiltroStatusConferencia,
   type PeriodoPreset,
 } from "./conferencia-filtros";
@@ -230,6 +232,25 @@ function ConferenciaFilterDrawerBody({
               </select>
             </FilterGroup>
           ) : null}
+
+          <FilterGroup label="Ordenação">
+            <div className="conf-choice-grid">
+              {OPCOES_ORDENACAO.map((option) => (
+                <ChoiceButton
+                  key={option.value}
+                  selected={draft.ordenacao === option.value}
+                  onClick={() =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      ordenacao: option.value as ConferenciaOrdenacao,
+                    }))
+                  }
+                >
+                  {option.label}
+                </ChoiceButton>
+              ))}
+            </div>
+          </FilterGroup>
         </div>
 
         <footer className="conf-drawer__footer conf-drawer__footer--split">

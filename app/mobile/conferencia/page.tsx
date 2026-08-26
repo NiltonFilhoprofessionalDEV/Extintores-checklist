@@ -19,6 +19,7 @@ import { fetchChecklistQuestionsForBase } from "@/lib/checklist/questions-client
 import {
   CHECKLIST_INITIAL,
   CHECKLIST_ITEM_KEYS,
+  buildChecklistAnswersJson,
   checklistTemNaoConformidade,
   getChecklistAnswer,
   isDataVencida,
@@ -36,6 +37,7 @@ import {
   HIDRANTE_ACTIVE_ITEM_KEYS,
   HIDRANTE_CHECKLIST_INITIAL,
   HIDRANTE_ITEM_LABELS,
+  buildHidranteAnswersJson,
   getHidranteAnswer,
   hidranteChecklistTemNaoConformidade,
   type HidranteChecklistData,
@@ -987,6 +989,7 @@ export default function MobileConferenciaPage() {
         alca_gatilho_status: getChecklistAnswer(data, "alca_gatilho_status"),
         medidor_pressao_status: getChecklistAnswer(data, "medidor_pressao_status"),
         cilindro_status: getChecklistAnswer(data, "cilindro_status"),
+        answers_json: buildChecklistAnswersJson(data),
       });
       return next;
     });
@@ -1011,6 +1014,7 @@ export default function MobileConferenciaPage() {
         gabinete_caixa: getHidranteAnswer(data, "gabinete_caixa"),
         hidrante_integridade: getHidranteAnswer(data, "hidrante_integridade"),
         documentacao_acesso: getHidranteAnswer(data, "documentacao_acesso"),
+        answers_json: buildHidranteAnswersJson(data),
       });
       return next;
     });
