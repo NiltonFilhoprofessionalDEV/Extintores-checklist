@@ -136,10 +136,17 @@ export function buildHidranteAnswersJson(
 }
 
 export function hidranteChecklistTemNaoConformidade(
-  row: Record<string, string | null> & { answers_json?: Record<string, string | null> | null },
+  row: Record<string, string | null> & {
+    answers_json?: Record<string, string | null> | null;
+    observacoes?: string | null;
+  },
 ): boolean {
   if (HIDRANTE_ITEM_KEYS.some((k) => row[k] === "nao_conforme")) return true;
   const extras = row.answers_json;
-  if (!extras || typeof extras !== "object") return false;
-  return Object.values(extras).some((value) => value === "nao_conforme");
+  if (extras && typeof extras === "object") {
+    if (Object.values(extras).some((value) => value === "nao_conforme")) return true;
+  }
+  const obs = row.observacoes ?? "";
+  if (/\[\s*não conforme/i.test(obs) || /\bnao_conforme\b/i.test(obs)) return true;
+  return false;
 }
