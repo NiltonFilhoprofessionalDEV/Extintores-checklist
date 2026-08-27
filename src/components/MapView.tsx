@@ -26,6 +26,7 @@ import {
 import { isCargoLabel, resolveConferenteNome } from "@/lib/auth/conferente";
 import { getCurrentSession, getProfileBySession, type Profile } from "@/lib/auth/profile";
 import {
+  canManageInventory,
   canUseMapEditing,
   canUseMapInspection,
   isMapInspectionOnlyRole,
@@ -107,6 +108,9 @@ import MapLegendControl from "@/src/components/map/MapLegendControl";
 import MapEquipmentDetailPanel, {
   type MapEquipmentDetail,
 } from "@/src/components/map/MapEquipmentDetailPanel";
+import { buildConferidosNoMesIds } from "@/lib/checklist/conferido-no-mes";
+import RetiradaEquipamentoDrawer from "@/src/components/estoque/RetiradaEquipamentoDrawer";
+import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
 import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
 import MapClickPlacement from "@/src/components/map/MapClickPlacement";
 import { buildPlacementUpdate } from "@/lib/map/build-placement-update";
@@ -194,6 +198,9 @@ type Extintor = {
   capacidade_extintora: string;
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
+  sem_equipamento?: boolean | null;
+  inspecao_reset_at?: string | null;
+  retirado_em?: string | null;
   coord_x: number | null;
   coord_y: number | null;
   coord_x_norm?: number | null;
@@ -430,6 +437,7 @@ export default function MapView() {
       : false,
   );
   const [canEdit, setCanEdit] = useState(false);
+  const [canManageInventoryState, setCanManageInventoryState] = useState(false);
   const [canInspect, setCanInspect] = useState(false);
   const [conferidosNoMesIds, setConferidosNoMesIds] = useState<Set<string>>(new Set());
   const [supportsWebp] = useState(() => {
@@ -482,6 +490,9 @@ export default function MapView() {
     floorKey: string;
   } | null>(null);
   const [pulseMarkerId, setPulseMarkerId] = useState<string | null>(null);
+  const [retiradaTarget, setRetiradaTarget] = useState<Extintor | null>(null);
+  const [substituirTarget, setSubstituirTarget] = useState<Extintor | null>(null);
+  const [equipmentActionSaving, setEquipmentActionSaving] = useState(false);
   const searchFocusNonceRef = useRef(0);
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -522,9 +533,11 @@ export default function MapView() {
     const generation = opts?.generation ?? loadGenerationRef.current;
     if (!opts?.quiet) setLoading(true);
     const selectFull =
-      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento";
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,sem_equipamento,inspecao_reset_at,retirado_em,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento";
     const selectLegacy =
       "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,pavimento";
+    const selectSemEquipamentoFallback =
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,coord_x,coord_y,coord_x_norm,coord_y_norm,floor_id,pavimento";
 
     let query = supabase.from("extintores").select(selectFull).order("codigo", { ascending: true });
     if (activeBaseId) query = query.eq("base_id", activeBaseId);
@@ -535,6 +548,20 @@ export default function MapView() {
     if (error && /coord_x_norm|floor_id|schema cache|column/i.test(error.message)) {
       let fallback = supabase.from("extintores").select(selectLegacy).order("codigo", { ascending: true });
       if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
+      const retry = await fallback;
+      if (!retry.error) {
+        data = retry.data as typeof data;
+        error = retry.error;
+      }
+    }
+
+    if (error && /sem_equipamento|inspecao_reset|schema cache|column/i.test(error.message)) {
+      let fallback = supabase
+        .from("extintores")
+        .select(selectSemEquipamentoFallback)
+        .order("codigo", { ascending: true });
+      if (activeBaseId) fallback = fallback.eq("base_id", activeBaseId);
+      fallback = fallback.eq("active", true);
       const retry = await fallback;
       if (!retry.error) {
         data = retry.data as typeof data;
@@ -563,7 +590,20 @@ export default function MapView() {
     );
     if (!ok) return;
 
-    const fromServer = buildUltimoPorExtintor(rows);
+    const resetMap = new Map<string, string | null>();
+    for (const e of extintores) {
+      resetMap.set(e.id, e.inspecao_reset_at ?? null);
+    }
+
+    const filteredRows = rows.filter((row) => {
+      const resetAt = resetMap.get(row.extintor_id);
+      if (!resetAt) return true;
+      const ms = new Date(row.data_conferencia).getTime();
+      const resetMs = new Date(resetAt).getTime();
+      return Number.isFinite(ms) && Number.isFinite(resetMs) && ms >= resetMs;
+    });
+
+    const fromServer = buildUltimoPorExtintor(filteredRows);
     setUltimoChecklistExtintorMes((prev) => {
       const merged = new Map<string, ChecklistExtintorMesRow>();
       for (const [id, server] of fromServer.entries()) {
@@ -571,8 +611,8 @@ export default function MapView() {
       }
       return merged;
     });
-    setConferidosNoMesIds(new Set(rows.map((r) => r.extintor_id).filter(Boolean)));
-  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId]);
+    setConferidosNoMesIds(buildConferidosNoMesIds(rows, resetMap));
+  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId, extintores]);
 
   const loadHidrantesEMarcadores = useCallback(async (generation?: number) => {
     const gen = generation ?? loadGenerationRef.current;
@@ -767,6 +807,7 @@ export default function MapView() {
         if (!session) {
           if (mounted) {
             setCanEdit(false);
+            setCanManageInventoryState(false);
             setCanInspect(false);
             setMode("edicao");
           }
@@ -779,6 +820,7 @@ export default function MapView() {
         const nome = resolveConferenteNome(session, profile);
         if (mounted) {
           setCanEdit(editAllowed);
+          setCanManageInventoryState(role ? canManageInventory(role) : false);
           setCanInspect(inspectAllowed);
           setActorProfile(profile);
           setConferenteNome(nome);
@@ -809,6 +851,7 @@ export default function MapView() {
       } catch {
         if (mounted) {
           setCanEdit(false);
+          setCanManageInventoryState(false);
           setCanInspect(false);
           setMode("edicao");
         }
@@ -1122,8 +1165,86 @@ export default function MapView() {
     setFiltroEquipe(next.equipe);
   }
 
+  async function callEquipmentApi(url: string, body: unknown) {
+    const session = await getCurrentSession();
+    if (!session) throw new Error("Sessão não encontrada.");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        ...(activeBaseId ? { "X-Active-Base-Id": activeBaseId } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "Erro na requisição.");
+  }
+
+  async function handleRetiradaConfirm(payload: { motivo: string; previsao_retorno: string | null }) {
+    if (!retiradaTarget) return;
+    setEquipmentActionSaving(true);
+    try {
+      await callEquipmentApi("/api/admin/extintores/retirada", {
+        id: retiradaTarget.id,
+        ...payload,
+      });
+      const codigo = retiradaTarget.codigo;
+      setRetiradaTarget(null);
+      setInfoMarker(null);
+      await loadExtintores({ quiet: true });
+      await loadConferenciasDoMes();
+      setMessage(`Equipamento retirado do ponto ${codigo}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao retirar equipamento.");
+    } finally {
+      setEquipmentActionSaving(false);
+    }
+  }
+
+  async function handleSubstituirConfirm(payload: {
+    estoque_id: string;
+    num_inmetro: string;
+    num_cilindro: string | null;
+    manutencao_2_nivel: string | null;
+    manutencao_3_nivel: string | null;
+  }) {
+    if (!substituirTarget) return;
+    setEquipmentActionSaving(true);
+    try {
+      await callEquipmentApi("/api/admin/extintores/substituir", {
+        extintor_id: substituirTarget.id,
+        ...payload,
+      });
+      const codigo = substituirTarget.codigo;
+      setSubstituirTarget(null);
+      setInfoMarker(null);
+      await loadExtintores({ quiet: true });
+      await loadConferenciasDoMes();
+      setMessage(`Equipamento substituído no ponto ${codigo}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro na substituição.");
+    } finally {
+      setEquipmentActionSaving(false);
+    }
+  }
+
   const equipmentDetail = useMemo((): MapEquipmentDetail | null => {
     if (infoMarker) {
+      if (infoMarker.sem_equipamento) {
+        return {
+          kind: "extintor",
+          codigo: infoMarker.codigo,
+          localizacao: formatExtintorLocalizacao(infoMarker),
+          tipoCapacidade: formatExtintorTipoCapacidade(infoMarker),
+          pavimentoLabel: pavimento.label,
+          statusLabel: "Sem equipamento",
+          statusTone: "gray",
+          semEquipamento: true,
+          manutencaoLabel: "—",
+          manutencaoTone: "green",
+        };
+      }
       const ult = ultimoChecklistExtintorMes.get(infoMarker.id);
       const nc = ult ? checklistTemNaoConformidade(ult) : false;
       const conferido = conferidosNoMesIds.has(infoMarker.id);
@@ -1960,31 +2081,37 @@ export default function MapView() {
                 <div className="text-sm" style={{ minWidth: 160 }}>
                   <p className="font-semibold">{formatMapMarkerLabel("extintor", item.codigo)}</p>
                   <p className="text-zinc-500">{formatExtintorLocalizacao(item)}</p>
-                  {isDataVencida(item.manutencao_2_nivel) && (
-                    <p className="mt-1 text-xs font-semibold text-red-700">⚠ Teste nível 2 vencido</p>
+                  {item.sem_equipamento ? (
+                    <p className="mt-1 text-xs font-semibold text-slate-600">Sem equipamento / em manutenção</p>
+                  ) : (
+                    <>
+                      {isDataVencida(item.manutencao_2_nivel) && (
+                        <p className="mt-1 text-xs font-semibold text-red-700">⚠ Teste nível 2 vencido</p>
+                      )}
+                      <p
+                        className={`mt-1 text-xs font-semibold ${
+                          nc ? "text-red-700" : conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-yellow-700"
+                        }`}
+                      >
+                        {nc
+                          ? "⚠ Não conformidade no mês"
+                          : conferidosNoMesIds.has(item.id)
+                            ? "✓ Conferido no mês"
+                            : "⚠ Não conferido no mês"}
+                      </p>
+                      <p
+                        className={`text-xs font-semibold ${
+                          getMaintenanceStatus(item) === "Vencido"
+                            ? "text-red-700"
+                            : getMaintenanceStatus(item) === "Próximo de vencer (30 dias)"
+                              ? "text-amber-700"
+                              : "text-zinc-500"
+                        }`}
+                      >
+                        Manutenção: {getMaintenanceStatus(item)}
+                      </p>
+                    </>
                   )}
-                  <p
-                    className={`mt-1 text-xs font-semibold ${
-                      nc ? "text-red-700" : conferidosNoMesIds.has(item.id) ? "text-green-700" : "text-yellow-700"
-                    }`}
-                  >
-                    {nc
-                      ? "⚠ Não conformidade no mês"
-                      : conferidosNoMesIds.has(item.id)
-                        ? "✓ Conferido no mês"
-                        : "⚠ Não conferido no mês"}
-                  </p>
-                  <p
-                    className={`text-xs font-semibold ${
-                      getMaintenanceStatus(item) === "Vencido"
-                        ? "text-red-700"
-                        : getMaintenanceStatus(item) === "Próximo de vencer (30 dias)"
-                          ? "text-amber-700"
-                          : "text-zinc-500"
-                    }`}
-                  >
-                    Manutenção: {getMaintenanceStatus(item)}
-                  </p>
                   {mode === "inspecao" && canInspect && (
                     <button
                       type="button"
@@ -2187,6 +2314,7 @@ export default function MapView() {
               layout="sheet"
               canInspect={canInspect}
               canEdit={canEdit}
+              canManageInventory={canManageInventoryState}
               mode={mode}
               onClose={() => {
                 setInfoMarker(null);
@@ -2203,6 +2331,14 @@ export default function MapView() {
                   openHidranteChecklistModal(h);
                 }
               }}
+              onRetirarEquipamento={
+                infoMarker && !infoMarker.sem_equipamento
+                  ? () => setRetiradaTarget(infoMarker)
+                  : undefined
+              }
+              onSubstituirEquipamento={
+                infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
+              }
               onRemove={
                 infoMarker
                   ? () => {
@@ -2368,6 +2504,7 @@ export default function MapView() {
                 layout="panel"
                 canInspect={canInspect}
                 canEdit={canEdit}
+                canManageInventory={canManageInventoryState}
                 mode={mode}
                 onClose={() => {
                   setInfoMarker(null);
@@ -2384,6 +2521,14 @@ export default function MapView() {
                     openHidranteChecklistModal(h);
                   }
                 }}
+                onRetirarEquipamento={
+                  infoMarker && !infoMarker.sem_equipamento
+                    ? () => setRetiradaTarget(infoMarker)
+                    : undefined
+                }
+                onSubstituirEquipamento={
+                  infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
+                }
                 onRemove={
                   infoMarker
                     ? () => {
@@ -2546,6 +2691,34 @@ export default function MapView() {
             hidrante={hidranteCabecalhoForm(selectedHidrante)}
           />
         </InspecaoModalFrame>
+      )}
+
+      {retiradaTarget && (
+        <RetiradaEquipamentoDrawer
+          codigo={retiradaTarget.codigo}
+          tipo={retiradaTarget.tipo}
+          tamanho={retiradaTarget.tamanho}
+          numInmetro={retiradaTarget.num_inmetro}
+          saving={equipmentActionSaving}
+          onClose={() => setRetiradaTarget(null)}
+          onConfirm={handleRetiradaConfirm}
+        />
+      )}
+
+      {substituirTarget && (
+        <SubstituirEquipamentoDrawer
+          extintorId={substituirTarget.id}
+          codigo={substituirTarget.codigo}
+          expectedConfig={{
+            tipo: substituirTarget.tipo,
+            tamanho: substituirTarget.tamanho,
+            capacidade_extintora: substituirTarget.capacidade_extintora,
+          }}
+          activeBaseId={activeBaseId}
+          saving={equipmentActionSaving}
+          onClose={() => setSubstituirTarget(null)}
+          onConfirm={handleSubstituirConfirm}
+        />
       )}
     </main>
   );

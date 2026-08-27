@@ -147,6 +147,11 @@ export function isInventoryReadOnlyRole(role: UserRole): boolean {
   return role === "cliente" || role === "corporativo";
 }
 
+/** Gestão de inventário, estoque e substituição (admin / corporativo / liderança). */
+export function canManageInventory(role: UserRole): boolean {
+  return role === "admin" || role === "admin_corporativo" || role === "leadership";
+}
+
 /** Rotas do painel admin bloqueadas para o perfil liderança. */
 export const LEADERSHIP_BLOCKED_ADMIN_PATHS = ["/admin/importacao"] as const;
 

@@ -28,7 +28,7 @@ import {
 } from "@/lib/inventario/resolve-floor-select";
 
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { isAdminLikeRole, isInventoryReadOnlyRole, canManageInventory } from "@/lib/auth/roles";
 import { SOFT_DELETE_CONFIRM_PHRASE } from "@/lib/audit/write-audit-log";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { fetchBaseFloors } from "@/lib/auth/bases";
@@ -46,6 +46,8 @@ import {
   PositionBadge,
 } from "@/src/components/inventory/InventoryVisuals";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
+import RetiradaEquipamentoDrawer, { formatRetiradoEm } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
+import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
 
 type HidranteRow = HidranteInventarioCompletoRow & { floor_id?: string | null };
 
@@ -66,6 +68,10 @@ type ExtintorRow = {
   coord_x: number | null;
   coord_y: number | null;
   created_at: string;
+  sem_equipamento?: boolean | null;
+  retirado_em?: string | null;
+  retirado_motivo?: string | null;
+  retirado_previsao_retorno?: string | null;
 };
 
 type ModalMode = "create" | "edit";
@@ -125,11 +131,15 @@ export default function AdminExtintoresPage() {
   const [pendingSoftDeleteIds, setPendingSoftDeleteIds] = useState<string[]>([]);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [filtersMenuOpen, setFiltersMenuOpen] = useState(false);
+  const [retiradaTarget, setRetiradaTarget] = useState<ExtintorRow | null>(null);
+  const [substituirTarget, setSubstituirTarget] = useState<ExtintorRow | null>(null);
+  const [equipmentSaving, setEquipmentSaving] = useState(false);
   const floorFieldTouchedRef = useRef(false);
   const savingRef = useRef(false);
 
   const readOnly = isInventoryReadOnlyRole(actorRole);
   const canSoftDelete = isAdminLikeRole(actorRole);
+  const canManageInventoryRole = canManageInventory(actorRole);
   const today = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -175,7 +185,7 @@ export default function AdminExtintoresPage() {
     setLoading(true);
 
     const selectWithFloor =
-      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,floor_id,coord_x,coord_y,created_at,active";
+      "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,floor_id,coord_x,coord_y,created_at,active,sem_equipamento,retirado_em,retirado_motivo,retirado_previsao_retorno";
     const selectWithCilindro =
       "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,manutencao_2_nivel,manutencao_3_nivel,pavimento,coord_x,coord_y,created_at,active";
     const selectLegacy =
@@ -429,6 +439,56 @@ export default function AdminExtintoresPage() {
       openEditHidrante(detalheView.item);
     }
     closeDetalhe();
+  }
+
+  async function handleRetiradaConfirm(payload: { motivo: string; previsao_retorno: string | null }) {
+    if (!retiradaTarget) return;
+    setEquipmentSaving(true);
+    try {
+      await callInventoryApi("/api/admin/extintores/retirada", {
+        method: "POST",
+        body: JSON.stringify({ id: retiradaTarget.id, ...payload }),
+      });
+      setFeedback({ type: "ok", msg: `Equipamento retirado do ponto ${retiradaTarget.codigo}.` });
+      setRetiradaTarget(null);
+      closeDetalhe();
+      await load();
+    } catch (error) {
+      setFeedback({
+        type: "err",
+        msg: error instanceof Error ? error.message : "Erro ao retirar equipamento.",
+      });
+    } finally {
+      setEquipmentSaving(false);
+    }
+  }
+
+  async function handleSubstituirConfirm(payload: {
+    estoque_id: string;
+    num_inmetro: string;
+    num_cilindro: string | null;
+    manutencao_2_nivel: string | null;
+    manutencao_3_nivel: string | null;
+  }) {
+    if (!substituirTarget) return;
+    setEquipmentSaving(true);
+    try {
+      await callInventoryApi("/api/admin/extintores/substituir", {
+        method: "POST",
+        body: JSON.stringify({ extintor_id: substituirTarget.id, ...payload }),
+      });
+      setFeedback({ type: "ok", msg: `Equipamento substituído no ponto ${substituirTarget.codigo}.` });
+      setSubstituirTarget(null);
+      closeDetalhe();
+      await load();
+    } catch (error) {
+      setFeedback({
+        type: "err",
+        msg: error instanceof Error ? error.message : "Erro na substituição.",
+      });
+    } finally {
+      setEquipmentSaving(false);
+    }
   }
 
   function set(key: keyof ExtintorFormData, value: string) {
@@ -1307,6 +1367,28 @@ export default function AdminExtintoresPage() {
               <button type="button" onClick={closeDetalhe} className="btn-secondary">
                 Fechar
               </button>
+              {canManageInventoryRole &&
+                detalheView.tipo === "extintor" &&
+                detalheView.item.sem_equipamento && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setSubstituirTarget(detalheView.item)}
+                  >
+                    Substituir equipamento
+                  </button>
+                )}
+              {canManageInventoryRole &&
+                detalheView.tipo === "extintor" &&
+                !detalheView.item.sem_equipamento && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setRetiradaTarget(detalheView.item)}
+                  >
+                    Retirar para manutenção
+                  </button>
+                )}
               {!readOnly ? (
                 <button type="button" onClick={editarFromDetalhe} className="btn-primary">
                   Editar
@@ -1317,6 +1399,18 @@ export default function AdminExtintoresPage() {
         >
           {detalheView.tipo === "extintor" ? (
             <div className="inv-detail-grid">
+              {detalheView.item.sem_equipamento ? (
+                <div className="inv-detail-field inv-detail-field--full">
+                  <p className="inv-detail-field__label">Status</p>
+                  <p className="inv-detail-field__value text-slate-600">Sem equipamento / em manutenção</p>
+                  {detalheView.item.retirado_em ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Retirada: {formatRetiradoEm(detalheView.item.retirado_em)}
+                      {detalheView.item.retirado_motivo ? ` — ${detalheView.item.retirado_motivo}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <DetalheCampo label={COLUNAS_PADRAO.codigo} value={detalheView.item.codigo} />
               <DetalheCampo
                 label={COLUNAS_PADRAO.pavimento}
@@ -1382,6 +1476,34 @@ export default function AdminExtintoresPage() {
             </div>
           )}
         </FormDrawer>
+      )}
+
+      {retiradaTarget && (
+        <RetiradaEquipamentoDrawer
+          codigo={retiradaTarget.codigo}
+          tipo={retiradaTarget.tipo}
+          tamanho={retiradaTarget.tamanho}
+          numInmetro={retiradaTarget.num_inmetro}
+          saving={equipmentSaving}
+          onClose={() => setRetiradaTarget(null)}
+          onConfirm={handleRetiradaConfirm}
+        />
+      )}
+
+      {substituirTarget && (
+        <SubstituirEquipamentoDrawer
+          extintorId={substituirTarget.id}
+          codigo={substituirTarget.codigo}
+          expectedConfig={{
+            tipo: substituirTarget.tipo,
+            tamanho: substituirTarget.tamanho,
+            capacidade_extintora: substituirTarget.capacidade_extintora,
+          }}
+          activeBaseId={activeBaseId}
+          saving={equipmentSaving}
+          onClose={() => setSubstituirTarget(null)}
+          onConfirm={handleSubstituirConfirm}
+        />
       )}
 
       {bulkConfirmOpen && (
