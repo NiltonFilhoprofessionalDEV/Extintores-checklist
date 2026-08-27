@@ -16,6 +16,7 @@ export type AuditAction =
   | "user_delete"
   | "config"
   | "equipment_remove"
+  | "equipment_remove_batch"
   | "equipment_replace"
   | "stock_update";
 
@@ -86,6 +87,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   user_delete: "Excluiu usuário",
   config: "Alterou configuração",
   equipment_remove: "Retirou equipamento para manutenção",
+  equipment_remove_batch: "Criou lista de manutenção em lote",
   equipment_replace: "Substituiu equipamento",
   stock_update: "Alterou estoque",
 };

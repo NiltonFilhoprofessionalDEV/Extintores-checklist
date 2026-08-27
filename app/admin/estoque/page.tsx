@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
-import { isAdminLikeRole, isInventoryReadOnlyRole } from "@/lib/auth/roles";
+import { isAdminLikeRole, isInventoryReadOnlyRole, canManageInventory } from "@/lib/auth/roles";
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { DashboardStatCard } from "@/app/admin/dashboard/dashboard-stat-card";
 import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
@@ -12,6 +12,8 @@ import FormDrawer from "@/src/components/inventory/FormDrawer";
 import RowActionsMenu from "@/src/components/RowActionsMenu";
 import EstoqueStockForm, { useEstoqueFormState } from "@/src/components/estoque/EstoqueStockForm";
 import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
+import RetiradaLoteDrawer from "@/src/components/estoque/RetiradaLoteDrawer";
+import { formatDateOnlyPt } from "@/lib/date/date-only";
 import { buildStockStatsByTipo, colorForTipo } from "@/lib/estoque/stock-stats";
 import { formatPrevisaoRetorno, formatRetiradoEm } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
@@ -40,6 +42,29 @@ type ManutencaoRow = {
   num_inmetro_retirado: string | null;
 };
 
+type ManutencaoLote = {
+  id: string;
+  motivo: string;
+  previsao_retorno: string | null;
+  creator_nome: string;
+  created_at: string;
+  item_count: number;
+};
+
+type ManutencaoLoteItem = {
+  lote_id: string;
+  extintor_id: string;
+  codigo: string;
+  setor: string;
+  local_detalhado: string;
+  pavimento: string | null;
+  tipo: string;
+  tamanho: string;
+  capacidade_extintora: string;
+  num_inmetro: string | null;
+  sem_equipamento: boolean;
+};
+
 type ViewMode = "estoque" | "manutencao";
 
 const TH = "px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500";
@@ -58,6 +83,9 @@ export default function AdminEstoquePage() {
   const [view, setView] = useState<ViewMode>("estoque");
   const [items, setItems] = useState<EstoqueRow[]>([]);
   const [manutencao, setManutencao] = useState<ManutencaoRow[]>([]);
+  const [lotes, setLotes] = useState<ManutencaoLote[]>([]);
+  const [loteItems, setLoteItems] = useState<ManutencaoLoteItem[]>([]);
+  const [expandedLoteId, setExpandedLoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actorRole, setActorRole] = useState<UserRole>("admin");
   const [drawerMode, setDrawerMode] = useState<"create" | "edit" | null>(null);
@@ -66,10 +94,13 @@ export default function AdminEstoquePage() {
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [substituirTarget, setSubstituirTarget] = useState<ManutencaoRow | null>(null);
   const [substituindo, setSubstituindo] = useState(false);
+  const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
+  const [loteSaving, setLoteSaving] = useState(false);
 
   const { form, errors, onChange, onTipoChange, validate, reset } = useEstoqueFormState();
   const readOnly = isInventoryReadOnlyRole(actorRole);
   const canDelete = isAdminLikeRole(actorRole);
+  const canManage = canManageInventory(actorRole);
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const callApi = useCallback(
@@ -166,6 +197,75 @@ export default function AdminEstoquePage() {
             num_inmetro_retirado: historyMap.get(row.id)?.num_inmetro ?? null,
           })),
         );
+      }
+
+      let lotesQuery = supabase
+        .from("manutencao_lotes")
+        .select("id,motivo,previsao_retorno,creator_nome,created_at,item_count")
+        .order("created_at", { ascending: false });
+
+      if (activeBaseId) lotesQuery = lotesQuery.eq("base_id", activeBaseId);
+
+      const lotesRes = await lotesQuery;
+
+      if (lotesRes.error && /manutencao_lotes|schema cache/i.test(lotesRes.error.message)) {
+        setLotes([]);
+        setLoteItems([]);
+      } else if (!lotesRes.error) {
+        const lotesData = (lotesRes.data ?? []) as ManutencaoLote[];
+        setLotes(lotesData);
+
+        if (lotesData.length > 0) {
+          let histLoteQuery = supabase
+            .from("extintor_equipment_history")
+            .select(
+              "lote_id,extintor_id,num_inmetro,extintores(codigo,setor,local_detalhado,pavimento,tipo,tamanho,capacidade_extintora,sem_equipamento)",
+            )
+            .eq("event_type", "retirada")
+            .in("lote_id", lotesData.map((l) => l.id));
+
+          if (activeBaseId) histLoteQuery = histLoteQuery.eq("base_id", activeBaseId);
+
+          const histLoteRes = await histLoteQuery;
+          if (!histLoteRes.error && histLoteRes.data) {
+            const parsed: ManutencaoLoteItem[] = [];
+            for (const row of histLoteRes.data as Array<{
+              lote_id: string;
+              extintor_id: string;
+              num_inmetro: string | null;
+              extintores: {
+                codigo: string;
+                setor: string;
+                local_detalhado: string;
+                pavimento: string | null;
+                tipo: string;
+                tamanho: string;
+                capacidade_extintora: string;
+                sem_equipamento: boolean;
+              } | null;
+            }>) {
+              if (!row.extintores || !row.lote_id) continue;
+              parsed.push({
+                lote_id: row.lote_id,
+                extintor_id: row.extintor_id,
+                codigo: row.extintores.codigo,
+                setor: row.extintores.setor,
+                local_detalhado: row.extintores.local_detalhado,
+                pavimento: row.extintores.pavimento,
+                tipo: row.extintores.tipo,
+                tamanho: row.extintores.tamanho,
+                capacidade_extintora: row.extintores.capacidade_extintora,
+                num_inmetro: row.num_inmetro,
+                sem_equipamento: row.extintores.sem_equipamento,
+              });
+            }
+            setLoteItems(parsed);
+          } else {
+            setLoteItems([]);
+          }
+        } else {
+          setLoteItems([]);
+        }
       }
     } finally {
       setLoading(false);
@@ -283,6 +383,44 @@ export default function AdminEstoquePage() {
       setSubstituindo(false);
     }
   }
+
+  async function handleRetiradaLote(payload: {
+    extintor_ids: string[];
+    motivo: string;
+    previsao_retorno: string | null;
+  }) {
+    setLoteSaving(true);
+    try {
+      await callApi("/api/admin/extintores/retirada-lote", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setFeedback({
+        type: "ok",
+        msg: `Lista de manutenção criada com ${payload.extintor_ids.length} extintor(es) retirado(s).`,
+      });
+      setLoteDrawerOpen(false);
+      setView("manutencao");
+      await loadData();
+    } catch (error) {
+      setFeedback({
+        type: "err",
+        msg: error instanceof Error ? error.message : "Erro na retirada em lote.",
+      });
+    } finally {
+      setLoteSaving(false);
+    }
+  }
+
+  const loteItemsByLote = useMemo(() => {
+    const map = new Map<string, ManutencaoLoteItem[]>();
+    for (const item of loteItems) {
+      const list = map.get(item.lote_id) ?? [];
+      list.push(item);
+      map.set(item.lote_id, list);
+    }
+    return map;
+  }, [loteItems]);
 
   return (
     <div className="inv-page">
@@ -424,13 +562,25 @@ export default function AdminEstoquePage() {
       )}
 
       {view === "manutencao" && (
+        <>
         <div className="professional-card overflow-hidden">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-bold text-slate-900">Lista de manutenção</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Equipamentos retirados dos pontos de instalação. Use esta lista como ordem de serviço para
-              recolocação ou substituição pelo estoque.
-            </p>
+          <div className="border-b border-slate-100 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Lista de manutenção</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Equipamentos retirados dos pontos de instalação. Use esta lista como ordem de serviço para
+                recolocação ou substituição pelo estoque.
+              </p>
+            </div>
+            {canManage && (
+              <button
+                type="button"
+                className="btn-primary text-xs shrink-0"
+                onClick={() => setLoteDrawerOpen(true)}
+              >
+                Retirada em lote
+              </button>
+            )}
           </div>
           {loading ? (
             <p className="p-6 text-sm text-slate-500">Carregando lista de manutenção...</p>
@@ -533,6 +683,113 @@ export default function AdminEstoquePage() {
             </>
           )}
         </div>
+
+        {lotes.length > 0 && (
+          <div className="professional-card mt-6 overflow-hidden">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-bold text-slate-900">Listas de manutenção salvas</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Lotes de retirada com data, responsável e extintores removidos — use para recolocar equipamentos
+                nos pontos originais.
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {lotes.map((lote) => {
+                const items = loteItemsByLote.get(lote.id) ?? [];
+                const expanded = expandedLoteId === lote.id;
+                const pendentes = items.filter((i) => i.sem_equipamento).length;
+                return (
+                  <div key={lote.id} className="px-5 py-4">
+                    <button
+                      type="button"
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                      onClick={() => setExpandedLoteId(expanded ? null : lote.id)}
+                      aria-expanded={expanded}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">{lote.motivo}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatDateOnlyPt(lote.created_at)} · Criado por {lote.creator_nome}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {lote.item_count} extintor{lote.item_count !== 1 ? "es" : ""}
+                          {items.length > 0 ? ` · ${pendentes} ainda sem equipamento` : ""}
+                          {lote.previsao_retorno
+                            ? ` · Previsão: ${formatPrevisaoRetorno(lote.previsao_retorno)}`
+                            : " · Sem data prevista"}
+                        </p>
+                      </div>
+                      <svg
+                        width={20}
+                        height={20}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        className={`shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {expanded && items.length > 0 && (
+                      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                        <table className="inv-table w-full min-w-[640px]">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              <th className={TH}>Código</th>
+                              <th className={TH}>Local</th>
+                              <th className={TH}>Configuração</th>
+                              <th className={TH}>INMETRO retirado</th>
+                              <th className={TH}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item) => (
+                              <tr key={item.extintor_id} className="inv-table__row">
+                                <td className="px-4 py-3">
+                                  <EquipmentCode kind="extintor" codigo={item.codigo} />
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-600">
+                                  <span className="font-medium text-slate-800">
+                                    {item.pavimento || item.setor}
+                                  </span>
+                                  <span className="block text-xs text-slate-500">{item.local_detalhado}</span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-600">
+                                  {formatExtintorConfigLabel(item)}
+                                  <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-600">{item.num_inmetro || "—"}</td>
+                                <td className="px-4 py-3">
+                                  {item.sem_equipamento ? (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                      Sem equipamento
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
+                                      Substituído
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {expanded && items.length === 0 && (
+                      <p className="mt-3 text-sm text-slate-500">Nenhum item vinculado a esta lista.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {drawerMode && (
@@ -569,6 +826,15 @@ export default function AdminEstoquePage() {
           saving={substituindo}
           onClose={() => setSubstituirTarget(null)}
           onConfirm={handleSubstituir}
+        />
+      )}
+
+      {loteDrawerOpen && (
+        <RetiradaLoteDrawer
+          activeBaseId={activeBaseId}
+          saving={loteSaving}
+          onClose={() => setLoteDrawerOpen(false)}
+          onConfirm={handleRetiradaLote}
         />
       )}
     </div>
