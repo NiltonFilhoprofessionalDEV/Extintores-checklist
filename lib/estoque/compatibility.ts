@@ -1,3 +1,5 @@
+import { canonicalCapacidadeExtintora } from "@/lib/estoque/capacidade-canonical";
+
 /** Configuração física de extintor usada para compatibilidade estoque ↔ ponto. */
 export type ExtintorStockConfig = {
   tipo: string;
@@ -24,8 +26,7 @@ export function normalizeExtintorTamanho(value: string): string {
 }
 
 /**
- * Normaliza capacidade extintora para comparação tolerante a formatação.
- * Ex.: "2-A 20-B:C" ≈ "2-A 20-B : C" ≈ "2-A  20-B:C"
+ * Normaliza capacidade extintora para exibição (preserva estrutura legível).
  */
 export function normalizeCapacidadeExtintora(value: string): string {
   return value
@@ -40,7 +41,7 @@ export function normalizeCapacidadeExtintora(value: string): string {
 
 /**
  * Verifica se duas configurações são compatíveis para substituição.
- * Regra centralizada — alterar aqui se a política de compatibilidade mudar.
+ * Capacidade extintora: compara valores (2A, 20BC) ignorando hífens, espaços e pontuação.
  */
 export function extintorConfigsAreCompatible(
   expected: ExtintorStockConfig,
@@ -49,8 +50,8 @@ export function extintorConfigsAreCompatible(
   return (
     normalizeExtintorTipo(expected.tipo) === normalizeExtintorTipo(candidate.tipo) &&
     normalizeExtintorTamanho(expected.tamanho) === normalizeExtintorTamanho(candidate.tamanho) &&
-    normalizeCapacidadeExtintora(expected.capacidade_extintora) ===
-      normalizeCapacidadeExtintora(candidate.capacidade_extintora)
+    canonicalCapacidadeExtintora(expected.capacidade_extintora) ===
+      canonicalCapacidadeExtintora(candidate.capacidade_extintora)
   );
 }
 

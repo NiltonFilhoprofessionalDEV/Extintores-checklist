@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       p_actor_nome: (await actorNome(manager.id)) ?? "",
       p_motivo: motivo,
       p_previsao_retorno: previsao,
+      p_lote_id: null,
     } as never);
 
     if (error) {

@@ -32,21 +32,13 @@ returns text
 language sql
 immutable
 as $$
-  select regexp_replace(
+  select upper(
     regexp_replace(
-      regexp_replace(
-        upper(trim(translate(coalesce(t, ''), '₂', '2'))),
-        '[–—−‐‑‒―]',
-        '-',
-        'g'
-      ),
-      '\s*:\s*',
-      ':',
+      translate(coalesce(t, ''), '₂', '2'),
+      '[^A-Z0-9]',
+      '',
       'g'
-    ),
-    '\s+',
-    ' ',
-    'g'
+    )
   );
 $$;
 
