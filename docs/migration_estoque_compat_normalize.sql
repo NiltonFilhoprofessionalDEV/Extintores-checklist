@@ -10,8 +10,7 @@ as $$
     translate(
       upper(trim(translate(coalesce(t, ''), '₂', '2'))),
       'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
-      'AAAAAEEEEIIIIOOOOOUUUUCN',
-      'g'
+      'AAAAAEEEEIIIIOOOOOUUUUCN'
     ),
     '\s+',
     '',
@@ -28,8 +27,7 @@ as $$
     translate(
       upper(trim(translate(coalesce(t, ''), '₂', '2'))),
       'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
-      'AAAAAEEEEIIIIOOOOOUUUUCN',
-      'g'
+      'AAAAAEEEEIIIIOOOOOUUUUCN'
     ),
     '[^A-Z0-9]',
     '',
