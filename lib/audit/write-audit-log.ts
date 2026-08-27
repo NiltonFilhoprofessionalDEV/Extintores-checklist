@@ -14,7 +14,10 @@ export type AuditAction =
   | "user_create"
   | "user_update"
   | "user_delete"
-  | "config";
+  | "config"
+  | "equipment_remove"
+  | "equipment_replace"
+  | "stock_update";
 
 export type AuditEntityType =
   | "extintor"
@@ -25,7 +28,8 @@ export type AuditEntityType =
   | "mapa"
   | "base"
   | "importacao"
-  | "configuracao";
+  | "configuracao"
+  | "estoque";
 
 export type WriteAuditLogInput = {
   baseId?: string | null;
@@ -81,6 +85,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   user_update: "Alterou usuário",
   user_delete: "Excluiu usuário",
   config: "Alterou configuração",
+  equipment_remove: "Retirou equipamento para manutenção",
+  equipment_replace: "Substituiu equipamento",
+  stock_update: "Alterou estoque",
 };
 
 export const AUDIT_ENTITY_LABELS: Record<string, string> = {
@@ -93,6 +100,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   base: "Base",
   importacao: "Importação",
   configuracao: "Configuração",
+  estoque: "Estoque de extintores",
 };
 
 /** Frase que o administrador deve digitar para confirmar a remoção (soft-delete). */

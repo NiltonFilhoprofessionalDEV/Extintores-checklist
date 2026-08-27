@@ -5,6 +5,7 @@ import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/h
 export const MARKER_GREEN = "#16a34a";
 export const MARKER_RED = "#dc2626";
 export const MARKER_AMBER = "#eab308";
+export const MARKER_GRAY = "#64748b";
 
 export type MarkerColors = {
   bg: string;
@@ -14,6 +15,7 @@ export type MarkerColors = {
 type ExtintorMarkerInput = {
   id: string;
   manutencao_2_nivel: string | null;
+  sem_equipamento?: boolean | null;
 };
 
 type ChecklistExtResumo = {
@@ -35,6 +37,10 @@ export function extintorMarkerColors(
   conferidoNoMes: boolean,
   ultimoChecklist: ChecklistExtResumo | undefined,
 ): MarkerColors {
+  if (item.sem_equipamento) {
+    return { bg: MARKER_GRAY, ring: MARKER_GRAY };
+  }
+
   const vencido = isDataVencida(item.manutencao_2_nivel);
   const temNc = ultimoChecklist ? checklistTemNaoConformidade(ultimoChecklist) : false;
 

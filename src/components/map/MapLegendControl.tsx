@@ -62,7 +62,7 @@ function LegendBody() {
           <li className="flex items-center gap-2">
             <LegendSwatch label="E-25" bg="#64748b" />
             <span>
-              <span className="font-semibold text-slate-600">Cinza:</span> sem status, quando aplicável.
+              <span className="font-semibold text-slate-600">Cinza:</span> sem equipamento (retirado para manutenção).
             </span>
           </li>
         </ul>

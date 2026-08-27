@@ -10,9 +10,10 @@ type ExtintorDetail = {
   tipoCapacidade: string;
   pavimentoLabel: string;
   statusLabel: string;
-  statusTone: "green" | "red" | "amber";
+  statusTone: "green" | "red" | "amber" | "gray";
   manutencaoLabel: string;
   manutencaoTone: "green" | "red" | "amber";
+  semEquipamento?: boolean;
 };
 
 type HidranteDetail = {
@@ -21,7 +22,7 @@ type HidranteDetail = {
   localizacao: string;
   pavimentoLabel: string;
   statusLabel: string;
-  statusTone: "green" | "red" | "amber";
+  statusTone: "green" | "red" | "amber" | "gray";
 };
 
 export type MapEquipmentDetail = ExtintorDetail | HidranteDetail;
@@ -31,10 +32,13 @@ type MapEquipmentDetailPanelProps = {
   layout: "sheet" | "panel";
   canInspect: boolean;
   canEdit: boolean;
+  canManageInventory?: boolean;
   mode: "edicao" | "inspecao";
   onClose: () => void;
   onOpenInspection: () => void;
   onRemove?: () => void;
+  onRetirarEquipamento?: () => void;
+  onSubstituirEquipamento?: () => void;
 };
 
 export default function MapEquipmentDetailPanel({
@@ -42,10 +46,13 @@ export default function MapEquipmentDetailPanel({
   layout,
   canInspect,
   canEdit,
+  canManageInventory = false,
   mode,
   onClose,
   onOpenInspection,
   onRemove,
+  onRetirarEquipamento,
+  onSubstituirEquipamento,
 }: MapEquipmentDetailPanelProps) {
   const isSheet = layout === "sheet";
 
@@ -54,7 +61,14 @@ export default function MapEquipmentDetailPanel({
       ? "bg-green-100 text-green-700"
       : detail.statusTone === "red"
         ? "bg-red-100 text-red-800"
-        : "bg-yellow-100 text-yellow-800";
+        : detail.statusTone === "gray"
+          ? "bg-slate-100 text-slate-600"
+          : "bg-yellow-100 text-yellow-800";
+
+  const showInspection =
+    mode === "inspecao" &&
+    canInspect &&
+    !(detail.kind === "extintor" && detail.semEquipamento);
 
   const content = (
     <>
@@ -98,7 +112,7 @@ export default function MapEquipmentDetailPanel({
             {detail.statusLabel}
           </span>
         </div>
-        {detail.kind === "extintor" && (
+        {detail.kind === "extintor" && !detail.semEquipamento && (
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-zinc-500">Manutenção</span>
             <span
@@ -117,7 +131,7 @@ export default function MapEquipmentDetailPanel({
       </div>
 
       <div className={`flex flex-col gap-2 ${isSheet ? "px-5 pb-6" : ""}`}>
-        {mode === "inspecao" && canInspect && (
+        {showInspection && (
           <button
             type="button"
             className="w-full rounded-xl py-3 text-sm font-bold text-white"
@@ -127,6 +141,27 @@ export default function MapEquipmentDetailPanel({
             Abrir inspeção
           </button>
         )}
+        {canManageInventory && detail.kind === "extintor" && detail.semEquipamento && onSubstituirEquipamento && (
+          <button
+            type="button"
+            className="w-full rounded-xl bg-[var(--orange)] py-3 text-sm font-bold text-white"
+            onClick={onSubstituirEquipamento}
+          >
+            Substituir equipamento
+          </button>
+        )}
+        {canManageInventory &&
+          detail.kind === "extintor" &&
+          !detail.semEquipamento &&
+          onRetirarEquipamento && (
+            <button
+              type="button"
+              className="w-full rounded-xl border border-amber-200 bg-amber-50 py-3 text-sm font-bold text-amber-800"
+              onClick={onRetirarEquipamento}
+            >
+              Retirar para manutenção
+            </button>
+          )}
         {canEdit && mode === "edicao" && onRemove && (
           <button
             type="button"
