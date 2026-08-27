@@ -1,57 +1,11 @@
--- Normalização de compatibilidade estoque ↔ ponto (capacidade extintora com formatação variada).
--- Execute no SQL Editor do Supabase após migration_estoque_substituicao.sql.
+-- Campos de manutenção no estoque (template aplicado na substituição).
+-- Execute após migration_estoque_substituicao.sql.
 
-create or replace function public.normalize_extintor_tipo(t text)
-returns text
-language sql
-immutable
-as $$
-  select regexp_replace(
-    translate(
-      upper(trim(translate(coalesce(t, ''), '₂', '2'))),
-      'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
-      'AAAAAEEEEIIIIOOOOOUUUUCN',
-      'g'
-    ),
-    '\s+',
-    '',
-    'g'
-  );
-$$;
+alter table public.estoque_extintores
+  add column if not exists manutencao_2_nivel date,
+  add column if not exists manutencao_3_nivel date;
 
-create or replace function public.normalize_extintor_tamanho(t text)
-returns text
-language sql
-immutable
-as $$
-  select regexp_replace(
-    translate(
-      upper(trim(translate(coalesce(t, ''), '₂', '2'))),
-      'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
-      'AAAAAEEEEIIIIOOOOOUUUUCN',
-      'g'
-    ),
-    '[^A-Z0-9]',
-    '',
-    'g'
-  );
-$$;
-
-create or replace function public.normalize_capacidade_extintora(t text)
-returns text
-language sql
-immutable
-as $$
-  select upper(
-    regexp_replace(
-      translate(coalesce(t, ''), '₂', '2'),
-      '[^A-Z0-9]',
-      '',
-      'g'
-    )
-  );
-$$;
-
+-- Atualiza substituição: datas do estoque quando não informadas na substituição
 create or replace function public.substituir_extintor_do_estoque(
   p_extintor_id uuid,
   p_estoque_id uuid,
@@ -71,6 +25,8 @@ as $$
 declare
   v_ext public.extintores%rowtype;
   v_est public.estoque_extintores%rowtype;
+  v_manut2 date;
+  v_manut3 date;
 begin
   if coalesce(trim(p_num_inmetro), '') = '' then
     raise exception 'Nº do INMETRO é obrigatório para substituição.';
@@ -108,6 +64,9 @@ begin
     raise exception 'Configuração de estoque incompatível com o ponto.';
   end if;
 
+  v_manut2 := coalesce(p_manutencao_2_nivel, v_est.manutencao_2_nivel);
+  v_manut3 := coalesce(p_manutencao_3_nivel, v_est.manutencao_3_nivel);
+
   insert into public.extintor_equipment_history (
     base_id, extintor_id, event_type,
     tipo, tamanho, capacidade_extintora,
@@ -118,7 +77,7 @@ begin
     p_base_id, p_extintor_id, 'substituicao',
     v_est.tipo, v_est.tamanho, v_est.capacidade_extintora,
     trim(p_num_inmetro), nullif(trim(p_num_cilindro), ''),
-    p_manutencao_2_nivel, p_manutencao_3_nivel,
+    v_manut2, v_manut3,
     p_estoque_id, p_actor_id, p_actor_nome
   );
 
@@ -130,8 +89,8 @@ begin
     tipo = v_est.tipo,
     tamanho = v_est.tamanho,
     capacidade_extintora = v_est.capacidade_extintora,
-    manutencao_2_nivel = p_manutencao_2_nivel,
-    manutencao_3_nivel = p_manutencao_3_nivel,
+    manutencao_2_nivel = v_manut2,
+    manutencao_3_nivel = v_manut3,
     retirado_em = null,
     retirado_motivo = null,
     retirado_previsao_retorno = null,
