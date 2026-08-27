@@ -5,8 +5,37 @@ export type ExtintorStockConfig = {
   capacidade_extintora: string;
 };
 
-function normalizeConfigField(value: string): string {
-  return value.trim().toLocaleUpperCase("pt-BR");
+/** Normaliza tipo/agente (CO₂ → CO2, espaços, caixa). */
+export function normalizeExtintorTipo(value: string): string {
+  return value
+    .trim()
+    .replace(/₂/g, "2")
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("pt-BR");
+}
+
+/** Normaliza carga nominal (ex.: 6 kg). */
+export function normalizeExtintorTamanho(value: string): string {
+  return value
+    .trim()
+    .replace(/₂/g, "2")
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("pt-BR");
+}
+
+/**
+ * Normaliza capacidade extintora para comparação tolerante a formatação.
+ * Ex.: "2-A 20-B:C" ≈ "2-A 20-B : C" ≈ "2-A  20-B:C"
+ */
+export function normalizeCapacidadeExtintora(value: string): string {
+  return value
+    .trim()
+    .replace(/₂/g, "2")
+    .replace(/[\u2010-\u2015\u2212–—−‐‑‒―]/g, "-")
+    .replace(/\s*:\s*/g, ":")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("pt-BR");
 }
 
 /**
@@ -18,9 +47,10 @@ export function extintorConfigsAreCompatible(
   candidate: ExtintorStockConfig,
 ): boolean {
   return (
-    normalizeConfigField(expected.tipo) === normalizeConfigField(candidate.tipo) &&
-    expected.tamanho.trim() === candidate.tamanho.trim() &&
-    expected.capacidade_extintora.trim() === candidate.capacidade_extintora.trim()
+    normalizeExtintorTipo(expected.tipo) === normalizeExtintorTipo(candidate.tipo) &&
+    normalizeExtintorTamanho(expected.tamanho) === normalizeExtintorTamanho(candidate.tamanho) &&
+    normalizeCapacidadeExtintora(expected.capacidade_extintora) ===
+      normalizeCapacidadeExtintora(candidate.capacidade_extintora)
   );
 }
 

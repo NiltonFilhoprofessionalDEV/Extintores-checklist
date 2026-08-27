@@ -27,6 +27,7 @@ export default function RetiradaEquipamentoDrawer({
 }: RetiradaEquipamentoDrawerProps) {
   const [motivo, setMotivo] = useState("");
   const [previsao, setPrevisao] = useState("");
+  const [semDataPrevista, setSemDataPrevista] = useState(true);
   const [error, setError] = useState("");
 
   function handleSubmit() {
@@ -38,7 +39,7 @@ export default function RetiradaEquipamentoDrawer({
     setError("");
     onConfirm({
       motivo: trimmed,
-      previsao_retorno: previsao.trim() || null,
+      previsao_retorno: semDataPrevista ? null : previsao.trim() || null,
     });
   }
 
@@ -87,18 +88,35 @@ export default function RetiradaEquipamentoDrawer({
           />
         </FormField>
 
-        <FormField id="ret-previsao" label="Previsão de retorno" hint="Opcional">
-          <input
-            type="date"
-            className={fieldControlClass()}
-            value={previsao}
-            onChange={(event) => setPrevisao(event.target.value)}
-          />
-        </FormField>
+        <div className="inv-field inv-field--full">
+          <label className="inv-field__label flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300"
+              checked={semDataPrevista}
+              onChange={(event) => {
+                setSemDataPrevista(event.target.checked);
+                if (event.target.checked) setPrevisao("");
+              }}
+            />
+            Sem data prevista de retorno
+          </label>
+        </div>
+
+        {!semDataPrevista ? (
+          <FormField id="ret-previsao" label="Previsão de retorno">
+            <input
+              type="date"
+              className={fieldControlClass()}
+              value={previsao}
+              onChange={(event) => setPrevisao(event.target.value)}
+            />
+          </FormField>
+        ) : null}
       </FormSection>
 
       <p className="mt-2 text-xs text-slate-500">
-        O equipamento anterior será registrado no histórico. O ponto permanece no mapa com o mesmo código.
+        O equipamento anterior será registrado na lista de manutenção. O ponto permanece no mapa com o mesmo código.
       </p>
     </FormDrawer>
   );
@@ -106,5 +124,10 @@ export default function RetiradaEquipamentoDrawer({
 
 export function formatRetiradoEm(value: string | null | undefined): string {
   if (!value) return "—";
+  return formatDateOnlyPt(value);
+}
+
+export function formatPrevisaoRetorno(value: string | null | undefined): string {
+  if (!value) return "Sem data prevista";
   return formatDateOnlyPt(value);
 }

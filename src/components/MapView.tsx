@@ -528,6 +528,7 @@ export default function MapView() {
   );
 
   const loadGenerationRef = useRef(0);
+  const extintoresInspecaoResetRef = useRef<Map<string, string | null>>(new Map());
 
   const loadExtintores = useCallback(async (opts?: { quiet?: boolean; generation?: number }) => {
     const generation = opts?.generation ?? loadGenerationRef.current;
@@ -577,7 +578,13 @@ export default function MapView() {
       return;
     }
 
-    setExtintores((data ?? []) as Extintor[]);
+    const rows = (data ?? []) as Extintor[];
+    const resetMap = new Map<string, string | null>();
+    for (const e of rows) {
+      resetMap.set(e.id, e.inspecao_reset_at ?? null);
+    }
+    extintoresInspecaoResetRef.current = resetMap;
+    setExtintores(rows);
     if (!opts?.quiet) setLoading(false);
   }, [supabase, activeBaseId]);
 
@@ -590,10 +597,7 @@ export default function MapView() {
     );
     if (!ok) return;
 
-    const resetMap = new Map<string, string | null>();
-    for (const e of extintores) {
-      resetMap.set(e.id, e.inspecao_reset_at ?? null);
-    }
+    const resetMap = extintoresInspecaoResetRef.current;
 
     const filteredRows = rows.filter((row) => {
       const resetAt = resetMap.get(row.extintor_id);
@@ -612,7 +616,7 @@ export default function MapView() {
       return merged;
     });
     setConferidosNoMesIds(buildConferidosNoMesIds(rows, resetMap));
-  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId, extintores]);
+  }, [supabase, currentMonthRange.startIso, currentMonthRange.endInclusiveIso, activeBaseId]);
 
   const loadHidrantesEMarcadores = useCallback(async (generation?: number) => {
     const gen = generation ?? loadGenerationRef.current;
@@ -780,13 +784,15 @@ export default function MapView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadExtintores({ generation });
     void loadHidrantesEMarcadores(generation);
-    const mesAposSessao = async () => {
+  }, [loadExtintores, loadHidrantesEMarcadores]);
+
+  useEffect(() => {
+    void (async () => {
       await getCurrentSession();
       await loadConferenciasDoMes();
       await loadConferenciasHidrantesDoMes();
-    };
-    void mesAposSessao();
-  }, [loadConferenciasDoMes, loadConferenciasHidrantesDoMes, loadExtintores, loadHidrantesEMarcadores]);
+    })();
+  }, [loadConferenciasDoMes, loadConferenciasHidrantesDoMes, activeBaseId]);
 
   useEffect(() => {
     writeMapViewState(activeBaseId, {
@@ -2639,7 +2645,9 @@ export default function MapView() {
           )}
 
           <div className="mt-4 text-xs text-slate-500">
-            {loading ? "Carregando dados..." : `${extintores.length} extintores encontrados.`}
+            {canEdit && mode === "edicao" ? (
+              loading ? "Carregando dados..." : `${extintores.length} extintores encontrados.`
+            ) : null}
           </div>
           {savingPosition && <p className="mt-1 text-xs text-amber-700">Salvando posição...</p>}
           {message && <p className="mt-2 rounded bg-slate-100 p-2 text-xs text-slate-700">{message}</p>}
