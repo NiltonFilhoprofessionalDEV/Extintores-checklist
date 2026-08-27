@@ -43,7 +43,7 @@ export const NAV_GROUPS: AdminNavGroup[] = [
     items: [
       { href: "/admin/dashboard", label: "Dashboard", icon: "dashboard" },
       { href: "/admin/extintores", label: "Inventário", icon: "inventory" },
-      { href: "/admin/estoque", label: "Estoque", icon: "stock" },
+      { href: "/admin/estoque", label: "Estoque e Manutenção", icon: "stock" },
       { href: "/admin/mapeamento", label: "Mapa", icon: "map" },
       { href: "/admin/inspecoes-lista", label: "Checklist", icon: "checks" },
       { href: "/admin/conferencias", label: "Conferências", icon: "history" },
