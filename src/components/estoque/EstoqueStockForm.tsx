@@ -26,6 +26,7 @@ export default function EstoqueStockForm({
   const tamanhos = TAMANHOS_POR_TIPO[form.tipo] ?? [];
 
   return (
+    <>
     <FormSection title="Configuração do equipamento">
       <FormField id="est-tipo" label="Tipo de agente extintor" required error={errors.tipo}>
         <select
@@ -81,6 +82,29 @@ export default function EstoqueStockForm({
         />
       </FormField>
     </FormSection>
+
+    <FormSection title="Datas de manutenção">
+      <p className="inv-field--full mb-2 text-xs text-slate-500">
+        Padrão aplicado ao ponto na substituição (sem número de INMETRO ou cilindro no estoque).
+      </p>
+      <FormField id="est-n2" label={COLUNAS_PADRAO.venctoN2}>
+        <input
+          type="date"
+          className={fieldControlClass()}
+          value={form.manutencao_2_nivel}
+          onChange={(event) => onChange("manutencao_2_nivel", event.target.value)}
+        />
+      </FormField>
+      <FormField id="est-n3" label={COLUNAS_PADRAO.venctoN3}>
+        <input
+          type="date"
+          className={fieldControlClass()}
+          value={form.manutencao_3_nivel}
+          onChange={(event) => onChange("manutencao_3_nivel", event.target.value)}
+        />
+      </FormField>
+    </FormSection>
+    </>
   );
 }
 

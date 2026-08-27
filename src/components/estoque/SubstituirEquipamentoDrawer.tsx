@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ExtintorStockConfig } from "@/lib/estoque/compatibility";
-import { extintorConfigsAreCompatible, formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
+import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
+import { toDateInputValue } from "@/lib/inventario/inventory-form";
 import FormDrawer from "@/src/components/inventory/FormDrawer";
 import { FormField, FormSection, fieldControlClass } from "@/src/components/inventory/FormPrimitives";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
@@ -14,6 +15,8 @@ type StockOption = {
   tamanho: string;
   capacidade_extintora: string;
   quantidade: number;
+  manutencao_2_nivel: string | null;
+  manutencao_3_nivel: string | null;
 };
 
 type SubstituirEquipamentoDrawerProps = {
@@ -58,41 +61,55 @@ export default function SubstituirEquipamentoDrawer({
     void (async () => {
       setLoading(true);
       setLoadError("");
-      let query = supabase
-        .from("estoque_extintores")
-        .select("id,tipo,tamanho,capacidade_extintora,quantidade")
-        .gt("quantidade", 0)
-        .order("tipo", { ascending: true });
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) throw new Error("Sessão não encontrada.");
 
-      if (activeBaseId) query = query.eq("base_id", activeBaseId);
+        const params = new URLSearchParams({ extintor_id: extintorId });
+        const response = await fetch(`/api/admin/estoque?${params.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            ...(activeBaseId ? { "X-Active-Base-Id": activeBaseId } : {}),
+          },
+        });
 
-      const { data, error } = await query;
-      if (cancelled) return;
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          items?: StockOption[];
+        };
 
-      if (error) {
-        setLoadError(
-          error.message.includes("estoque_extintores")
-            ? "Tabela de estoque não encontrada. Execute a migration de estoque."
-            : error.message,
-        );
-        setOptions([]);
-      } else {
-        const rows = (data ?? []) as StockOption[];
-        setOptions(
-          rows.filter((row) =>
-            extintorConfigsAreCompatible(expectedConfig, row),
-          ),
-        );
+        if (cancelled) return;
+
+        if (!response.ok) {
+          setLoadError(payload.error ?? "Erro ao consultar estoque.");
+          setOptions([]);
+        } else {
+          setOptions(payload.items ?? []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "Erro ao consultar estoque.");
+          setOptions([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [supabase, activeBaseId, expectedConfig]);
+  }, [supabase, activeBaseId, extintorId]);
 
   const selected = options.find((o) => o.id === selectedId);
+
+  useEffect(() => {
+    if (!selected) return;
+    setManut2(toDateInputValue(selected.manutencao_2_nivel));
+    setManut3(toDateInputValue(selected.manutencao_3_nivel));
+  }, [selectedId, selected]);
 
   function handleSubmit() {
     const nextErrors: Record<string, string> = {};
@@ -168,7 +185,7 @@ export default function SubstituirEquipamentoDrawer({
               <option value="">Selecione...</option>
               {options.map((opt) => (
                 <option key={opt.id} value={opt.id}>
-                  {formatExtintorConfigLabel(opt)} — {opt.quantidade} disponível
+                  {formatExtintorConfigLabel(opt)} — {opt.capacidade_extintora} — {opt.quantidade} disponível
                   {opt.quantidade !== 1 ? "s" : ""}
                 </option>
               ))}
@@ -179,6 +196,9 @@ export default function SubstituirEquipamentoDrawer({
 
       {selected ? (
         <FormSection title="Equipamento físico">
+          <p className="inv-field--full mb-2 text-xs text-slate-500">
+            INMETRO e cilindro são do equipamento que está sendo instalado no ponto.
+          </p>
           <FormField id="sub-inmetro" label="Nº do INMETRO" required error={errors.num_inmetro}>
             <input
               className={fieldControlClass(errors.num_inmetro)}

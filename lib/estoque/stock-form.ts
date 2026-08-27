@@ -1,10 +1,12 @@
-import { toUppercaseLabel } from "@/lib/inventario/inventory-form";
+import { toDateInputValue, toUppercaseLabel } from "@/lib/inventario/inventory-form";
 
 export type EstoqueFormData = {
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
   quantidade: string;
+  manutencao_2_nivel: string;
+  manutencao_3_nivel: string;
 };
 
 export const EMPTY_ESTOQUE_FORM: EstoqueFormData = {
@@ -12,6 +14,8 @@ export const EMPTY_ESTOQUE_FORM: EstoqueFormData = {
   tamanho: "",
   capacidade_extintora: "",
   quantidade: "",
+  manutencao_2_nivel: "",
+  manutencao_3_nivel: "",
 };
 
 export function validateEstoqueForm(form: EstoqueFormData): Record<string, string> {
@@ -29,10 +33,32 @@ export function validateEstoqueForm(form: EstoqueFormData): Record<string, strin
 }
 
 export function normalizeEstoquePayload(form: EstoqueFormData) {
+  const manut2 = form.manutencao_2_nivel.trim();
+  const manut3 = form.manutencao_3_nivel.trim();
   return {
     tipo: toUppercaseLabel(form.tipo),
     tamanho: form.tamanho.trim(),
     capacidade_extintora: form.capacidade_extintora.trim(),
     quantidade: Number.parseInt(form.quantidade.trim(), 10),
+    manutencao_2_nivel: manut2 ? manut2 : null,
+    manutencao_3_nivel: manut3 ? manut3 : null,
+  };
+}
+
+export function estoqueFormFromRow(row: {
+  tipo: string;
+  tamanho: string;
+  capacidade_extintora: string;
+  quantidade: number;
+  manutencao_2_nivel?: string | null;
+  manutencao_3_nivel?: string | null;
+}): Partial<EstoqueFormData> {
+  return {
+    tipo: row.tipo,
+    tamanho: row.tamanho,
+    capacidade_extintora: row.capacidade_extintora,
+    quantidade: String(row.quantidade),
+    manutencao_2_nivel: toDateInputValue(row.manutencao_2_nivel),
+    manutencao_3_nivel: toDateInputValue(row.manutencao_3_nivel),
   };
 }

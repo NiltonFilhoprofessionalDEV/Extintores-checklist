@@ -7,7 +7,7 @@ import { isAdminLikeRole, isInventoryReadOnlyRole, canManageInventory } from "@/
 import { useActiveBase } from "@/lib/auth/active-base-context";
 import { DashboardStatCard } from "@/app/admin/dashboard/dashboard-stat-card";
 import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
-import { normalizeEstoquePayload } from "@/lib/estoque/stock-form";
+import { normalizeEstoquePayload, estoqueFormFromRow } from "@/lib/estoque/stock-form";
 import FormDrawer from "@/src/components/inventory/FormDrawer";
 import RowActionsMenu from "@/src/components/RowActionsMenu";
 import EstoqueStockForm, { useEstoqueFormState } from "@/src/components/estoque/EstoqueStockForm";
@@ -25,6 +25,8 @@ type EstoqueRow = {
   tamanho: string;
   capacidade_extintora: string;
   quantidade: number;
+  manutencao_2_nivel: string | null;
+  manutencao_3_nivel: string | null;
 };
 
 type ManutencaoRow = {
@@ -96,6 +98,7 @@ export default function AdminEstoquePage() {
   const [substituindo, setSubstituindo] = useState(false);
   const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
   const [loteSaving, setLoteSaving] = useState(false);
+  const [loteAutoExpandDone, setLoteAutoExpandDone] = useState(false);
 
   const { form, errors, onChange, onTipoChange, validate, reset } = useEstoqueFormState();
   const readOnly = isInventoryReadOnlyRole(actorRole);
@@ -132,14 +135,38 @@ export default function AdminEstoquePage() {
     try {
       let estoqueQuery = supabase
         .from("estoque_extintores")
-        .select("id,tipo,tamanho,capacidade_extintora,quantidade")
+        .select("id,tipo,tamanho,capacidade_extintora,quantidade,manutencao_2_nivel,manutencao_3_nivel")
         .order("tipo", { ascending: true });
 
       if (activeBaseId) estoqueQuery = estoqueQuery.eq("base_id", activeBaseId);
 
       const estRes = await estoqueQuery;
 
-      if (estRes.error) {
+      if (estRes.error && /manutencao_2_nivel|manutencao_3_nivel|schema cache/i.test(estRes.error.message)) {
+        let fallbackQuery = supabase
+          .from("estoque_extintores")
+          .select("id,tipo,tamanho,capacidade_extintora,quantidade")
+          .order("tipo", { ascending: true });
+        if (activeBaseId) fallbackQuery = fallbackQuery.eq("base_id", activeBaseId);
+        const fbRes = await fallbackQuery;
+        if (fbRes.error) {
+          setFeedback({
+            type: "err",
+            msg: fbRes.error.message.includes("estoque_extintores")
+              ? "Execute docs/migration_estoque_substituicao.sql no Supabase."
+              : fbRes.error.message,
+          });
+          setItems([]);
+        } else {
+          setItems(
+            (fbRes.data ?? []).map((row) => ({
+              ...(row as Omit<EstoqueRow, "manutencao_2_nivel" | "manutencao_3_nivel">),
+              manutencao_2_nivel: null,
+              manutencao_3_nivel: null,
+            })),
+          );
+        }
+      } else if (estRes.error) {
         setFeedback({
           type: "err",
           msg: estRes.error.message.includes("estoque_extintores")
@@ -286,6 +313,17 @@ export default function AdminEstoquePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (view === "manutencao" && lotes.length > 0 && !loteAutoExpandDone) {
+      setExpandedLoteId(lotes[0].id);
+      setLoteAutoExpandDone(true);
+    }
+  }, [view, lotes, loteAutoExpandDone]);
+
+  useEffect(() => {
+    if (view !== "manutencao") setLoteAutoExpandDone(false);
+  }, [view]);
+
   const stats = useMemo(() => buildStockStatsByTipo(items), [items]);
 
   function openCreate() {
@@ -295,14 +333,27 @@ export default function AdminEstoquePage() {
   }
 
   function openEdit(row: EstoqueRow) {
-    reset({
-      tipo: row.tipo,
-      tamanho: row.tamanho,
-      capacidade_extintora: row.capacidade_extintora,
-      quantidade: String(row.quantidade),
-    });
+    reset(estoqueFormFromRow(row));
     setEditId(row.id);
     setDrawerMode("edit");
+  }
+
+  function openSubstituirFromLoteItem(item: ManutencaoLoteItem) {
+    if (!item.sem_equipamento) return;
+    setSubstituirTarget({
+      id: item.extintor_id,
+      codigo: item.codigo,
+      tipo: item.tipo,
+      tamanho: item.tamanho,
+      capacidade_extintora: item.capacidade_extintora,
+      setor: item.setor,
+      local_detalhado: item.local_detalhado,
+      pavimento: item.pavimento,
+      retirado_em: null,
+      retirado_motivo: null,
+      retirado_previsao_retorno: null,
+      num_inmetro_retirado: item.num_inmetro,
+    });
   }
 
   async function handleSave() {
@@ -563,25 +614,152 @@ export default function AdminEstoquePage() {
 
       {view === "manutencao" && (
         <>
-        <div className="professional-card overflow-hidden">
-          <div className="border-b border-slate-100 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Lista de manutenção</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Equipamentos retirados dos pontos de instalação. Use esta lista como ordem de serviço para
-                recolocação ou substituição pelo estoque.
-              </p>
+          <div className="professional-card overflow-hidden">
+            <div className="border-b border-slate-100 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Listas de manutenção em lote</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Controle principal das retiradas em lote — data, responsável e substituição por item.
+                </p>
+              </div>
+              {canManage && (
+                <button
+                  type="button"
+                  className="btn-primary text-xs shrink-0"
+                  onClick={() => setLoteDrawerOpen(true)}
+                >
+                  Retirada em lote
+                </button>
+              )}
             </div>
-            {canManage && (
-              <button
-                type="button"
-                className="btn-primary text-xs shrink-0"
-                onClick={() => setLoteDrawerOpen(true)}
-              >
-                Retirada em lote
-              </button>
+
+            {loading ? (
+              <p className="p-6 text-sm text-slate-500">Carregando listas...</p>
+            ) : lotes.length === 0 ? (
+              <p className="p-6 text-sm text-slate-500">
+                Nenhuma lista em lote salva. Use &quot;Retirada em lote&quot; para remover vários extintores de uma vez.
+              </p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {lotes.map((lote) => {
+                  const items = loteItemsByLote.get(lote.id) ?? [];
+                  const expanded = expandedLoteId === lote.id;
+                  const pendentes = items.filter((i) => i.sem_equipamento).length;
+                  return (
+                    <div key={lote.id} className="px-5 py-4">
+                      <button
+                        type="button"
+                        className="flex w-full items-start justify-between gap-3 text-left"
+                        onClick={() => setExpandedLoteId(expanded ? null : lote.id)}
+                        aria-expanded={expanded}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900">{lote.motivo}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {formatDateOnlyPt(lote.created_at)} · Criado por {lote.creator_nome}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {lote.item_count} extintor{lote.item_count !== 1 ? "es" : ""}
+                            {items.length > 0 ? ` · ${pendentes} ainda sem equipamento` : ""}
+                            {lote.previsao_retorno
+                              ? ` · Previsão: ${formatPrevisaoRetorno(lote.previsao_retorno)}`
+                              : " · Sem data prevista"}
+                          </p>
+                        </div>
+                        <svg
+                          width={20}
+                          height={20}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          className={`shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+                          aria-hidden
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+
+                      {expanded && items.length > 0 && (
+                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="inv-table w-full min-w-[720px]">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className={TH}>Código</th>
+                                <th className={TH}>Local</th>
+                                <th className={TH}>Configuração</th>
+                                <th className={TH}>INMETRO retirado</th>
+                                <th className={TH}>Status</th>
+                                {!readOnly && <th className={TH}>Ações</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((item) => (
+                                <tr key={item.extintor_id} className="inv-table__row">
+                                  <td className="px-4 py-3">
+                                    <EquipmentCode kind="extintor" codigo={item.codigo} />
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">
+                                    <span className="font-medium text-slate-800">
+                                      {item.pavimento || item.setor}
+                                    </span>
+                                    <span className="block text-xs text-slate-500">{item.local_detalhado}</span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">
+                                    {formatExtintorConfigLabel(item)}
+                                    <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">{item.num_inmetro || "—"}</td>
+                                  <td className="px-4 py-3">
+                                    {item.sem_equipamento ? (
+                                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                        Sem equipamento
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
+                                        Substituído
+                                      </span>
+                                    )}
+                                  </td>
+                                  {!readOnly && (
+                                    <td className="px-4 py-3">
+                                      {item.sem_equipamento ? (
+                                        <button
+                                          type="button"
+                                          className="btn-secondary text-xs"
+                                          onClick={() => openSubstituirFromLoteItem(item)}
+                                        >
+                                          Substituir
+                                        </button>
+                                      ) : (
+                                        <span className="text-xs text-slate-400">—</span>
+                                      )}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {expanded && items.length === 0 && (
+                        <p className="mt-3 text-sm text-slate-500">Nenhum item vinculado a esta lista.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
+
+          <div className="professional-card mt-6 overflow-hidden">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-bold text-slate-900">Pontos sem equipamento</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Todos os extintores retirados (incluindo fora de listas em lote) aguardando recolocação.
+              </p>
+            </div>
           {loading ? (
             <p className="p-6 text-sm text-slate-500">Carregando lista de manutenção...</p>
           ) : manutencao.length === 0 ? (
@@ -682,113 +860,7 @@ export default function AdminEstoquePage() {
               </div>
             </>
           )}
-        </div>
-
-        {lotes.length > 0 && (
-          <div className="professional-card mt-6 overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-bold text-slate-900">Listas de manutenção salvas</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Lotes de retirada com data, responsável e extintores removidos — use para recolocar equipamentos
-                nos pontos originais.
-              </p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {lotes.map((lote) => {
-                const items = loteItemsByLote.get(lote.id) ?? [];
-                const expanded = expandedLoteId === lote.id;
-                const pendentes = items.filter((i) => i.sem_equipamento).length;
-                return (
-                  <div key={lote.id} className="px-5 py-4">
-                    <button
-                      type="button"
-                      className="flex w-full items-start justify-between gap-3 text-left"
-                      onClick={() => setExpandedLoteId(expanded ? null : lote.id)}
-                      aria-expanded={expanded}
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900">{lote.motivo}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formatDateOnlyPt(lote.created_at)} · Criado por {lote.creator_nome}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {lote.item_count} extintor{lote.item_count !== 1 ? "es" : ""}
-                          {items.length > 0 ? ` · ${pendentes} ainda sem equipamento` : ""}
-                          {lote.previsao_retorno
-                            ? ` · Previsão: ${formatPrevisaoRetorno(lote.previsao_retorno)}`
-                            : " · Sem data prevista"}
-                        </p>
-                      </div>
-                      <svg
-                        width={20}
-                        height={20}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        className={`shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-                      </svg>
-                    </button>
-
-                    {expanded && items.length > 0 && (
-                      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-                        <table className="inv-table w-full min-w-[640px]">
-                          <thead className="bg-slate-50">
-                            <tr>
-                              <th className={TH}>Código</th>
-                              <th className={TH}>Local</th>
-                              <th className={TH}>Configuração</th>
-                              <th className={TH}>INMETRO retirado</th>
-                              <th className={TH}>Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {items.map((item) => (
-                              <tr key={item.extintor_id} className="inv-table__row">
-                                <td className="px-4 py-3">
-                                  <EquipmentCode kind="extintor" codigo={item.codigo} />
-                                </td>
-                                <td className="px-4 py-3 text-sm text-slate-600">
-                                  <span className="font-medium text-slate-800">
-                                    {item.pavimento || item.setor}
-                                  </span>
-                                  <span className="block text-xs text-slate-500">{item.local_detalhado}</span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-slate-600">
-                                  {formatExtintorConfigLabel(item)}
-                                  <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-slate-600">{item.num_inmetro || "—"}</td>
-                                <td className="px-4 py-3">
-                                  {item.sem_equipamento ? (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                      Sem equipamento
-                                    </span>
-                                  ) : (
-                                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
-                                      Substituído
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {expanded && items.length === 0 && (
-                      <p className="mt-3 text-sm text-slate-500">Nenhum item vinculado a esta lista.</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        )}
         </>
       )}
 
@@ -796,7 +868,7 @@ export default function AdminEstoquePage() {
         <FormDrawer
           eyebrow="Estoque"
           title={drawerMode === "create" ? "Adicionar ao estoque" : "Editar estoque"}
-          description="Cadastre a configuração física disponível, sem código de ponto (E-XXX)."
+          description="Cadastre equipamentos no estoque (tipo, carga, classe e datas de manutenção), sem código E-XXX, INMETRO ou localização."
           onClose={() => setDrawerMode(null)}
           footer={
             <div className="inv-drawer__footer-actions">
