@@ -101,8 +101,7 @@ begin
   end if;
 
   if public.normalize_extintor_tipo(v_ext.tipo) is distinct from public.normalize_extintor_tipo(v_est.tipo)
-    or public.normalize_extintor_tamanho(v_ext.tamanho) is distinct from public.normalize_extintor_tamanho(v_est.tamanho)
-    or public.normalize_capacidade_extintora(v_ext.capacidade_extintora) is distinct from public.normalize_capacidade_extintora(v_est.capacidade_extintora) then
+    or public.normalize_extintor_tamanho(v_ext.tamanho) is distinct from public.normalize_extintor_tamanho(v_est.tamanho) then
     raise exception 'Configuração de estoque incompatível com o ponto.';
   end if;
 

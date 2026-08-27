@@ -155,7 +155,7 @@ export default function SubstituirEquipamentoDrawer({
           Configuração esperada: {formatExtintorConfigLabel(expectedConfig)}
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          Classe: {expectedConfig.capacidade_extintora}
+          Tipo e carga: {expectedConfig.tipo} — {expectedConfig.tamanho}
         </p>
       </div>
 

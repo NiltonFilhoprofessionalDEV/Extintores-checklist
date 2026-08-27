@@ -1,4 +1,3 @@
-import { canonicalCapacidadeExtintora } from "@/lib/estoque/capacidade-canonical";
 import { canonicalExtintorTamanho, canonicalExtintorTipo } from "@/lib/estoque/text-canonical";
 
 /** Configuração física de extintor usada para compatibilidade estoque ↔ ponto. */
@@ -41,8 +40,8 @@ export function normalizeCapacidadeExtintora(value: string): string {
 }
 
 /**
- * Verifica se duas configurações são compatíveis para substituição.
- * Capacidade extintora: compara valores (2A, 20BC) ignorando hífens, espaços e pontuação.
+ * Verifica se estoque e ponto são compatíveis para substituição.
+ * Compara apenas tipo de agente e carga nominal.
  */
 export function extintorConfigsAreCompatible(
   expected: ExtintorStockConfig,
@@ -50,9 +49,7 @@ export function extintorConfigsAreCompatible(
 ): boolean {
   return (
     canonicalExtintorTipo(expected.tipo) === canonicalExtintorTipo(candidate.tipo) &&
-    canonicalExtintorTamanho(expected.tamanho) === canonicalExtintorTamanho(candidate.tamanho) &&
-    canonicalCapacidadeExtintora(expected.capacidade_extintora) ===
-      canonicalCapacidadeExtintora(candidate.capacidade_extintora)
+    canonicalExtintorTamanho(expected.tamanho) === canonicalExtintorTamanho(candidate.tamanho)
   );
 }
 
