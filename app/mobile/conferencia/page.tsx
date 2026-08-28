@@ -56,6 +56,8 @@ import {
   type ChecklistHidranteMesRow,
 } from "@/lib/supabase/checklists-do-mes";
 import { useActiveBase } from "@/lib/auth/active-base-context";
+import { baseHasEquipesConferencia } from "@/lib/auth/bases";
+import { filtrarPorEquipe } from "@/lib/equipes/conferencia-filtro";
 import {
   clearInspecaoDraft,
   getInspecaoDraftIndexEntry,
@@ -222,7 +224,7 @@ function sortHidrantes(list: HidranteMobile[], ordenacao: InspecaoOrdenacao): Hi
 export default function MobileConferenciaPage() {
   const pathname = usePathname();
   const isAdminLista = pathname?.includes("/admin/inspecoes-lista") ?? false;
-  const { ready, activeBaseId } = useActiveBase();
+  const { ready, activeBaseId, activeBase } = useActiveBase();
   const [tipoAtivo, setTipoAtivo] = useState<TipoEquipamento>("extintor");
   const [extintores, setExtintores] = useState<ExtintorMobile[]>([]);
   const [hidrantes, setHidrantes] = useState<HidranteMobile[]>([]);
@@ -359,6 +361,13 @@ export default function MobileConferenciaPage() {
   }, [extintores]);
 
   const activeFilterCount = countActiveInspecaoFilters(advancedFilters);
+  const showEquipeFilter = baseHasEquipesConferencia(activeBase);
+
+  useEffect(() => {
+    if (!showEquipeFilter) {
+      setAdvancedFilters((prev) => (prev.equipe ? { ...prev, equipe: "" } : prev));
+    }
+  }, [showEquipeFilter]);
 
   useEffect(() => {
     if (!ready || !activeBaseId) return;
@@ -583,6 +592,10 @@ export default function MobileConferenciaPage() {
     if (tab === "pendentes") list = list.filter((i) => !conferidosNoMesIds.has(i.id));
     if (tab === "concluidas") list = list.filter((i) => conferidosNoMesIds.has(i.id));
 
+    if (showEquipeFilter && advancedFilters.equipe) {
+      list = filtrarPorEquipe(list, advancedFilters.equipe, "extintor");
+    }
+
     list = list.filter((item) => {
       if (!matchesExtintorSearch(item, q)) return false;
       if (advancedFilters.pavimento && item.pavimento !== advancedFilters.pavimento) return false;
@@ -605,6 +618,7 @@ export default function MobileConferenciaPage() {
     conferidosNoMesIds,
     ultimoChecklistMes,
     advancedFilters,
+    showEquipeFilter,
   ]);
 
   const visiveisHidrantes = useMemo(() => {
@@ -613,6 +627,10 @@ export default function MobileConferenciaPage() {
 
     if (tab === "pendentes") list = list.filter((i) => !conferidosHidranteMesIds.has(i.id));
     if (tab === "concluidas") list = list.filter((i) => conferidosHidranteMesIds.has(i.id));
+
+    if (showEquipeFilter && advancedFilters.equipe) {
+      list = filtrarPorEquipe(list, advancedFilters.equipe, "hidrante");
+    }
 
     list = list.filter((item) => {
       if (!matchesHidranteSearch(item, q)) return false;
@@ -636,6 +654,7 @@ export default function MobileConferenciaPage() {
     conferidosHidranteMesIds,
     ultimoChecklistHidranteMes,
     advancedFilters,
+    showEquipeFilter,
   ]);
 
   function openExtintor(item: ExtintorMobile) {
@@ -1216,6 +1235,7 @@ export default function MobileConferenciaPage() {
         pavimentos={pavimentos}
         tipos={tiposAgente}
         capacidades={capacidades}
+        showEquipeFilter={showEquipeFilter}
         resultCount={resultCount}
         onChange={setAdvancedFilters}
         onClear={() => setAdvancedFilters(DEFAULT_INSPECAO_FILTERS)}

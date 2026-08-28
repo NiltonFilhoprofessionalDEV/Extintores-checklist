@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { EQUIPES_CONFERENCIA, type EquipeConferenciaId } from "@/lib/equipes/conferencia-filtro";
 import type { InspecaoFilters, InspecaoOrdenacao, InspecaoStatusFilter } from "@/lib/inspecao/filter-types";
 
 type InspecaoFiltersPanelProps = {
@@ -10,6 +11,7 @@ type InspecaoFiltersPanelProps = {
   pavimentos: string[];
   tipos: string[];
   capacidades: string[];
+  showEquipeFilter: boolean;
   resultCount: number;
   onChange: (filters: InspecaoFilters) => void;
   onClear: () => void;
@@ -65,6 +67,7 @@ export default function InspecaoFiltersPanel({
   pavimentos,
   tipos,
   capacidades,
+  showEquipeFilter,
   onChange,
   onClear,
   onClose,
@@ -167,6 +170,32 @@ export default function InspecaoFiltersPanel({
                 </select>
               </div>
             </>
+          ) : null}
+
+          {showEquipeFilter ? (
+            <div className="mb-5">
+              <label htmlFor="inspecao-filter-equipe" className={SECTION_LABEL}>
+                Equipe responsável
+              </label>
+              <select
+                id="inspecao-filter-equipe"
+                className={SELECT_CLASS}
+                value={filters.equipe}
+                onChange={(event) =>
+                  onChange({
+                    ...filters,
+                    equipe: event.target.value as EquipeConferenciaId | "",
+                  })
+                }
+              >
+                <option value="">Todas as equipes</option>
+                {EQUIPES_CONFERENCIA.map((equipe) => (
+                  <option key={equipe.id} value={equipe.id}>
+                    {equipe.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : null}
 
           <p className={SECTION_LABEL}>Status</p>
