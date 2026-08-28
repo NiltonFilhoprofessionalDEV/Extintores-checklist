@@ -109,7 +109,6 @@ import MapEquipmentDetailPanel, {
   type MapEquipmentDetail,
 } from "@/src/components/map/MapEquipmentDetailPanel";
 import { buildConferidosNoMesIds } from "@/lib/checklist/conferido-no-mes";
-import RetiradaEquipamentoDrawer from "@/src/components/estoque/RetiradaEquipamentoDrawer";
 import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
 import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
 import MapClickPlacement from "@/src/components/map/MapClickPlacement";
@@ -490,7 +489,6 @@ export default function MapView() {
     floorKey: string;
   } | null>(null);
   const [pulseMarkerId, setPulseMarkerId] = useState<string | null>(null);
-  const [retiradaTarget, setRetiradaTarget] = useState<Extintor | null>(null);
   const [substituirTarget, setSubstituirTarget] = useState<Extintor | null>(null);
   const [equipmentActionSaving, setEquipmentActionSaving] = useState(false);
   const searchFocusNonceRef = useRef(0);
@@ -1185,27 +1183,6 @@ export default function MapView() {
     });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) throw new Error(payload.error ?? "Erro na requisição.");
-  }
-
-  async function handleRetiradaConfirm(payload: { motivo: string; previsao_retorno: string | null }) {
-    if (!retiradaTarget) return;
-    setEquipmentActionSaving(true);
-    try {
-      await callEquipmentApi("/api/admin/extintores/retirada", {
-        id: retiradaTarget.id,
-        ...payload,
-      });
-      const codigo = retiradaTarget.codigo;
-      setRetiradaTarget(null);
-      setInfoMarker(null);
-      await loadExtintores({ quiet: true });
-      await loadConferenciasDoMes();
-      setMessage(`Equipamento retirado do ponto ${codigo}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao retirar equipamento.");
-    } finally {
-      setEquipmentActionSaving(false);
-    }
   }
 
   async function handleSubstituirConfirm(payload: {
@@ -2337,11 +2314,6 @@ export default function MapView() {
                   openHidranteChecklistModal(h);
                 }
               }}
-              onRetirarEquipamento={
-                infoMarker && !infoMarker.sem_equipamento
-                  ? () => setRetiradaTarget(infoMarker)
-                  : undefined
-              }
               onSubstituirEquipamento={
                 infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
               }
@@ -2527,11 +2499,6 @@ export default function MapView() {
                     openHidranteChecklistModal(h);
                   }
                 }}
-                onRetirarEquipamento={
-                  infoMarker && !infoMarker.sem_equipamento
-                    ? () => setRetiradaTarget(infoMarker)
-                    : undefined
-                }
                 onSubstituirEquipamento={
                   infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
                 }
@@ -2699,18 +2666,6 @@ export default function MapView() {
             hidrante={hidranteCabecalhoForm(selectedHidrante)}
           />
         </InspecaoModalFrame>
-      )}
-
-      {retiradaTarget && (
-        <RetiradaEquipamentoDrawer
-          codigo={retiradaTarget.codigo}
-          tipo={retiradaTarget.tipo}
-          tamanho={retiradaTarget.tamanho}
-          numInmetro={retiradaTarget.num_inmetro}
-          saving={equipmentActionSaving}
-          onClose={() => setRetiradaTarget(null)}
-          onConfirm={handleRetiradaConfirm}
-        />
       )}
 
       {substituirTarget && (
