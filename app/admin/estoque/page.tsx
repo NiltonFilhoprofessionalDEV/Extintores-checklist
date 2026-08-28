@@ -20,6 +20,7 @@ import EstoqueEmptyState from "@/src/components/estoque/EstoqueEmptyState";
 import EstoqueStockTable from "@/src/components/estoque/EstoqueStockTable";
 import EstoqueStockMobileList from "@/src/components/estoque/EstoqueStockMobileList";
 import ManutencaoLoteGroup from "@/src/components/estoque/ManutencaoLoteGroup";
+import ManutencaoLoteItemDetailDrawer from "@/src/components/estoque/ManutencaoLoteItemDetailDrawer";
 import type { SubstituirConfirmPayload } from "@/lib/estoque/substituir-payload";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import type { ManutencaoLoteItem } from "@/src/components/estoque/ManutencaoLoteItemList";
@@ -93,7 +94,10 @@ export default function AdminEstoquePage() {
   const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
   const [loteSaving, setLoteSaving] = useState(false);
   const [cancelandoRetiradaId, setCancelandoRetiradaId] = useState<string | null>(null);
-  const [loteAutoExpandDone, setLoteAutoExpandDone] = useState(false);
+  const [manutencaoDetalhe, setManutencaoDetalhe] = useState<{
+    item: ManutencaoLoteItem;
+    lote: ManutencaoLote;
+  } | null>(null);
 
   const { form, errors, onChange, onTipoChange, validate, reset } = useEstoqueFormState();
   const readOnly = isInventoryReadOnlyRole(actorRole);
@@ -270,17 +274,6 @@ export default function AdminEstoquePage() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (view === "manutencao" && lotes.length > 0 && !loteAutoExpandDone) {
-      setExpandedLoteId(lotes[0].id);
-      setLoteAutoExpandDone(true);
-    }
-  }, [view, lotes, loteAutoExpandDone]);
-
-  useEffect(() => {
-    if (view !== "manutencao") setLoteAutoExpandDone(false);
-  }, [view]);
-
   function openCreate() {
     reset();
     setEditId(null);
@@ -305,6 +298,12 @@ export default function AdminEstoquePage() {
       setor: item.setor,
       local_detalhado: item.local_detalhado,
     });
+  }
+
+  function openManutencaoDetalhe(item: ManutencaoLoteItem) {
+    const lote = lotes.find((row) => row.id === item.lote_id);
+    if (!lote) return;
+    setManutencaoDetalhe({ item, lote });
   }
 
   async function handleSave() {
@@ -544,6 +543,7 @@ export default function AdminEstoquePage() {
                   onToggle={() => setExpandedLoteId(expandedLoteId === lote.id ? null : lote.id)}
                   onSubstituir={openSubstituirFromLoteItem}
                   onCancelarRetirada={handleCancelarRetirada}
+                  onVerDetalhes={openManutencaoDetalhe}
                 />
               ))}
             </>
@@ -600,6 +600,14 @@ export default function AdminEstoquePage() {
           saving={loteSaving}
           onClose={() => setLoteDrawerOpen(false)}
           onConfirm={handleRetiradaLote}
+        />
+      )}
+
+      {manutencaoDetalhe && (
+        <ManutencaoLoteItemDetailDrawer
+          item={manutencaoDetalhe.item}
+          lote={manutencaoDetalhe.lote}
+          onClose={() => setManutencaoDetalhe(null)}
         />
       )}
     </div>
