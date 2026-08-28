@@ -327,19 +327,31 @@ export default function MobileConferenciaPage() {
     return [...hidrantes].sort((a, b) => compareCodigo(a.codigo, b.codigo));
   }, [hidrantes]);
 
+  const showEquipeFilter = baseHasEquipesConferencia(activeBase);
+
+  const extintoresEscopoEquipe = useMemo(() => {
+    if (!showEquipeFilter || !advancedFilters.equipe) return extintores;
+    return filtrarPorEquipe(extintores, advancedFilters.equipe, "extintor");
+  }, [extintores, showEquipeFilter, advancedFilters.equipe]);
+
+  const hidrantesEscopoEquipe = useMemo(() => {
+    if (!showEquipeFilter || !advancedFilters.equipe) return hidrantes;
+    return filtrarPorEquipe(hidrantes, advancedFilters.equipe, "hidrante");
+  }, [hidrantes, showEquipeFilter, advancedFilters.equipe]);
+
   const extPendentesCount = useMemo(
-    () => extintores.filter((item) => !conferidosNoMesIds.has(item.id)).length,
-    [extintores, conferidosNoMesIds],
+    () => extintoresEscopoEquipe.filter((item) => !conferidosNoMesIds.has(item.id)).length,
+    [extintoresEscopoEquipe, conferidosNoMesIds],
   );
 
-  const extConcluidasCount = extintores.length - extPendentesCount;
+  const extConcluidasCount = extintoresEscopoEquipe.length - extPendentesCount;
 
   const hidPendentesCount = useMemo(
-    () => hidrantes.filter((item) => !conferidosHidranteMesIds.has(item.id)).length,
-    [hidrantes, conferidosHidranteMesIds],
+    () => hidrantesEscopoEquipe.filter((item) => !conferidosHidranteMesIds.has(item.id)).length,
+    [hidrantesEscopoEquipe, conferidosHidranteMesIds],
   );
 
-  const hidConcluidasCount = hidrantes.length - hidPendentesCount;
+  const hidConcluidasCount = hidrantesEscopoEquipe.length - hidPendentesCount;
 
   const pavimentos = useMemo(() => {
     const list = tipoAtivo === "extintor" ? extintores : hidrantes;
@@ -361,7 +373,6 @@ export default function MobileConferenciaPage() {
   }, [extintores]);
 
   const activeFilterCount = countActiveInspecaoFilters(advancedFilters);
-  const showEquipeFilter = baseHasEquipesConferencia(activeBase);
 
   useEffect(() => {
     if (!showEquipeFilter) {
@@ -1053,7 +1064,8 @@ export default function MobileConferenciaPage() {
 
   const tipoPendentes = tipoAtivo === "extintor" ? extPendentesCount : hidPendentesCount;
   const tipoConcluidas = tipoAtivo === "extintor" ? extConcluidasCount : hidConcluidasCount;
-  const tipoTotal = tipoAtivo === "extintor" ? extintores.length : hidrantes.length;
+  const tipoTotal =
+    tipoAtivo === "extintor" ? extintoresEscopoEquipe.length : hidrantesEscopoEquipe.length;
   const resultCount = tipoAtivo === "extintor" ? visiveis.length : visiveisHidrantes.length;
 
   return (
