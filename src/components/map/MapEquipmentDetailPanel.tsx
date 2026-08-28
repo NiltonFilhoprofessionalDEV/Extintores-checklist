@@ -38,6 +38,7 @@ type MapEquipmentDetailPanelProps = {
   onOpenInspection: () => void;
   onRemove?: () => void;
   onSubstituirEquipamento?: () => void;
+  onCancelarRetirada?: () => void;
 };
 
 export default function MapEquipmentDetailPanel({
@@ -51,6 +52,7 @@ export default function MapEquipmentDetailPanel({
   onOpenInspection,
   onRemove,
   onSubstituirEquipamento,
+  onCancelarRetirada,
 }: MapEquipmentDetailPanelProps) {
   const isSheet = layout === "sheet";
 
@@ -146,6 +148,15 @@ export default function MapEquipmentDetailPanel({
             onClick={onSubstituirEquipamento}
           >
             Substituir equipamento
+          </button>
+        )}
+        {canManageInventory && detail.kind === "extintor" && detail.semEquipamento && onCancelarRetirada && (
+          <button
+            type="button"
+            className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700"
+            onClick={onCancelarRetirada}
+          >
+            Cancelar retirada
           </button>
         )}
         {canEdit && mode === "edicao" && onRemove && (

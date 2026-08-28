@@ -18,6 +18,7 @@ export type AuditAction =
   | "equipment_remove"
   | "equipment_remove_batch"
   | "equipment_replace"
+  | "equipment_restore"
   | "stock_update";
 
 export type AuditEntityType =
@@ -89,6 +90,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   equipment_remove: "Retirou equipamento para manutenção",
   equipment_remove_batch: "Criou lista de manutenção em lote",
   equipment_replace: "Substituiu equipamento",
+  equipment_restore: "Cancelou retirada e restaurou equipamento",
   stock_update: "Alterou estoque",
 };
 

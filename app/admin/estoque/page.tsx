@@ -78,6 +78,7 @@ export default function AdminEstoquePage() {
   const [substituindo, setSubstituindo] = useState(false);
   const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
   const [loteSaving, setLoteSaving] = useState(false);
+  const [cancelandoRetiradaId, setCancelandoRetiradaId] = useState<string | null>(null);
   const [loteAutoExpandDone, setLoteAutoExpandDone] = useState(false);
 
   const { form, errors, onChange, onTipoChange, validate, reset } = useEstoqueFormState();
@@ -368,6 +369,36 @@ export default function AdminEstoquePage() {
     }
   }
 
+  async function handleCancelarRetirada(item: ManutencaoLoteItem) {
+    if (!item.sem_equipamento) return;
+    const inmetro = item.num_inmetro_retirado?.trim();
+    const msg = inmetro
+      ? `Cancelar a retirada e devolver o equipamento INMETRO ${inmetro} ao ponto ${formatEquipmentIdentifier("extintor", item.codigo)}?`
+      : `Cancelar a retirada e devolver o equipamento original ao ponto ${formatEquipmentIdentifier("extintor", item.codigo)}?`;
+    if (!window.confirm(msg)) return;
+
+    setCancelandoRetiradaId(item.extintor_id);
+    setFeedback(null);
+    try {
+      await callApi("/api/admin/extintores/cancelar-retirada", {
+        method: "POST",
+        body: JSON.stringify({ id: item.extintor_id }),
+      });
+      setFeedback({
+        type: "ok",
+        msg: `Retirada cancelada. Equipamento restaurado em ${formatEquipmentIdentifier("extintor", item.codigo)}.`,
+      });
+      await loadData();
+    } catch (error) {
+      setFeedback({
+        type: "err",
+        msg: error instanceof Error ? error.message : "Erro ao cancelar retirada.",
+      });
+    } finally {
+      setCancelandoRetiradaId(null);
+    }
+  }
+
   async function handleRetiradaLote(payload: {
     extintor_ids: string[];
     motivo: string;
@@ -625,7 +656,9 @@ export default function AdminEstoquePage() {
                           <ManutencaoLoteItemList
                             items={items}
                             readOnly={readOnly}
+                            cancelandoId={cancelandoRetiradaId}
                             onSubstituir={openSubstituirFromLoteItem}
+                            onCancelarRetirada={handleCancelarRetirada}
                           />
                         </div>
                       )}
