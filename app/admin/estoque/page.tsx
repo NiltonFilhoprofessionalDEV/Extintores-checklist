@@ -56,7 +56,9 @@ type ManutencaoLoteItem = {
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
-  num_inmetro: string | null;
+  num_inmetro_retirado: string | null;
+  num_inmetro_instalado: string | null;
+  num_cilindro_instalado: string | null;
   sem_equipamento: boolean;
 };
 
@@ -190,7 +192,7 @@ export default function AdminEstoquePage() {
           let histLoteQuery = supabase
             .from("extintor_equipment_history")
             .select(
-              "lote_id,extintor_id,num_inmetro,extintores(codigo,setor,local_detalhado,pavimento,tipo,tamanho,capacidade_extintora,sem_equipamento)",
+              "lote_id,extintor_id,num_inmetro,extintores(codigo,setor,local_detalhado,pavimento,tipo,tamanho,capacidade_extintora,sem_equipamento,num_inmetro,num_cilindro)",
             )
             .eq("event_type", "retirada")
             .in("lote_id", lotesData.map((l) => l.id));
@@ -213,6 +215,8 @@ export default function AdminEstoquePage() {
                 tamanho: string;
                 capacidade_extintora: string;
                 sem_equipamento: boolean;
+                num_inmetro: string | null;
+                num_cilindro: string | null;
               } | null;
             }>) {
               if (!row.extintores || !row.lote_id) continue;
@@ -226,7 +230,13 @@ export default function AdminEstoquePage() {
                 tipo: row.extintores.tipo,
                 tamanho: row.extintores.tamanho,
                 capacidade_extintora: row.extintores.capacidade_extintora,
-                num_inmetro: row.num_inmetro,
+                num_inmetro_retirado: row.num_inmetro,
+                num_inmetro_instalado: row.extintores.sem_equipamento
+                  ? null
+                  : row.extintores.num_inmetro,
+                num_cilindro_instalado: row.extintores.sem_equipamento
+                  ? null
+                  : row.extintores.num_cilindro,
                 sem_equipamento: row.extintores.sem_equipamento,
               });
             }
@@ -624,13 +634,14 @@ export default function AdminEstoquePage() {
 
                       {expanded && items.length > 0 && (
                         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-                          <table className="inv-table w-full min-w-[720px]">
+                          <table className="inv-table w-full min-w-[860px]">
                             <thead className="bg-slate-50">
                               <tr>
                                 <th className={TH}>Código</th>
                                 <th className={TH}>Local</th>
                                 <th className={TH}>Configuração</th>
                                 <th className={TH}>INMETRO retirado</th>
+                                <th className={TH}>Equipamento instalado</th>
                                 <th className={TH}>Status</th>
                                 {!readOnly && <th className={TH}>Ações</th>}
                               </tr>
@@ -651,7 +662,25 @@ export default function AdminEstoquePage() {
                                     {formatExtintorConfigLabel(item)}
                                     <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
                                   </td>
-                                  <td className="px-4 py-3 text-sm text-slate-600">{item.num_inmetro || "—"}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">
+                                    {item.num_inmetro_retirado || "—"}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">
+                                    {item.num_inmetro_instalado ? (
+                                      <>
+                                        <span className="font-medium text-slate-800">
+                                          INMETRO {item.num_inmetro_instalado}
+                                        </span>
+                                        {item.num_cilindro_instalado ? (
+                                          <span className="block text-xs text-slate-500">
+                                            Cilindro {item.num_cilindro_instalado}
+                                          </span>
+                                        ) : null}
+                                      </>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3">
                                     {item.sem_equipamento ? (
                                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">

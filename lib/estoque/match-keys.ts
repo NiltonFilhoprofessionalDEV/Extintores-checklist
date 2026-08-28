@@ -30,14 +30,14 @@ export function extintorTamanhoMatchKey(value: string): string | null {
   const v = cleanField(value);
   if (!v || looksLikeFireClass(v)) return null;
 
-  const strict = v.match(/^(\d+(?:\.\d+)?)\s*(KG|G|KILO(?:GRAMA)?S?|L|LT|LITROS?)?$/);
+  const strict = v.match(/^(\d+(?:\.\d+)?)\s*(KG|G|KILO(?:GRAMA)?S?|L|LT|LITROS?)?$/i);
   if (strict) {
     const num = normalizeNumber(strict[1]);
     const unit = normalizeUnit(strict[2] ?? inferUnit(v));
     return unit ? `${num}${unit}` : null;
   }
 
-  const embedded = v.match(/(\d+(?:\.\d+)?)\s*(KG|G|L|LT|LITROS?)\b/);
+  const embedded = v.match(/(\d+(?:\.\d+)?)\s*(KG|G|L|LT|LITROS?)\b/i);
   if (embedded) {
     const num = normalizeNumber(embedded[1]);
     const unit = normalizeUnit(embedded[2]);
@@ -108,6 +108,10 @@ export function extintorTipoMatchKey(tipo: string): string {
     if (t.includes("BC")) return "PQSBC";
     return "PQS";
   }
+
+  // Inventário/importação usa só "ABC" ou "BC" (sem prefixo PQS)
+  if (t === "ABC") return "PQSABC";
+  if (t === "BC") return "PQSBC";
 
   return t;
 }
