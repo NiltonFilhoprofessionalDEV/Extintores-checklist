@@ -85,6 +85,10 @@ begin
     return 'PQS';
   end if;
 
+  -- Inventário/importação: só "ABC" ou "BC" (sem prefixo PQS)
+  if v = 'ABC' then return 'PQSABC'; end if;
+  if v = 'BC' then return 'PQSBC'; end if;
+
   return v;
 end;
 $$;
