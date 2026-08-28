@@ -311,7 +311,7 @@ export default function SubstituirEquipamentoDrawer({
 
   const footer =
     step === "confirm" ? (
-      <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col" : ""}`}>
+      <div className={`inv-drawer__footer-actions${presentation === "sheet" ? " is-stack" : ""}`}>
         <button
           type="button"
           className="btn-secondary w-full sm:w-auto"
@@ -325,7 +325,7 @@ export default function SubstituirEquipamentoDrawer({
         </button>
       </div>
     ) : (
-      <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col" : ""}`}>
+      <div className={`inv-drawer__footer-actions${presentation === "sheet" ? " is-stack" : ""}`}>
         <button type="button" className="btn-secondary w-full sm:w-auto" onClick={onClose} disabled={saving}>
           Cancelar
         </button>

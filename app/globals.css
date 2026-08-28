@@ -4025,6 +4025,20 @@ body[data-inspection-active="true"] {
   padding: 0.85rem 1.2rem calc(0.85rem + env(safe-area-inset-bottom));
 }
 
+.inv-drawer__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.inv-drawer__footer-actions.is-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .inv-form-section {
   padding: 1.05rem 0 0.35rem;
   border-top: 1px solid #eef2f5;
