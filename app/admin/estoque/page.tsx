@@ -94,7 +94,6 @@ export default function AdminEstoquePage() {
   const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
   const [loteSaving, setLoteSaving] = useState(false);
   const [cancelandoRetiradaId, setCancelandoRetiradaId] = useState<string | null>(null);
-  const [loteAutoExpandDone, setLoteAutoExpandDone] = useState(false);
   const [manutencaoDetalhe, setManutencaoDetalhe] = useState<{
     item: ManutencaoLoteItem;
     lote: ManutencaoLote;
@@ -274,17 +273,6 @@ export default function AdminEstoquePage() {
       if (profile) setActorRole(profile.role);
     })();
   }, []);
-
-  useEffect(() => {
-    if (view === "manutencao" && lotes.length > 0 && !loteAutoExpandDone) {
-      setExpandedLoteId(lotes[0].id);
-      setLoteAutoExpandDone(true);
-    }
-  }, [view, lotes, loteAutoExpandDone]);
-
-  useEffect(() => {
-    if (view !== "manutencao") setLoteAutoExpandDone(false);
-  }, [view]);
 
   function openCreate() {
     reset();
