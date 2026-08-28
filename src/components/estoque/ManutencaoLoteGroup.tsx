@@ -22,6 +22,7 @@ type ManutencaoLoteGroupProps = {
   onToggle: () => void;
   onSubstituir: (item: ManutencaoLoteItem) => void;
   onCancelarRetirada: (item: ManutencaoLoteItem) => void;
+  onVerDetalhes: (item: ManutencaoLoteItem) => void;
 };
 
 export default function ManutencaoLoteGroup({
@@ -33,6 +34,7 @@ export default function ManutencaoLoteGroup({
   onToggle,
   onSubstituir,
   onCancelarRetirada,
+  onVerDetalhes,
 }: ManutencaoLoteGroupProps) {
   const pendentes = items.filter((i) => i.sem_equipamento).length;
   const substituidos = items.length > 0 ? items.length - pendentes : 0;
@@ -91,6 +93,7 @@ export default function ManutencaoLoteGroup({
             cancelandoId={cancelandoId}
             onSubstituir={onSubstituir}
             onCancelarRetirada={onCancelarRetirada}
+            onVerDetalhes={onVerDetalhes}
           />
         </div>
       )}
