@@ -75,6 +75,10 @@ import {
   insertExtintorChecklist,
   insertHidranteChecklist,
 } from "@/lib/checklist/insert-checklist";
+import {
+  listarNaoConformidadesMapaExtintor,
+  listarNaoConformidadesMapaHidrante,
+} from "@/lib/checklist/observacao-conferencia";
 import type { HidranteImportRow } from "@/lib/rf01/hidrante-import-parser";
 import { getLocalCalendarMonthUtcIsoRange, isIsoDateWithinInclusiveRange } from "@/lib/date/local-month-range";
 import {
@@ -1276,6 +1280,8 @@ export default function MapView() {
       const nc = ult ? checklistTemNaoConformidade(ult) : false;
       const conferido = conferidosNoMesIds.has(infoMarker.id);
       const maint = getMaintenanceStatus(infoMarker);
+      const naoConformidades =
+        nc && ult ? listarNaoConformidadesMapaExtintor(ult, ult.observacoes) : undefined;
       return {
         kind: "extintor",
         codigo: infoMarker.codigo,
@@ -1291,12 +1297,15 @@ export default function MapView() {
             : maint === "Próximo de vencer (30 dias)"
               ? "amber"
               : "green",
+        naoConformidades: naoConformidades && naoConformidades.length > 0 ? naoConformidades : undefined,
       };
     }
     if (infoHidrante) {
       const ult = ultimoChecklistHidranteMes.get(infoHidrante.id);
       const nc = ult ? hidranteChecklistTemNaoConformidade(ult as Record<string, string | null>) : false;
       const conferido = conferidosHidranteMesIds.has(infoHidrante.id);
+      const naoConformidades =
+        nc && ult ? listarNaoConformidadesMapaHidrante(ult, ult.observacoes) : undefined;
       return {
         kind: "hidrante",
         codigo: infoHidrante.codigo,
@@ -1304,6 +1313,7 @@ export default function MapView() {
         pavimentoLabel: pavimento.label,
         statusLabel: nc ? "Não conformidade" : conferido ? "Conferido no mês" : "Pendente",
         statusTone: nc ? "red" : conferido ? "green" : "amber",
+        naoConformidades: naoConformidades && naoConformidades.length > 0 ? naoConformidades : undefined,
       };
     }
     return null;
