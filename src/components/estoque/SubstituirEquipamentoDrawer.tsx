@@ -35,6 +35,13 @@ type SubstituirEquipamentoDrawerProps = {
   }) => void;
 };
 
+function formatStockOptionLabel(opt: StockOption): string {
+  const config = formatExtintorConfigLabel(opt);
+  const cap = opt.capacidade_extintora.trim();
+  const qtd = `${opt.quantidade} disponível${opt.quantidade !== 1 ? "s" : ""}`;
+  return cap ? `${config} · ${cap} · ${qtd}` : `${config} · ${qtd}`;
+}
+
 export default function SubstituirEquipamentoDrawer({
   extintorId,
   codigo,
@@ -150,13 +157,17 @@ export default function SubstituirEquipamentoDrawer({
       }
     >
       <div className="inv-detail-summary mb-4 rounded-xl bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-800">{formatEquipmentIdentifier("extintor", codigo)}</p>
-        <p className="mt-1 text-sm text-slate-600">
-          Configuração esperada: {formatExtintorConfigLabel(expectedConfig)}
+        <p className="text-sm font-bold text-slate-900">{formatEquipmentIdentifier("extintor", codigo)}</p>
+        <p className="mt-2 text-sm text-slate-700">
+          <span className="font-semibold text-slate-800">Configuração esperada:</span>{" "}
+          {formatExtintorConfigLabel(expectedConfig)}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Tipo e carga: {expectedConfig.tipo} — {expectedConfig.tamanho}
-        </p>
+        {expectedConfig.capacidade_extintora.trim() ? (
+          <p className="mt-1 text-sm text-slate-700">
+            <span className="font-semibold text-slate-800">Capacidade extintora:</span>{" "}
+            {expectedConfig.capacidade_extintora.trim()}
+          </p>
+        ) : null}
       </div>
 
       {loading ? (
@@ -185,8 +196,7 @@ export default function SubstituirEquipamentoDrawer({
               <option value="">Selecione...</option>
               {options.map((opt) => (
                 <option key={opt.id} value={opt.id}>
-                  {formatExtintorConfigLabel(opt)} — {opt.capacidade_extintora} — {opt.quantidade} disponível
-                  {opt.quantidade !== 1 ? "s" : ""}
+                  {formatStockOptionLabel(opt)}
                 </option>
               ))}
             </select>
