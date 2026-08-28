@@ -4,6 +4,7 @@ import {
   getInventoryManagerFromRequest,
 } from "@/lib/auth/inventory-management-server";
 import { writeAuditLog } from "@/lib/audit/write-audit-log";
+import { insertChecklistAposSubstituicao } from "@/lib/checklist/substituicao-checklist";
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 type SubstituirPayload = {
@@ -22,7 +23,13 @@ async function actorNome(userId: string): Promise<string | null> {
     .select("nome")
     .eq("id", userId)
     .maybeSingle<{ nome: string | null }>();
-  return data?.nome ?? null;
+  const nome = data?.nome?.trim();
+  if (nome) return nome;
+
+  const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const email = authData.user?.email ?? "";
+  const local = email.split("@")[0]?.replace(/[._-]+/g, " ").trim();
+  return local || null;
 }
 
 export async function POST(request: Request) {
@@ -72,13 +79,14 @@ export async function POST(request: Request) {
     const manut2 = body.manutencao_2_nivel?.trim() || null;
     const manut3 = body.manutencao_3_nivel?.trim() || null;
     const numCilindro = body.num_cilindro?.trim() || null;
+    const conferente = (await actorNome(manager.id)) ?? "";
 
     const { error } = await supabaseAdmin.rpc("substituir_extintor_do_estoque" as never, {
       p_extintor_id: body.extintor_id,
       p_estoque_id: body.estoque_id,
       p_base_id: manager.base_id,
       p_actor_id: manager.id,
-      p_actor_nome: (await actorNome(manager.id)) ?? "",
+      p_actor_nome: conferente,
       p_num_inmetro: numInmetro,
       p_num_cilindro: numCilindro,
       p_manutencao_2_nivel: manut2,
@@ -92,10 +100,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
+    const checklistResult = await insertChecklistAposSubstituicao({
+      supabase: supabaseAdmin,
+      extintorId: body.extintor_id,
+      baseId: manager.base_id,
+      conferente,
+    });
+
+    if (!checklistResult.ok) {
+      return NextResponse.json(
+        {
+          error: `Equipamento substituído, mas falhou ao registrar checklist: ${checklistResult.error}`,
+        },
+        { status: 500 },
+      );
+    }
+
     await writeAuditLog({
       baseId: manager.base_id,
       actorId: manager.id,
-      actorNome: await actorNome(manager.id),
+      actorNome: conferente || null,
       actorRole: manager.role,
       action: "equipment_replace",
       entityType: "extintor",
