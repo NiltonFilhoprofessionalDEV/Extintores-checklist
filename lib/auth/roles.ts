@@ -116,6 +116,7 @@ export function normalizeUserTeam(value: unknown): UserTeam | null {
 export const CLIENT_ALLOWED_ADMIN_PATHS = [
   "/admin/dashboard",
   "/admin/extintores",
+  "/admin/estoque",
   "/admin/mapeamento",
   "/admin/conta",
 ] as const;
