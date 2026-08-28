@@ -4,6 +4,7 @@ import {
   HIDRANTE_ITEM_LABELS,
   type HidranteItemKey,
 } from "@/lib/checklist/hidrante-types";
+import { isObservacaoSubstituicaoAutomatica } from "@/lib/checklist/observacao-automatica";
 import {
   LEGACY_PREFIXES,
   parseChecklistValuesFromObservacoes,
@@ -107,6 +108,7 @@ const STATUS_AUTOMATICOS =
 function segmentoEhEcoLegado(segmento: string): boolean {
   const t = segmento.trim();
   if (!t) return true;
+  if (isObservacaoSubstituicaoAutomatica(t)) return true;
   if (t.startsWith("[Não conforme")) return true;
 
   for (const { prefixes } of LEGACY_PREFIXES) {
