@@ -1,15 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertExtintorChecklist } from "@/lib/checklist/insert-checklist";
 import { fetchActiveExtintorQuestionsForBase } from "@/lib/checklist/questions-server";
+import { OBSERVACAO_SUBSTITUICAO_AUTO } from "@/lib/checklist/observacao-automatica";
 import {
   CHECKLIST_INITIAL,
   CHECKLIST_ITEM_KEYS,
   isBuiltinChecklistItemKey,
   type ChecklistData,
 } from "@/lib/checklist/types";
-
-const OBSERVACAO_AUTO =
-  "Inspeção registrada automaticamente na substituição do equipamento (todos os itens conforme).";
 
 export function buildChecklistConformeParaSubstituicao(
   conferente: string,
@@ -18,7 +16,7 @@ export function buildChecklistConformeParaSubstituicao(
   const data: ChecklistData = {
     ...CHECKLIST_INITIAL,
     conferente,
-    observacoes: OBSERVACAO_AUTO,
+    observacoes: OBSERVACAO_SUBSTITUICAO_AUTO,
   };
 
   for (const key of fieldKeys) {

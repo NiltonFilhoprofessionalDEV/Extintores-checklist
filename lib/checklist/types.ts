@@ -1,3 +1,4 @@
+import { isObservacaoSubstituicaoAutomatica } from "@/lib/checklist/observacao-automatica";
 import { parseCalendarDateAsLocal } from "@/lib/date/date-only";
 
 export type ChecklistValue = "conforme" | "nao_conforme" | "nao_aplica";
@@ -210,6 +211,7 @@ export function checklistTemNaoConformidade(row: {
 
   // Texto legado / blocos de mergeObservacoesComNaoConformidades (ex.: "[Não conforme — Mangueira]").
   const obs = row.observacoes ?? "";
+  if (isObservacaoSubstituicaoAutomatica(obs)) return false;
   if (/\[\s*não conforme/i.test(obs) || /\bnao_conforme\b/i.test(obs)) return true;
 
   return false;

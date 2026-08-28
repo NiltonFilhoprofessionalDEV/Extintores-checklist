@@ -1,3 +1,4 @@
+import { isObservacaoSubstituicaoAutomatica } from "@/lib/checklist/observacao-automatica";
 import { CHECKLIST_ITEM_KEYS, type ChecklistItemKey, type ChecklistValue } from "./types";
 
 /** Prefixos gravados em `observacoes` quando o banco ainda não tinha colunas dedicadas. */
@@ -67,6 +68,7 @@ export function fillChecklistItemsFromObservacoes<
 function isTrechoObservacaoAutomatica(trecho: string): boolean {
   const t = trecho.trim();
   if (!t) return true;
+  if (isObservacaoSubstituicaoAutomatica(t)) return true;
   if (t.startsWith("[Não conforme")) return true;
 
   for (const { prefixes } of LEGACY_PREFIXES) {
