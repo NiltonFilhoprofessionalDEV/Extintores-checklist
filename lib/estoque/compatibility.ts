@@ -1,3 +1,7 @@
+import {
+  extintorTamanhosAreCompatible,
+  extintorTiposAreCompatible,
+} from "@/lib/estoque/match-keys";
 import { canonicalExtintorTamanho, canonicalExtintorTipo } from "@/lib/estoque/text-canonical";
 
 /** Configuração física de extintor usada para compatibilidade estoque ↔ ponto. */
@@ -41,12 +45,28 @@ export function normalizeCapacidadeExtintora(value: string): string {
 
 /**
  * Verifica se estoque e ponto são compatíveis para substituição.
- * Compara apenas tipo de agente e carga nominal.
+ * Compara tipo de agente e carga nominal (com sinônimos e campos trocados).
  */
 export function extintorConfigsAreCompatible(
   expected: ExtintorStockConfig,
   candidate: ExtintorStockConfig,
 ): boolean {
+  if (!extintorTiposAreCompatible(expected.tipo, candidate.tipo)) {
+    return false;
+  }
+
+  if (
+    extintorTamanhosAreCompatible(
+      expected.tamanho,
+      expected.capacidade_extintora,
+      candidate.tamanho,
+      candidate.capacidade_extintora,
+    )
+  ) {
+    return true;
+  }
+
+  // Fallback: comparação legada (strings canônicas diretas)
   return (
     canonicalExtintorTipo(expected.tipo) === canonicalExtintorTipo(candidate.tipo) &&
     canonicalExtintorTamanho(expected.tamanho) === canonicalExtintorTamanho(candidate.tamanho)
