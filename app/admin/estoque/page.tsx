@@ -5,21 +5,23 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentSession, getProfileBySession, type UserRole } from "@/lib/auth/profile";
 import { isAdminLikeRole, isInventoryReadOnlyRole, canManageInventory } from "@/lib/auth/roles";
 import { useActiveBase } from "@/lib/auth/active-base-context";
-import { DashboardStatCard } from "@/app/admin/dashboard/dashboard-stat-card";
-import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
 import { normalizeEstoquePayload, estoqueFormFromRow } from "@/lib/estoque/stock-form";
+import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
 import FormDrawer from "@/src/components/inventory/FormDrawer";
-import RowActionsMenu from "@/src/components/RowActionsMenu";
 import EstoqueStockForm, { useEstoqueFormState } from "@/src/components/estoque/EstoqueStockForm";
 import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
 import RetiradaLoteDrawer from "@/src/components/estoque/RetiradaLoteDrawer";
-import { formatDateOnlyPt } from "@/lib/date/date-only";
-import { buildStockStatsByTipo, colorForTipo } from "@/lib/estoque/stock-stats";
-import { formatPrevisaoRetorno } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
-import ManutencaoLoteItemList, {
-  type ManutencaoLoteItem,
-} from "@/src/components/estoque/ManutencaoLoteItemList";
+import EstoquePageHeader from "@/src/components/estoque/EstoquePageHeader";
+import EstoqueViewTabs from "@/src/components/estoque/EstoqueViewTabs";
+import EstoqueStatsGrid from "@/src/components/estoque/EstoqueStatsGrid";
+import EstoqueFeedbackBanner from "@/src/components/estoque/EstoqueFeedbackBanner";
+import EstoqueLoadingSkeleton from "@/src/components/estoque/EstoqueLoadingSkeleton";
+import EstoqueEmptyState from "@/src/components/estoque/EstoqueEmptyState";
+import EstoqueStockTable from "@/src/components/estoque/EstoqueStockTable";
+import EstoqueStockMobileList from "@/src/components/estoque/EstoqueStockMobileList";
+import ManutencaoLoteGroup from "@/src/components/estoque/ManutencaoLoteGroup";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
+import type { ManutencaoLoteItem } from "@/src/components/estoque/ManutencaoLoteItemList";
 
 type EstoqueRow = {
   id: string;
@@ -37,6 +39,9 @@ type SubstituirTarget = {
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
+  pavimento: string | null;
+  setor: string;
+  local_detalhado: string;
 };
 
 type ManutencaoLote = {
@@ -50,19 +55,27 @@ type ManutencaoLote = {
 
 type ViewMode = "estoque" | "manutencao";
 
-const TH = "px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500";
+const MOBILE_MAX_WIDTH = 767;
 
-function StatBoxesIcon() {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m3.3 7 8.7 5 8.7-5M12 22V12" />
-    </svg>
+function useIsMobileEstoque() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches : false,
   );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return isMobile;
 }
 
 export default function AdminEstoquePage() {
   const { ready, activeBaseId } = useActiveBase();
+  const isMobile = useIsMobileEstoque();
   const [view, setView] = useState<ViewMode>("estoque");
   const [items, setItems] = useState<EstoqueRow[]>([]);
   const [lotes, setLotes] = useState<ManutencaoLote[]>([]);
@@ -86,6 +99,8 @@ export default function AdminEstoquePage() {
   const canDelete = isAdminLikeRole(actorRole);
   const canManage = canManageInventory(actorRole);
   const supabase = useMemo(() => getSupabaseClient(), []);
+
+  const dismissFeedback = useCallback(() => setFeedback(null), []);
 
   const callApi = useCallback(
     async (url: string, init?: RequestInit) => {
@@ -265,8 +280,6 @@ export default function AdminEstoquePage() {
     if (view !== "manutencao") setLoteAutoExpandDone(false);
   }, [view]);
 
-  const stats = useMemo(() => buildStockStatsByTipo(items), [items]);
-
   function openCreate() {
     reset();
     setEditId(null);
@@ -287,6 +300,9 @@ export default function AdminEstoquePage() {
       tipo: item.tipo,
       tamanho: item.tamanho,
       capacidade_extintora: item.capacidade_extintora,
+      pavimento: item.pavimento,
+      setor: item.setor,
+      local_detalhado: item.local_detalhado,
     });
   }
 
@@ -356,7 +372,10 @@ export default function AdminEstoquePage() {
           ...payload,
         }),
       });
-      setFeedback({ type: "ok", msg: `Equipamento substituído em ${formatEquipmentIdentifier("extintor", substituirTarget.codigo)}.` });
+      setFeedback({
+        type: "ok",
+        msg: `Equipamento substituído em ${formatEquipmentIdentifier("extintor", substituirTarget.codigo)}.`,
+      });
       setSubstituirTarget(null);
       await loadData();
     } catch (error) {
@@ -443,140 +462,45 @@ export default function AdminEstoquePage() {
   }, [loteItems]);
 
   return (
-    <div className="inv-page">
-      <div className="professional-card inv-header">
-        <div className="min-w-0">
-          <h1 className="inv-header__title text-xl font-bold text-slate-900 sm:text-2xl">
-            Estoque e Manutenção
-          </h1>
-          <p className="inv-header__subtitle mt-1 text-sm text-slate-500">
-            Equipamentos disponíveis para substituição e ordens de serviço de manutenção
-          </p>
-        </div>
-        <div className="inv-header__actions w-full sm:w-auto">
-          {!readOnly && view === "estoque" && (
-            <button type="button" onClick={openCreate} className="btn-primary w-full sm:w-auto">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Adicionar ao estoque
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="inv-page estoque-page">
+      <EstoquePageHeader showAddButton={!readOnly && view === "estoque"} onAdd={openCreate} />
 
       {feedback && (
-        <div
-          className={`mb-4 rounded-xl px-4 py-3 text-sm font-medium ${
-            feedback.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
-          }`}
-        >
-          {feedback.msg}
-        </div>
+        <EstoqueFeedbackBanner type={feedback.type} message={feedback.msg} onDismiss={dismissFeedback} />
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <button
-          type="button"
-          className={`w-full sm:w-auto ${view === "estoque" ? "btn-primary text-xs" : "btn-secondary text-xs"}`}
-          onClick={() => setView("estoque")}
-        >
-          Estoque disponível
-        </button>
-        <button
-          type="button"
-          className={`w-full sm:w-auto ${view === "manutencao" ? "btn-primary text-xs" : "btn-secondary text-xs"}`}
-          onClick={() => setView("manutencao")}
-        >
-          Lista de manutenção ({manutencaoPendentes})
-        </button>
-      </div>
+      <EstoqueViewTabs view={view} manutencaoPendentes={manutencaoPendentes} onChange={setView} />
 
       {view === "estoque" && (
         <>
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <DashboardStatCard
-              label="Total disponível"
-              value={stats.total}
-              color="#0f766e"
-              icon={<StatBoxesIcon />}
-            />
-            {stats.porTipo.map((row, index) => (
-              <DashboardStatCard
-                key={row.tipo}
-                label={row.tipo}
-                value={row.quantidade}
-                color={colorForTipo(row.tipo, index)}
-                icon={<StatBoxesIcon />}
-              />
-            ))}
-          </div>
+          {loading ? <EstoqueLoadingSkeleton variant="cards" rows={5} /> : <EstoqueStatsGrid items={items} />}
 
-          <div className="professional-card overflow-hidden">
+          <div className="professional-card estoque-panel">
             {loading ? (
-              <p className="p-6 text-sm text-slate-500">Carregando estoque...</p>
+              <EstoqueLoadingSkeleton rows={5} />
             ) : items.length === 0 ? (
-              <p className="p-6 text-sm text-slate-500">Nenhum item cadastrado no estoque.</p>
+              <EstoqueEmptyState
+                title="Seu estoque está vazio"
+                description="Adicione equipamentos disponíveis para realizar substituições."
+                actionLabel={readOnly ? undefined : "Adicionar ao estoque"}
+                onAction={readOnly ? undefined : openCreate}
+              />
             ) : (
               <>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="inv-table w-full">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className={TH}>Tipo</th>
-                        <th className={TH}>Classe</th>
-                        <th className={TH}>Capacidade</th>
-                        <th className={TH}>Quantidade disponível</th>
-                        {!readOnly && <th className={TH}>Ações</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((row) => (
-                        <tr key={row.id} className="inv-table__row">
-                          <td className="px-4 py-3 text-sm font-medium text-slate-800">{row.tipo}</td>
-                          <td className="px-4 py-3 text-sm text-slate-600">{row.capacidade_extintora}</td>
-                          <td className="px-4 py-3 text-sm text-slate-600">{row.tamanho}</td>
-                          <td className="px-4 py-3 text-sm font-semibold text-slate-800">
-                            {row.quantidade} disponível{row.quantidade !== 1 ? "s" : ""}
-                          </td>
-                          {!readOnly && (
-                            <td className="px-4 py-3">
-                              <RowActionsMenu
-                                label={formatExtintorConfigLabel(row)}
-                                onEdit={() => openEdit(row)}
-                                onDelete={canDelete ? () => handleDelete(row) : undefined}
-                              />
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="md:hidden divide-y divide-slate-100">
-                  {items.map((row) => (
-                    <article key={row.id} className="inv-card p-4">
-                      <p className="font-bold text-slate-900">{row.tipo}</p>
-                      <p className="mt-1 text-sm text-slate-600">{row.capacidade_extintora} · {row.tamanho}</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-800">
-                        {row.quantidade} disponível{row.quantidade !== 1 ? "s" : ""}
-                      </p>
-                      {!readOnly && (
-                        <div className="mt-3 flex gap-2">
-                          <button type="button" className="btn-secondary text-xs" onClick={() => openEdit(row)}>
-                            Editar
-                          </button>
-                          {canDelete && (
-                            <button type="button" className="btn-secondary text-xs text-red-600" onClick={() => handleDelete(row)}>
-                              Remover
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
+                <EstoqueStockTable
+                  items={items}
+                  readOnly={readOnly}
+                  canDelete={canDelete}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
+                <EstoqueStockMobileList
+                  items={items}
+                  readOnly={readOnly}
+                  canDelete={canDelete}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
               </>
             )}
           </div>
@@ -584,95 +508,52 @@ export default function AdminEstoquePage() {
       )}
 
       {view === "manutencao" && (
-        <>
-          <div className="professional-card overflow-hidden">
-            <div className="border-b border-slate-100 px-4 py-4 sm:px-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-sm font-bold text-slate-900">Listas de manutenção em lote</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Controle principal das retiradas em lote — data, responsável e substituição por item.
-                </p>
-              </div>
-              {canManage && (
-                <button
-                  type="button"
-                  className="btn-primary w-full text-xs sm:w-auto shrink-0"
-                  onClick={() => setLoteDrawerOpen(true)}
-                >
-                  Retirada em lote
-                </button>
-              )}
-            </div>
-
-            {loading ? (
-              <p className="p-6 text-sm text-slate-500">Carregando listas...</p>
-            ) : lotes.length === 0 ? (
-              <p className="p-6 text-sm text-slate-500">
-                Nenhuma lista em lote salva. Use &quot;Retirada em lote&quot; para remover vários extintores de uma vez.
+        <div className="professional-card estoque-panel">
+          <div className="border-b border-slate-100 px-4 py-4 sm:px-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-slate-900">Listas de manutenção em lote</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Controle principal das retiradas em lote — data, responsável e substituição por item.
               </p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {lotes.map((lote) => {
-                  const items = loteItemsByLote.get(lote.id) ?? [];
-                  const expanded = expandedLoteId === lote.id;
-                  const pendentes = items.filter((i) => i.sem_equipamento).length;
-                  return (
-                    <div key={lote.id} className="px-4 py-4 sm:px-5">
-                      <button
-                        type="button"
-                        className="flex w-full items-start justify-between gap-3 text-left"
-                        onClick={() => setExpandedLoteId(expanded ? null : lote.id)}
-                        aria-expanded={expanded}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900">{lote.motivo}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {formatDateOnlyPt(lote.created_at)} · Criado por {lote.creator_nome}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {lote.item_count} extintor{lote.item_count !== 1 ? "es" : ""}
-                            {items.length > 0 ? ` · ${pendentes} ainda sem equipamento` : ""}
-                            {lote.previsao_retorno
-                              ? ` · Previsão: ${formatPrevisaoRetorno(lote.previsao_retorno)}`
-                              : " · Sem data prevista"}
-                          </p>
-                        </div>
-                        <svg
-                          width={20}
-                          height={20}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          className={`shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-                          aria-hidden
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-                        </svg>
-                      </button>
-
-                      {expanded && items.length > 0 && (
-                        <div className="mt-4">
-                          <ManutencaoLoteItemList
-                            items={items}
-                            readOnly={readOnly}
-                            cancelandoId={cancelandoRetiradaId}
-                            onSubstituir={openSubstituirFromLoteItem}
-                            onCancelarRetirada={handleCancelarRetirada}
-                          />
-                        </div>
-                      )}
-
-                      {expanded && items.length === 0 && (
-                        <p className="mt-3 text-sm text-slate-500">Nenhum item vinculado a esta lista.</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            </div>
+            {canManage && (
+              <button
+                type="button"
+                className="btn-primary w-full min-h-[44px] text-xs sm:w-auto shrink-0"
+                onClick={() => setLoteDrawerOpen(true)}
+              >
+                Retirada em lote
+              </button>
             )}
           </div>
-        </>
+
+          {loading ? (
+            <EstoqueLoadingSkeleton rows={4} />
+          ) : lotes.length === 0 ? (
+            <EstoqueEmptyState
+              title="Nenhum equipamento em manutenção"
+              description="Quando um equipamento for retirado para manutenção, ele aparecerá aqui."
+              actionLabel={canManage ? "Retirada em lote" : undefined}
+              onAction={canManage ? () => setLoteDrawerOpen(true) : undefined}
+            />
+          ) : (
+            <>
+              {lotes.map((lote) => (
+                <ManutencaoLoteGroup
+                  key={lote.id}
+                  lote={lote}
+                  items={loteItemsByLote.get(lote.id) ?? []}
+                  expanded={expandedLoteId === lote.id}
+                  readOnly={readOnly}
+                  cancelandoId={cancelandoRetiradaId}
+                  onToggle={() => setExpandedLoteId(expandedLoteId === lote.id ? null : lote.id)}
+                  onSubstituir={openSubstituirFromLoteItem}
+                  onCancelarRetirada={handleCancelarRetirada}
+                />
+              ))}
+            </>
+          )}
+        </div>
       )}
 
       {drawerMode && (
@@ -686,8 +567,8 @@ export default function AdminEstoquePage() {
               <button type="button" className="btn-secondary" onClick={() => setDrawerMode(null)} disabled={saving}>
                 Cancelar
               </button>
-              <button type="button" className="btn-primary" onClick={() => void handleSave()} disabled={saving}>
-                {saving ? "Salvando..." : "Salvar"}
+              <button type="button" className="btn-primary min-h-[44px]" onClick={() => void handleSave()} disabled={saving}>
+                {saving ? "Salvando..." : drawerMode === "create" ? "Adicionar ao estoque" : "Salvar"}
               </button>
             </div>
           }
@@ -705,8 +586,14 @@ export default function AdminEstoquePage() {
             tamanho: substituirTarget.tamanho,
             capacidade_extintora: substituirTarget.capacidade_extintora,
           }}
+          locationContext={{
+            pavimento: substituirTarget.pavimento,
+            setor: substituirTarget.setor,
+            local_detalhado: substituirTarget.local_detalhado,
+          }}
           activeBaseId={activeBaseId}
           saving={substituindo}
+          presentation={isMobile ? "sheet" : "drawer"}
           onClose={() => setSubstituirTarget(null)}
           onConfirm={handleSubstituir}
         />
