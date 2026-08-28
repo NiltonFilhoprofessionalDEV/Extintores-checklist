@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMapMarkerLabel, mapKindLabel } from "@/lib/map/marker-label";
+import type { BlocoNaoConformidade } from "@/lib/checklist/observacao-conferencia";
 import ModalCloseButton from "@/src/components/ModalCloseButton";
 
 type ExtintorDetail = {
@@ -14,6 +15,8 @@ type ExtintorDetail = {
   manutencaoLabel: string;
   manutencaoTone: "green" | "red" | "amber";
   semEquipamento?: boolean;
+  /** Itens de NC com o texto digitado no checklist. */
+  naoConformidades?: BlocoNaoConformidade[];
 };
 
 type HidranteDetail = {
@@ -23,6 +26,8 @@ type HidranteDetail = {
   pavimentoLabel: string;
   statusLabel: string;
   statusTone: "green" | "red" | "amber" | "gray";
+  /** Itens de NC com o texto digitado no checklist. */
+  naoConformidades?: BlocoNaoConformidade[];
 };
 
 export type MapEquipmentDetail = ExtintorDetail | HidranteDetail;
@@ -129,6 +134,32 @@ export default function MapEquipmentDetailPanel({
           </div>
         )}
       </div>
+
+      {detail.naoConformidades && detail.naoConformidades.length > 0 && (
+        <div
+          className={`rounded-xl border border-red-100 bg-red-50 p-3 ${isSheet ? "mx-5 mb-4" : "mb-4"}`}
+          role="status"
+          aria-label="Detalhes da não conformidade"
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wide text-red-800">
+            Não conformidade
+          </p>
+          <ul className="mt-2 flex flex-col gap-2.5">
+            {detail.naoConformidades.map((item, index) => (
+              <li key={`${item.titulo}-${index}`} className="min-w-0">
+                <p className="text-xs font-semibold text-red-900">{item.titulo}</p>
+                {item.descricao ? (
+                  <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-red-950/90">
+                    {item.descricao}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-sm italic text-red-800/70">Sem descrição informada</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className={`flex flex-col gap-2 ${isSheet ? "px-5 pb-6" : ""}`}>
         {showInspection && (

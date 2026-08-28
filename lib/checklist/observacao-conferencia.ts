@@ -349,3 +349,41 @@ export function montarObservacaoHidranteConferencia(
 ): string {
   return formatarObservacaoConferenciaHidrante(row, observacoes);
 }
+
+/**
+ * Lista estruturada de NCs para o painel do mapa (item + texto digitado).
+ * Preferência pelos blocos `[Não conforme — …]` gravados em `observacoes`.
+ */
+export function listarNaoConformidadesMapaExtintor(
+  row: Partial<Record<ChecklistItemKey, string | null>>,
+  observacoes: string | null | undefined,
+): BlocoNaoConformidade[] {
+  const blocos = extrairBlocosNaoConformidadeObservacoes(observacoes);
+  if (blocos.length > 0) {
+    return blocos.map((b) => ({
+      titulo: b.titulo,
+      descricao: extrairSomenteTextoUsuario(b.descricao) || b.descricao.trim(),
+    }));
+  }
+
+  const texto = formatarObservacaoConferenciaExtintor(row, observacoes ?? null).trim();
+  if (!texto) return [];
+  return [{ titulo: "Não conformidade", descricao: texto }];
+}
+
+export function listarNaoConformidadesMapaHidrante(
+  row: Partial<Record<HidranteItemKey, string | null>>,
+  observacoes: string | null | undefined,
+): BlocoNaoConformidade[] {
+  const blocos = extrairBlocosNaoConformidadeObservacoes(observacoes);
+  if (blocos.length > 0) {
+    return blocos.map((b) => ({
+      titulo: b.titulo,
+      descricao: extrairSomenteTextoUsuario(b.descricao) || b.descricao.trim(),
+    }));
+  }
+
+  const texto = formatarObservacaoConferenciaHidrante(row, observacoes ?? null).trim();
+  if (!texto) return [];
+  return [{ titulo: "Não conformidade", descricao: texto }];
+}
