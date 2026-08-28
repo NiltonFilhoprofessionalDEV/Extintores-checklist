@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ExtintorStockConfig } from "@/lib/estoque/compatibility";
 import { formatExtintorConfigLabel } from "@/lib/estoque/compatibility";
@@ -25,6 +25,7 @@ type SubstituirEquipamentoDrawerProps = {
   expectedConfig: ExtintorStockConfig;
   activeBaseId: string | null;
   saving: boolean;
+  presentation?: "drawer" | "sheet";
   onClose: () => void;
   onConfirm: (payload: {
     estoque_id: string;
@@ -35,11 +36,69 @@ type SubstituirEquipamentoDrawerProps = {
   }) => void;
 };
 
-function formatStockOptionLabel(opt: StockOption): string {
-  const config = formatExtintorConfigLabel(opt);
+function formatStockOptionSubtitle(opt: StockOption): string {
   const cap = opt.capacidade_extintora.trim();
   const qtd = `${opt.quantidade} disponível${opt.quantidade !== 1 ? "s" : ""}`;
-  return cap ? `${config} · ${cap} · ${qtd}` : `${config} · ${qtd}`;
+  return cap ? `${cap} · ${qtd}` : qtd;
+}
+
+function SubstituirShell({
+  presentation,
+  title,
+  description,
+  onClose,
+  footer,
+  children,
+}: {
+  presentation: "drawer" | "sheet";
+  title: string;
+  description: string;
+  onClose: () => void;
+  footer: ReactNode;
+  children: ReactNode;
+}) {
+  if (presentation === "drawer") {
+    return (
+      <FormDrawer
+        eyebrow="Substituição"
+        title={title}
+        description={description}
+        onClose={onClose}
+        footer={footer}
+      >
+        {children}
+      </FormDrawer>
+    );
+  }
+
+  return (
+    <div
+      className="modal-layer fixed inset-0 z-[5000] flex items-end bg-black/40"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="flex max-h-[min(92dvh,720px)] w-full flex-col rounded-t-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="substituir-sheet-title"
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full bg-zinc-300" />
+        </div>
+        <header className="border-b border-slate-100 px-5 pb-4">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Substituição</p>
+          <h2 id="substituir-sheet-title" className="mt-1 text-lg font-bold text-slate-900">
+            {title}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </header>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <footer className="border-t border-slate-100 px-5 py-4">{footer}</footer>
+      </div>
+    </div>
+  );
 }
 
 export default function SubstituirEquipamentoDrawer({
@@ -48,6 +107,7 @@ export default function SubstituirEquipamentoDrawer({
   expectedConfig,
   activeBaseId,
   saving,
+  presentation = "drawer",
   onClose,
   onConfirm,
 }: SubstituirEquipamentoDrawerProps) {
@@ -62,6 +122,7 @@ export default function SubstituirEquipamentoDrawer({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const pointLabel = formatEquipmentIdentifier("extintor", codigo);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +179,18 @@ export default function SubstituirEquipamentoDrawer({
     setManut3(toDateInputValue(selected.manutencao_3_nivel));
   }, [selectedId, selected]);
 
+  function selectOption(id: string) {
+    setSelectedId(id);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.estoque;
+      return next;
+    });
+  }
+
   function handleSubmit() {
     const nextErrors: Record<string, string> = {};
-    if (!selectedId) nextErrors.estoque = "Selecione um item do estoque.";
+    if (!selectedId) nextErrors.estoque = "Selecione um equipamento do estoque.";
     if (!numInmetro.trim()) nextErrors.num_inmetro = "Nº do INMETRO é obrigatório.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -134,30 +204,32 @@ export default function SubstituirEquipamentoDrawer({
     });
   }
 
+  const footer = (
+    <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col sm:flex-row" : ""}`}>
+      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={onClose} disabled={saving}>
+        Cancelar
+      </button>
+      <button
+        type="button"
+        className="btn-primary w-full sm:w-auto"
+        onClick={handleSubmit}
+        disabled={saving || loading || options.length === 0}
+      >
+        {saving ? "Substituindo..." : "Confirmar substituição"}
+      </button>
+    </div>
+  );
+
   return (
-    <FormDrawer
-      eyebrow="Substituição"
+    <SubstituirShell
+      presentation={presentation}
       title="Substituir equipamento"
-      description={`Associar equipamento do estoque ao ponto ${formatEquipmentIdentifier("extintor", codigo)}.`}
+      description={`Escolha um equipamento do estoque para instalar no ponto ${pointLabel}.`}
       onClose={onClose}
-      footer={
-        <div className="inv-drawer__footer-actions">
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={handleSubmit}
-            disabled={saving || loading || options.length === 0}
-          >
-            {saving ? "Substituindo..." : "Confirmar substituição"}
-          </button>
-        </div>
-      }
+      footer={footer}
     >
       <div className="inv-detail-summary mb-4 rounded-xl bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-900">{formatEquipmentIdentifier("extintor", codigo)}</p>
+        <p className="text-sm font-bold text-slate-900">{pointLabel}</p>
         <p className="mt-2 text-sm text-slate-700">
           <span className="font-semibold text-slate-800">Configuração esperada:</span>{" "}
           {formatExtintorConfigLabel(expectedConfig)}
@@ -179,35 +251,50 @@ export default function SubstituirEquipamentoDrawer({
           Não há equipamentos compatíveis disponíveis no estoque para esta configuração.
         </p>
       ) : (
-        <FormSection title="Estoque compatível">
-          <FormField id="sub-estoque" label="Item do estoque" required error={errors.estoque} className="inv-field--full">
-            <select
-              className={fieldControlClass(errors.estoque)}
-              value={selectedId}
-              onChange={(event) => {
-                setSelectedId(event.target.value);
-                setErrors((prev) => {
-                  const next = { ...prev };
-                  delete next.estoque;
-                  return next;
-                });
-              }}
-            >
-              <option value="">Selecione...</option>
-              {options.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {formatStockOptionLabel(opt)}
-                </option>
-              ))}
-            </select>
-          </FormField>
+        <FormSection title="Equipamentos disponíveis">
+          <p className="inv-field--full mb-3 text-xs text-slate-500">
+            Toque no equipamento que será instalado neste ponto.
+          </p>
+          {errors.estoque ? (
+            <p className="inv-field--full mb-2 text-xs font-semibold text-red-600">{errors.estoque}</p>
+          ) : null}
+          <div className="inv-field--full grid gap-2">
+            {options.map((opt) => {
+              const active = selectedId === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`rounded-xl border p-3 text-left transition ${
+                    active
+                      ? "border-[var(--orange)] bg-orange-50 ring-2 ring-[var(--orange)]/30"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                  onClick={() => selectOption(opt.id)}
+                  aria-pressed={active}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900">{formatExtintorConfigLabel(opt)}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{formatStockOptionSubtitle(opt)}</p>
+                    </div>
+                    {active ? (
+                      <span className="shrink-0 rounded-full bg-[var(--orange)] px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        Selecionado
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </FormSection>
       )}
 
       {selected ? (
         <FormSection title="Equipamento físico">
           <p className="inv-field--full mb-2 text-xs text-slate-500">
-            INMETRO e cilindro são do equipamento que está sendo instalado no ponto.
+            Informe o INMETRO e, se houver, o cilindro do equipamento que está sendo instalado.
           </p>
           <FormField id="sub-inmetro" label="Nº do INMETRO" required error={errors.num_inmetro}>
             <input
@@ -245,6 +332,6 @@ export default function SubstituirEquipamentoDrawer({
       ) : null}
 
       <input type="hidden" value={extintorId} readOnly />
-    </FormDrawer>
+    </SubstituirShell>
   );
 }

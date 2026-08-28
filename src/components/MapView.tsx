@@ -1212,6 +1212,30 @@ export default function MapView() {
     }
   }
 
+  function openSubstituirFromMap(marker: Extintor) {
+    if (!marker.sem_equipamento) return;
+    setSubstituirTarget(marker);
+    setInfoMarker(null);
+    setInfoHidrante(null);
+  }
+
+  const substituirEquipamentoDrawer = substituirTarget ? (
+    <SubstituirEquipamentoDrawer
+      extintorId={substituirTarget.id}
+      codigo={substituirTarget.codigo}
+      expectedConfig={{
+        tipo: substituirTarget.tipo,
+        tamanho: substituirTarget.tamanho,
+        capacidade_extintora: substituirTarget.capacidade_extintora,
+      }}
+      activeBaseId={activeBaseId}
+      saving={equipmentActionSaving}
+      presentation={isMobile ? "sheet" : "drawer"}
+      onClose={() => setSubstituirTarget(null)}
+      onConfirm={handleSubstituirConfirm}
+    />
+  ) : null;
+
   const equipmentDetail = useMemo((): MapEquipmentDetail | null => {
     if (infoMarker) {
       if (infoMarker.sem_equipamento) {
@@ -2315,7 +2339,7 @@ export default function MapView() {
                 }
               }}
               onSubstituirEquipamento={
-                infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
+                infoMarker?.sem_equipamento ? () => openSubstituirFromMap(infoMarker) : undefined
               }
               onRemove={
                 infoMarker
@@ -2454,6 +2478,8 @@ export default function MapView() {
             />
           </InspecaoModalFrame>
         )}
+
+        {substituirEquipamentoDrawer}
       </main>
     );
   }
@@ -2500,7 +2526,7 @@ export default function MapView() {
                   }
                 }}
                 onSubstituirEquipamento={
-                  infoMarker?.sem_equipamento ? () => setSubstituirTarget(infoMarker) : undefined
+                  infoMarker?.sem_equipamento ? () => openSubstituirFromMap(infoMarker) : undefined
                 }
                 onRemove={
                   infoMarker
@@ -2668,21 +2694,7 @@ export default function MapView() {
         </InspecaoModalFrame>
       )}
 
-      {substituirTarget && (
-        <SubstituirEquipamentoDrawer
-          extintorId={substituirTarget.id}
-          codigo={substituirTarget.codigo}
-          expectedConfig={{
-            tipo: substituirTarget.tipo,
-            tamanho: substituirTarget.tamanho,
-            capacidade_extintora: substituirTarget.capacidade_extintora,
-          }}
-          activeBaseId={activeBaseId}
-          saving={equipmentActionSaving}
-          onClose={() => setSubstituirTarget(null)}
-          onConfirm={handleSubstituirConfirm}
-        />
-      )}
+      {substituirEquipamentoDrawer}
     </main>
   );
 }
