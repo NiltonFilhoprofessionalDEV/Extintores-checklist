@@ -463,6 +463,30 @@ export default function AdminExtintoresPage() {
     }
   }
 
+  async function handleCancelarRetirada(item: ExtintorRow) {
+    if (!item.sem_equipamento) return;
+    const msg = `Cancelar a retirada e devolver o equipamento original ao ponto ${item.codigo}?`;
+    if (!window.confirm(msg)) return;
+
+    setEquipmentSaving(true);
+    try {
+      await callInventoryApi("/api/admin/extintores/cancelar-retirada", {
+        method: "POST",
+        body: JSON.stringify({ id: item.id }),
+      });
+      setFeedback({ type: "ok", msg: `Retirada cancelada. Equipamento restaurado no ponto ${item.codigo}.` });
+      closeDetalhe();
+      await load();
+    } catch (error) {
+      setFeedback({
+        type: "err",
+        msg: error instanceof Error ? error.message : "Erro ao cancelar retirada.",
+      });
+    } finally {
+      setEquipmentSaving(false);
+    }
+  }
+
   async function handleSubstituirConfirm(payload: {
     estoque_id: string;
     num_inmetro: string;
@@ -1370,13 +1394,23 @@ export default function AdminExtintoresPage() {
               {canManageInventoryRole &&
                 detalheView.tipo === "extintor" &&
                 detalheView.item.sem_equipamento && (
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => setSubstituirTarget(detalheView.item)}
-                  >
-                    Substituir equipamento
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => setSubstituirTarget(detalheView.item)}
+                    >
+                      Substituir equipamento
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={equipmentSaving}
+                      onClick={() => void handleCancelarRetirada(detalheView.item)}
+                    >
+                      {equipmentSaving ? "Cancelando..." : "Cancelar retirada"}
+                    </button>
+                  </>
                 )}
               {canManageInventoryRole &&
                 detalheView.tipo === "extintor" &&

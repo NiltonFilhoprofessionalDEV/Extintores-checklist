@@ -25,7 +25,9 @@ const TH = "px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider t
 type ManutencaoLoteItemListProps = {
   items: ManutencaoLoteItem[];
   readOnly: boolean;
+  cancelandoId?: string | null;
   onSubstituir: (item: ManutencaoLoteItem) => void;
+  onCancelarRetirada: (item: ManutencaoLoteItem) => void;
 };
 
 function StatusBadge({ semEquipamento }: { semEquipamento: boolean }) {
@@ -66,7 +68,9 @@ function MobileDetailRow({ label, children }: { label: string; children: ReactNo
 export default function ManutencaoLoteItemList({
   items,
   readOnly,
+  cancelandoId = null,
   onSubstituir,
+  onCancelarRetirada,
 }: ManutencaoLoteItemListProps) {
   return (
     <>
@@ -99,13 +103,24 @@ export default function ManutencaoLoteItemList({
             </div>
 
             {!readOnly && item.sem_equipamento && (
-              <button
-                type="button"
-                className="btn-primary w-full text-sm"
-                onClick={() => onSubstituir(item)}
-              >
-                Substituir equipamento
-              </button>
+              <div className="grid w-full gap-2">
+                <button
+                  type="button"
+                  className="btn-primary w-full text-sm"
+                  onClick={() => onSubstituir(item)}
+                  disabled={cancelandoId === item.extintor_id}
+                >
+                  Substituir equipamento
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary w-full text-sm"
+                  onClick={() => onCancelarRetirada(item)}
+                  disabled={cancelandoId === item.extintor_id}
+                >
+                  {cancelandoId === item.extintor_id ? "Cancelando..." : "Cancelar retirada"}
+                </button>
+              </div>
             )}
           </article>
         ))}
@@ -148,13 +163,24 @@ export default function ManutencaoLoteItemList({
                 {!readOnly && (
                   <td className="px-4 py-3">
                     {item.sem_equipamento ? (
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
-                        onClick={() => onSubstituir(item)}
-                      >
-                        Substituir
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          onClick={() => onSubstituir(item)}
+                          disabled={cancelandoId === item.extintor_id}
+                        >
+                          Substituir
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs text-slate-700"
+                          onClick={() => onCancelarRetirada(item)}
+                          disabled={cancelandoId === item.extintor_id}
+                        >
+                          {cancelandoId === item.extintor_id ? "Cancelando..." : "Cancelar retirada"}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-xs text-slate-400">—</span>
                     )}

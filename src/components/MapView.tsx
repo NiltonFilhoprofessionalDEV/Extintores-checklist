@@ -1219,6 +1219,26 @@ export default function MapView() {
     setInfoHidrante(null);
   }
 
+  async function cancelarRetiradaFromMap(marker: Extintor) {
+    if (!marker.sem_equipamento) return;
+    const msg = `Cancelar a retirada e devolver o equipamento original ao ponto ${marker.codigo}?`;
+    if (!window.confirm(msg)) return;
+
+    setEquipmentActionSaving(true);
+    setMessage("");
+    try {
+      await callEquipmentApi("/api/admin/extintores/cancelar-retirada", { id: marker.id });
+      setInfoMarker(null);
+      setInfoHidrante(null);
+      await loadExtintores({ quiet: true });
+      setMessage(`Retirada cancelada. Equipamento restaurado no ponto ${marker.codigo}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao cancelar retirada.");
+    } finally {
+      setEquipmentActionSaving(false);
+    }
+  }
+
   const substituirEquipamentoDrawer = substituirTarget ? (
     <SubstituirEquipamentoDrawer
       extintorId={substituirTarget.id}
@@ -2341,6 +2361,9 @@ export default function MapView() {
               onSubstituirEquipamento={
                 infoMarker?.sem_equipamento ? () => openSubstituirFromMap(infoMarker) : undefined
               }
+              onCancelarRetirada={
+                infoMarker?.sem_equipamento ? () => void cancelarRetiradaFromMap(infoMarker) : undefined
+              }
               onRemove={
                 infoMarker
                   ? () => {
@@ -2527,6 +2550,9 @@ export default function MapView() {
                 }}
                 onSubstituirEquipamento={
                   infoMarker?.sem_equipamento ? () => openSubstituirFromMap(infoMarker) : undefined
+                }
+                onCancelarRetirada={
+                  infoMarker?.sem_equipamento ? () => void cancelarRetiradaFromMap(infoMarker) : undefined
                 }
                 onRemove={
                   infoMarker
