@@ -18,7 +18,7 @@ export const TAMANHOS_POR_TIPO: Record<string, string[]> = {
   ÁGUA: ["10 L"],
   "PQS ABC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
   "PQS BC": ["4 kg", "6 kg", "8 kg", "9 kg", "12 kg", "20 kg", "30 kg", "50 kg"],
-  "ESPUMA MECÂNICA": ["9 L", "50 L"],
+  "ESPUMA MECÂNICA": ["10 L", "50 L"],
   CO2: ["4 kg", "6 kg", "10 kg", "20 kg", "25 kg", "30 kg", "50 kg"],
 };
 
