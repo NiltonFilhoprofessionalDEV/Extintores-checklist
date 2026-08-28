@@ -16,8 +16,10 @@ import RetiradaLoteDrawer from "@/src/components/estoque/RetiradaLoteDrawer";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
 import { buildStockStatsByTipo, colorForTipo } from "@/lib/estoque/stock-stats";
 import { formatPrevisaoRetorno } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
+import ManutencaoLoteItemList, {
+  type ManutencaoLoteItem,
+} from "@/src/components/estoque/ManutencaoLoteItemList";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
-import { EquipmentCode } from "@/src/components/inventory/InventoryVisuals";
 
 type EstoqueRow = {
   id: string;
@@ -44,22 +46,6 @@ type ManutencaoLote = {
   creator_nome: string;
   created_at: string;
   item_count: number;
-};
-
-type ManutencaoLoteItem = {
-  lote_id: string;
-  extintor_id: string;
-  codigo: string;
-  setor: string;
-  local_detalhado: string;
-  pavimento: string | null;
-  tipo: string;
-  tamanho: string;
-  capacidade_extintora: string;
-  num_inmetro_retirado: string | null;
-  num_inmetro_instalado: string | null;
-  num_cilindro_instalado: string | null;
-  sem_equipamento: boolean;
 };
 
 type ViewMode = "estoque" | "manutencao";
@@ -427,16 +413,18 @@ export default function AdminEstoquePage() {
 
   return (
     <div className="inv-page">
-      <div className="inv-header">
-        <div>
-          <h1 className="inv-header__title">Estoque e Manutenção</h1>
-          <p className="inv-header__subtitle">
+      <div className="professional-card inv-header">
+        <div className="min-w-0">
+          <h1 className="inv-header__title text-xl font-bold text-slate-900 sm:text-2xl">
+            Estoque e Manutenção
+          </h1>
+          <p className="inv-header__subtitle mt-1 text-sm text-slate-500">
             Equipamentos disponíveis para substituição e ordens de serviço de manutenção
           </p>
         </div>
-        <div className="inv-header__actions">
+        <div className="inv-header__actions w-full sm:w-auto">
           {!readOnly && view === "estoque" && (
-            <button type="button" onClick={openCreate} className="btn-primary">
+            <button type="button" onClick={openCreate} className="btn-primary w-full sm:w-auto">
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
@@ -456,17 +444,17 @@ export default function AdminEstoquePage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <button
           type="button"
-          className={view === "estoque" ? "btn-primary text-xs" : "btn-secondary text-xs"}
+          className={`w-full sm:w-auto ${view === "estoque" ? "btn-primary text-xs" : "btn-secondary text-xs"}`}
           onClick={() => setView("estoque")}
         >
           Estoque disponível
         </button>
         <button
           type="button"
-          className={view === "manutencao" ? "btn-primary text-xs" : "btn-secondary text-xs"}
+          className={`w-full sm:w-auto ${view === "manutencao" ? "btn-primary text-xs" : "btn-secondary text-xs"}`}
           onClick={() => setView("manutencao")}
         >
           Lista de manutenção ({manutencaoPendentes})
@@ -567,8 +555,8 @@ export default function AdminEstoquePage() {
       {view === "manutencao" && (
         <>
           <div className="professional-card overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
-              <div>
+            <div className="border-b border-slate-100 px-4 py-4 sm:px-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <h2 className="text-sm font-bold text-slate-900">Listas de manutenção em lote</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Controle principal das retiradas em lote — data, responsável e substituição por item.
@@ -577,7 +565,7 @@ export default function AdminEstoquePage() {
               {canManage && (
                 <button
                   type="button"
-                  className="btn-primary text-xs shrink-0"
+                  className="btn-primary w-full text-xs sm:w-auto shrink-0"
                   onClick={() => setLoteDrawerOpen(true)}
                 >
                   Retirada em lote
@@ -598,7 +586,7 @@ export default function AdminEstoquePage() {
                   const expanded = expandedLoteId === lote.id;
                   const pendentes = items.filter((i) => i.sem_equipamento).length;
                   return (
-                    <div key={lote.id} className="px-5 py-4">
+                    <div key={lote.id} className="px-4 py-4 sm:px-5">
                       <button
                         type="button"
                         className="flex w-full items-start justify-between gap-3 text-left"
@@ -633,84 +621,12 @@ export default function AdminEstoquePage() {
                       </button>
 
                       {expanded && items.length > 0 && (
-                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-                          <table className="inv-table w-full min-w-[860px]">
-                            <thead className="bg-slate-50">
-                              <tr>
-                                <th className={TH}>Código</th>
-                                <th className={TH}>Local</th>
-                                <th className={TH}>Configuração</th>
-                                <th className={TH}>INMETRO retirado</th>
-                                <th className={TH}>Equipamento instalado</th>
-                                <th className={TH}>Status</th>
-                                {!readOnly && <th className={TH}>Ações</th>}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {items.map((item) => (
-                                <tr key={item.extintor_id} className="inv-table__row">
-                                  <td className="px-4 py-3">
-                                    <EquipmentCode kind="extintor" codigo={item.codigo} />
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-slate-600">
-                                    <span className="font-medium text-slate-800">
-                                      {item.pavimento || item.setor}
-                                    </span>
-                                    <span className="block text-xs text-slate-500">{item.local_detalhado}</span>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-slate-600">
-                                    {formatExtintorConfigLabel(item)}
-                                    <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-slate-600">
-                                    {item.num_inmetro_retirado || "—"}
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-slate-600">
-                                    {item.num_inmetro_instalado ? (
-                                      <>
-                                        <span className="font-medium text-slate-800">
-                                          INMETRO {item.num_inmetro_instalado}
-                                        </span>
-                                        {item.num_cilindro_instalado ? (
-                                          <span className="block text-xs text-slate-500">
-                                            Cilindro {item.num_cilindro_instalado}
-                                          </span>
-                                        ) : null}
-                                      </>
-                                    ) : (
-                                      "—"
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {item.sem_equipamento ? (
-                                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                        Sem equipamento
-                                      </span>
-                                    ) : (
-                                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
-                                        Substituído
-                                      </span>
-                                    )}
-                                  </td>
-                                  {!readOnly && (
-                                    <td className="px-4 py-3">
-                                      {item.sem_equipamento ? (
-                                        <button
-                                          type="button"
-                                          className="btn-secondary text-xs"
-                                          onClick={() => openSubstituirFromLoteItem(item)}
-                                        >
-                                          Substituir
-                                        </button>
-                                      ) : (
-                                        <span className="text-xs text-slate-400">—</span>
-                                      )}
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="mt-4">
+                          <ManutencaoLoteItemList
+                            items={items}
+                            readOnly={readOnly}
+                            onSubstituir={openSubstituirFromLoteItem}
+                          />
                         </div>
                       )}
 
