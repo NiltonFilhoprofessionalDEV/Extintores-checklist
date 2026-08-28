@@ -2254,7 +2254,7 @@ export default function MapView() {
   if (isMobile) {
     return (
       <main className="flex min-h-0 flex-1 w-full flex-col overflow-hidden bg-white">
-        <div className="shrink-0 border-b border-[var(--border)] bg-white px-2 py-1.5">
+        <div className="map-mobile-toolbar shrink-0 border-b border-[var(--border)] bg-white px-3 py-2.5">
           {mapToolbar}
         </div>
 
