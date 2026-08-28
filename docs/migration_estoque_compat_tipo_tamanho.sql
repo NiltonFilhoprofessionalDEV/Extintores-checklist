@@ -1,11 +1,6 @@
--- Campos de manutenção no estoque (template aplicado na substituição).
--- Execute após migration_estoque_substituicao.sql.
+-- Compatibilidade estoque ↔ ponto: apenas tipo + carga nominal (sem capacidade extintora).
+-- Execute no SQL Editor do Supabase.
 
-alter table public.estoque_extintores
-  add column if not exists manutencao_2_nivel date,
-  add column if not exists manutencao_3_nivel date;
-
--- Atualiza substituição: datas do estoque quando não informadas na substituição
 create or replace function public.substituir_extintor_do_estoque(
   p_extintor_id uuid,
   p_estoque_id uuid,

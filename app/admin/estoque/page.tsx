@@ -15,7 +15,7 @@ import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEqui
 import RetiradaLoteDrawer from "@/src/components/estoque/RetiradaLoteDrawer";
 import { formatDateOnlyPt } from "@/lib/date/date-only";
 import { buildStockStatsByTipo, colorForTipo } from "@/lib/estoque/stock-stats";
-import { formatPrevisaoRetorno, formatRetiradoEm } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
+import { formatPrevisaoRetorno } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import { EquipmentCode } from "@/src/components/inventory/InventoryVisuals";
 
@@ -29,19 +29,12 @@ type EstoqueRow = {
   manutencao_3_nivel: string | null;
 };
 
-type ManutencaoRow = {
+type SubstituirTarget = {
   id: string;
   codigo: string;
   tipo: string;
   tamanho: string;
   capacidade_extintora: string;
-  setor: string;
-  local_detalhado: string;
-  pavimento: string | null;
-  retirado_em: string | null;
-  retirado_motivo: string | null;
-  retirado_previsao_retorno: string | null;
-  num_inmetro_retirado: string | null;
 };
 
 type ManutencaoLote = {
@@ -84,7 +77,6 @@ export default function AdminEstoquePage() {
   const { ready, activeBaseId } = useActiveBase();
   const [view, setView] = useState<ViewMode>("estoque");
   const [items, setItems] = useState<EstoqueRow[]>([]);
-  const [manutencao, setManutencao] = useState<ManutencaoRow[]>([]);
   const [lotes, setLotes] = useState<ManutencaoLote[]>([]);
   const [loteItems, setLoteItems] = useState<ManutencaoLoteItem[]>([]);
   const [expandedLoteId, setExpandedLoteId] = useState<string | null>(null);
@@ -94,7 +86,7 @@ export default function AdminEstoquePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
-  const [substituirTarget, setSubstituirTarget] = useState<ManutencaoRow | null>(null);
+  const [substituirTarget, setSubstituirTarget] = useState<SubstituirTarget | null>(null);
   const [substituindo, setSubstituindo] = useState(false);
   const [loteDrawerOpen, setLoteDrawerOpen] = useState(false);
   const [loteSaving, setLoteSaving] = useState(false);
@@ -176,54 +168,6 @@ export default function AdminEstoquePage() {
         setItems([]);
       } else {
         setItems((estRes.data ?? []) as EstoqueRow[]);
-      }
-
-      let manutQuery = supabase
-        .from("extintores")
-        .select(
-          "id,codigo,tipo,tamanho,capacidade_extintora,setor,local_detalhado,pavimento,retirado_em,retirado_motivo,retirado_previsao_retorno",
-        )
-        .eq("sem_equipamento", true)
-        .eq("active", true)
-        .order("codigo", { ascending: true });
-
-      if (activeBaseId) manutQuery = manutQuery.eq("base_id", activeBaseId);
-
-      const manutRes = await manutQuery;
-
-      if (manutRes.error && /sem_equipamento|schema cache|column/i.test(manutRes.error.message)) {
-        setManutencao([]);
-      } else if (!manutRes.error) {
-        const baseRows = (manutRes.data ?? []) as Omit<ManutencaoRow, "num_inmetro_retirado">[];
-        const ids = baseRows.map((r) => r.id);
-        const historyMap = new Map<string, { num_inmetro: string | null }>();
-
-        if (ids.length > 0) {
-          let histQuery = supabase
-            .from("extintor_equipment_history")
-            .select("extintor_id,num_inmetro,created_at")
-            .eq("event_type", "retirada")
-            .in("extintor_id", ids)
-            .order("created_at", { ascending: false });
-
-          if (activeBaseId) histQuery = histQuery.eq("base_id", activeBaseId);
-
-          const histRes = await histQuery;
-          if (!histRes.error && histRes.data) {
-            for (const row of histRes.data as { extintor_id: string; num_inmetro: string | null }[]) {
-              if (!historyMap.has(row.extintor_id)) {
-                historyMap.set(row.extintor_id, { num_inmetro: row.num_inmetro });
-              }
-            }
-          }
-        }
-
-        setManutencao(
-          baseRows.map((row) => ({
-            ...row,
-            num_inmetro_retirado: historyMap.get(row.id)?.num_inmetro ?? null,
-          })),
-        );
       }
 
       let lotesQuery = supabase
@@ -346,13 +290,6 @@ export default function AdminEstoquePage() {
       tipo: item.tipo,
       tamanho: item.tamanho,
       capacidade_extintora: item.capacidade_extintora,
-      setor: item.setor,
-      local_detalhado: item.local_detalhado,
-      pavimento: item.pavimento,
-      retirado_em: null,
-      retirado_motivo: null,
-      retirado_previsao_retorno: null,
-      num_inmetro_retirado: item.num_inmetro,
     });
   }
 
@@ -463,6 +400,11 @@ export default function AdminEstoquePage() {
     }
   }
 
+  const manutencaoPendentes = useMemo(
+    () => loteItems.filter((item) => item.sem_equipamento).length,
+    [loteItems],
+  );
+
   const loteItemsByLote = useMemo(() => {
     const map = new Map<string, ManutencaoLoteItem[]>();
     for (const item of loteItems) {
@@ -517,7 +459,7 @@ export default function AdminEstoquePage() {
           className={view === "manutencao" ? "btn-primary text-xs" : "btn-secondary text-xs"}
           onClick={() => setView("manutencao")}
         >
-          Lista de manutenção ({manutencao.length})
+          Lista de manutenção ({manutencaoPendentes})
         </button>
       </div>
 
@@ -751,115 +693,6 @@ export default function AdminEstoquePage() {
                 })}
               </div>
             )}
-          </div>
-
-          <div className="professional-card mt-6 overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-bold text-slate-900">Pontos sem equipamento</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Todos os extintores retirados (incluindo fora de listas em lote) aguardando recolocação.
-              </p>
-            </div>
-          {loading ? (
-            <p className="p-6 text-sm text-slate-500">Carregando lista de manutenção...</p>
-          ) : manutencao.length === 0 ? (
-            <p className="p-6 text-sm text-slate-500">Nenhum extintor em manutenção no momento.</p>
-          ) : (
-            <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="inv-table w-full">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className={TH}>Código</th>
-                      <th className={TH}>Local de instalação</th>
-                      <th className={TH}>Configuração</th>
-                      <th className={TH}>INMETRO retirado</th>
-                      <th className={TH}>Retirada</th>
-                      <th className={TH}>Previsão</th>
-                      <th className={TH}>Status</th>
-                      {!readOnly && <th className={TH}>Ações</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {manutencao.map((row) => (
-                      <tr key={row.id} className="inv-table__row">
-                        <td className="px-4 py-3">
-                          <EquipmentCode kind="extintor" codigo={row.codigo} />
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          <span className="font-medium text-slate-800">{row.pavimento || row.setor}</span>
-                          <span className="block text-xs text-slate-500">{row.local_detalhado}</span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {formatExtintorConfigLabel(row)}
-                          <span className="block text-xs text-slate-500">{row.capacidade_extintora}</span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {row.num_inmetro_retirado || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {formatRetiradoEm(row.retirado_em)}
-                          {row.retirado_motivo ? (
-                            <span className="block text-xs text-slate-500">{row.retirado_motivo}</span>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {formatPrevisaoRetorno(row.retirado_previsao_retorno)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                            Sem equipamento
-                          </span>
-                        </td>
-                        {!readOnly && (
-                          <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              className="btn-secondary text-xs"
-                              onClick={() => setSubstituirTarget(row)}
-                            >
-                              Substituir equipamento
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="md:hidden divide-y divide-slate-100">
-                {manutencao.map((row) => (
-                  <article key={row.id} className="inv-card p-4">
-                    <EquipmentCode kind="extintor" codigo={row.codigo} />
-                    <p className="mt-1 text-sm text-slate-600">
-                      {row.pavimento || row.setor} — {row.local_detalhado}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700">{formatExtintorConfigLabel(row)}</p>
-                    {row.num_inmetro_retirado ? (
-                      <p className="mt-1 text-xs text-slate-500">INMETRO: {row.num_inmetro_retirado}</p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-slate-500">Retirada: {formatRetiradoEm(row.retirado_em)}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Previsão: {formatPrevisaoRetorno(row.retirado_previsao_retorno)}
-                    </p>
-                    <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                      Sem equipamento
-                    </span>
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        className="btn-primary mt-3 w-full text-xs"
-                        onClick={() => setSubstituirTarget(row)}
-                      >
-                        Substituir equipamento
-                      </button>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
           </div>
         </>
       )}
