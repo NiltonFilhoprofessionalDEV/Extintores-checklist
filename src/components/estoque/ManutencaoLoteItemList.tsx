@@ -20,8 +20,6 @@ export type ManutencaoLoteItem = {
   sem_equipamento: boolean;
 };
 
-const TH = "px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500";
-
 type ManutencaoLoteItemListProps = {
   items: ManutencaoLoteItem[];
   readOnly: boolean;
@@ -32,13 +30,9 @@ type ManutencaoLoteItemListProps = {
 
 function StatusBadge({ semEquipamento }: { semEquipamento: boolean }) {
   if (semEquipamento) {
-    return (
-      <span className="inv-badge inv-badge--mute shrink-0">Sem equipamento</span>
-    );
+    return <span className="estoque-badge estoque-badge--mute">Sem equipamento</span>;
   }
-  return (
-    <span className="inv-badge inv-badge--ok shrink-0">Substituído</span>
-  );
+  return <span className="estoque-badge estoque-badge--ok">Substituído</span>;
 }
 
 function InstalledEquipment({ item }: { item: ManutencaoLoteItem }) {
@@ -48,19 +42,19 @@ function InstalledEquipment({ item }: { item: ManutencaoLoteItem }) {
 
   return (
     <>
-      <span className="font-medium text-slate-800">INMETRO {item.num_inmetro_instalado}</span>
+      <span className="font-semibold text-slate-800">INMETRO {item.num_inmetro_instalado}</span>
       {item.num_cilindro_instalado ? (
-        <span className="block text-xs text-slate-500">Cilindro {item.num_cilindro_instalado}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">Cilindro {item.num_cilindro_instalado}</span>
       ) : null}
     </>
   );
 }
 
-function MobileDetailRow({ label, children }: { label: string; children: ReactNode }) {
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
-      <div className="text-sm text-slate-700 sm:text-right">{children}</div>
+    <div className="estoque-maint-card__detail-row">
+      <span className="estoque-maint-card__detail-label">{label}</span>
+      <div className="estoque-maint-card__detail-value">{children}</div>
     </div>
   );
 }
@@ -74,47 +68,45 @@ export default function ManutencaoLoteItemList({
 }: ManutencaoLoteItemListProps) {
   return (
     <>
-      <div className="inv-cards rounded-xl border border-slate-200 bg-slate-50/60">
+      <div className="estoque-mobile-list space-y-0 md:hidden">
         {items.map((item) => (
-          <article key={item.extintor_id} className="inv-card flex-col items-stretch gap-3 !border-slate-200">
-            <div className="flex w-full items-start justify-between gap-3">
+          <article key={item.extintor_id} className="estoque-maint-card">
+            <div className="flex items-start justify-between gap-3">
               <EquipmentCode kind="extintor" codigo={item.codigo} />
               <StatusBadge semEquipamento={item.sem_equipamento} />
             </div>
 
-            <div className="inv-place w-full">
+            <div className="inv-place">
               <p className="inv-place__floor">{item.pavimento || item.setor}</p>
               <p className="inv-place__local">{item.local_detalhado}</p>
             </div>
 
-            <div className="grid w-full gap-2.5 rounded-xl border border-slate-100 bg-white p-3">
-              <MobileDetailRow label="Configuração">
+            <div className="estoque-maint-card__details">
+              <DetailRow label="Configuração">
                 <>
                   {formatExtintorConfigLabel(item)}
-                  <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">{item.capacidade_extintora}</span>
                 </>
-              </MobileDetailRow>
-              <MobileDetailRow label="INMETRO retirado">
-                {item.num_inmetro_retirado || "—"}
-              </MobileDetailRow>
-              <MobileDetailRow label="Equipamento instalado">
+              </DetailRow>
+              <DetailRow label="INMETRO retirado">{item.num_inmetro_retirado || "—"}</DetailRow>
+              <DetailRow label="Equipamento instalado">
                 <InstalledEquipment item={item} />
-              </MobileDetailRow>
+              </DetailRow>
             </div>
 
             {!readOnly && item.sem_equipamento && (
-              <div className="grid w-full gap-2">
+              <div className="grid gap-2">
                 <button
                   type="button"
-                  className="btn-primary w-full text-sm"
+                  className="btn-primary min-h-[44px] w-full"
                   onClick={() => onSubstituir(item)}
                   disabled={cancelandoId === item.extintor_id}
                 >
-                  Substituir equipamento
+                  Substituir
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary w-full text-sm"
+                  className="btn-secondary min-h-[44px] w-full"
                   onClick={() => onCancelarRetirada(item)}
                   disabled={cancelandoId === item.extintor_id}
                 >
@@ -126,47 +118,47 @@ export default function ManutencaoLoteItemList({
         ))}
       </div>
 
-      <div className="inv-table-wrap rounded-xl border border-slate-200">
-        <table className="inv-table w-full">
-          <thead className="bg-slate-50">
+      <div className="estoque-table-wrap hidden md:block">
+        <table className="estoque-table">
+          <thead>
             <tr>
-              <th className={TH}>Código</th>
-              <th className={TH}>Local</th>
-              <th className={TH}>Configuração</th>
-              <th className={TH}>INMETRO retirado</th>
-              <th className={TH}>Equipamento instalado</th>
-              <th className={TH}>Status</th>
-              {!readOnly && <th className={TH}>Ações</th>}
+              <th>Código</th>
+              <th>Local</th>
+              <th>Configuração</th>
+              <th>INMETRO retirado</th>
+              <th>Equipamento instalado</th>
+              <th>Status</th>
+              {!readOnly && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.extintor_id} className="inv-table__row">
-                <td className="px-4 py-3">
+              <tr key={item.extintor_id}>
+                <td>
                   <EquipmentCode kind="extintor" codigo={item.codigo} />
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-600">
-                  <span className="font-medium text-slate-800">{item.pavimento || item.setor}</span>
-                  <span className="block text-xs text-slate-500">{item.local_detalhado}</span>
+                <td>
+                  <p className="font-semibold text-slate-800">{item.pavimento || item.setor}</p>
+                  <p className="mt-0.5 max-w-[16rem] text-xs leading-relaxed text-slate-500">{item.local_detalhado}</p>
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-600">
-                  {formatExtintorConfigLabel(item)}
-                  <span className="block text-xs text-slate-500">{item.capacidade_extintora}</span>
+                <td>
+                  <p className="font-medium text-slate-800">{formatExtintorConfigLabel(item)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.capacidade_extintora}</p>
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-600">{item.num_inmetro_retirado || "—"}</td>
-                <td className="px-4 py-3 text-sm text-slate-600">
+                <td>{item.num_inmetro_retirado || "—"}</td>
+                <td>
                   <InstalledEquipment item={item} />
                 </td>
-                <td className="px-4 py-3">
+                <td>
                   <StatusBadge semEquipamento={item.sem_equipamento} />
                 </td>
                 {!readOnly && (
-                  <td className="px-4 py-3">
+                  <td>
                     {item.sem_equipamento ? (
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          className="btn-secondary text-xs"
+                          className="btn-primary text-xs"
                           onClick={() => onSubstituir(item)}
                           disabled={cancelandoId === item.extintor_id}
                         >
@@ -174,7 +166,7 @@ export default function ManutencaoLoteItemList({
                         </button>
                         <button
                           type="button"
-                          className="btn-secondary text-xs text-slate-700"
+                          className="btn-secondary text-xs"
                           onClick={() => onCancelarRetirada(item)}
                           disabled={cancelandoId === item.extintor_id}
                         >

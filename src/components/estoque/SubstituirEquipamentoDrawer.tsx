@@ -19,10 +19,17 @@ type StockOption = {
   manutencao_3_nivel: string | null;
 };
 
+export type SubstituirLocationContext = {
+  pavimento?: string | null;
+  setor?: string;
+  local_detalhado?: string;
+};
+
 type SubstituirEquipamentoDrawerProps = {
   extintorId: string;
   codigo: string;
   expectedConfig: ExtintorStockConfig;
+  locationContext?: SubstituirLocationContext;
   activeBaseId: string | null;
   saving: boolean;
   presentation?: "drawer" | "sheet";
@@ -35,6 +42,8 @@ type SubstituirEquipamentoDrawerProps = {
     manutencao_3_nivel: string | null;
   }) => void;
 };
+
+type Step = "form" | "confirm";
 
 function formatStockOptionSubtitle(opt: StockOption): string {
   const cap = opt.capacidade_extintora.trim();
@@ -78,7 +87,7 @@ function SubstituirShell({
       role="presentation"
     >
       <div
-        className="flex max-h-[min(92dvh,720px)] w-full flex-col rounded-t-2xl bg-white shadow-2xl"
+        className="flex h-[100dvh] max-h-[100dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-h-[min(92dvh,720px)]"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -95,8 +104,25 @@ function SubstituirShell({
           <p className="mt-1 text-sm text-slate-500">{description}</p>
         </header>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        <footer className="border-t border-slate-100 px-5 py-4">{footer}</footer>
+        <footer className="border-t border-slate-100 px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+          {footer}
+        </footer>
       </div>
+    </div>
+  );
+}
+
+function LocationBlock({ locationContext }: { locationContext?: SubstituirLocationContext }) {
+  const floor = locationContext?.pavimento?.trim() || locationContext?.setor?.trim();
+  const local = locationContext?.local_detalhado?.trim();
+
+  if (!floor && !local) return null;
+
+  return (
+    <div className="mt-3 border-t border-slate-200/80 pt-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Local</p>
+      {floor ? <p className="mt-1 text-sm font-semibold text-slate-800">{floor}</p> : null}
+      {local ? <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{local}</p> : null}
     </div>
   );
 }
@@ -105,6 +131,7 @@ export default function SubstituirEquipamentoDrawer({
   extintorId,
   codigo,
   expectedConfig,
+  locationContext,
   activeBaseId,
   saving,
   presentation = "drawer",
@@ -120,6 +147,7 @@ export default function SubstituirEquipamentoDrawer({
   const [manut2, setManut2] = useState("");
   const [manut3, setManut3] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [step, setStep] = useState<Step>("form");
 
   const supabase = useMemo(() => getSupabaseClient(), []);
   const pointLabel = formatEquipmentIdentifier("extintor", codigo);
@@ -188,148 +216,204 @@ export default function SubstituirEquipamentoDrawer({
     });
   }
 
-  function handleSubmit() {
+  function validateForm() {
     const nextErrors: Record<string, string> = {};
     if (!selectedId) nextErrors.estoque = "Selecione um equipamento do estoque.";
     if (!numInmetro.trim()) nextErrors.num_inmetro = "Nº do INMETRO é obrigatório.";
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
-    onConfirm({
-      estoque_id: selectedId,
-      num_inmetro: numInmetro.trim(),
-      num_cilindro: numCilindro.trim() || null,
-      manutencao_2_nivel: manut2.trim() || null,
-      manutencao_3_nivel: manut3.trim() || null,
-    });
+    return Object.keys(nextErrors).length === 0;
   }
 
-  const footer = (
-    <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col sm:flex-row" : ""}`}>
-      <button type="button" className="btn-secondary w-full sm:w-auto" onClick={onClose} disabled={saving}>
-        Cancelar
-      </button>
-      <button
-        type="button"
-        className="btn-primary w-full sm:w-auto"
-        onClick={handleSubmit}
-        disabled={saving || loading || options.length === 0}
-      >
-        {saving ? "Substituindo..." : "Confirmar substituição"}
-      </button>
-    </div>
-  );
+  function handlePrimaryAction() {
+    if (step === "confirm") {
+      if (!selectedId) return;
+      onConfirm({
+        estoque_id: selectedId,
+        num_inmetro: numInmetro.trim(),
+        num_cilindro: numCilindro.trim() || null,
+        manutencao_2_nivel: manut2.trim() || null,
+        manutencao_3_nivel: manut3.trim() || null,
+      });
+      return;
+    }
+
+    if (!validateForm()) return;
+    setStep("confirm");
+  }
+
+  const footer =
+    step === "confirm" ? (
+      <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col" : ""}`}>
+        <button
+          type="button"
+          className="btn-secondary w-full sm:w-auto"
+          onClick={() => setStep("form")}
+          disabled={saving}
+        >
+          Voltar
+        </button>
+        <button type="button" className="btn-primary w-full sm:w-auto" onClick={handlePrimaryAction} disabled={saving}>
+          {saving ? "Substituindo..." : "Confirmar substituição"}
+        </button>
+      </div>
+    ) : (
+      <div className={`inv-drawer__footer-actions ${presentation === "sheet" ? "flex-col" : ""}`}>
+        <button type="button" className="btn-secondary w-full sm:w-auto" onClick={onClose} disabled={saving}>
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className="btn-primary w-full sm:w-auto"
+          onClick={handlePrimaryAction}
+          disabled={saving || loading || options.length === 0}
+        >
+          Revisar substituição
+        </button>
+      </div>
+    );
+
+  const title = step === "confirm" ? `Substituir ${pointLabel}?` : "Substituir extintor";
+  const description =
+    step === "confirm"
+      ? "O equipamento retirado será substituído pelo equipamento selecionado do estoque."
+      : `Escolha um equipamento compatível para instalar no ponto ${pointLabel}.`;
 
   return (
     <SubstituirShell
       presentation={presentation}
-      title="Substituir equipamento"
-      description={`Escolha um equipamento do estoque para instalar no ponto ${pointLabel}.`}
+      title={title}
+      description={description}
       onClose={onClose}
       footer={footer}
     >
-      <div className="inv-detail-summary mb-4 rounded-xl bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-900">{pointLabel}</p>
-        <p className="mt-2 text-sm text-slate-700">
-          <span className="font-semibold text-slate-800">Configuração esperada:</span>{" "}
-          {formatExtintorConfigLabel(expectedConfig)}
-        </p>
-        {expectedConfig.capacidade_extintora.trim() ? (
-          <p className="mt-1 text-sm text-slate-700">
-            <span className="font-semibold text-slate-800">Capacidade extintora:</span>{" "}
-            {expectedConfig.capacidade_extintora.trim()}
-          </p>
-        ) : null}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-slate-500">Consultando estoque compatível...</p>
-      ) : loadError ? (
-        <p className="text-sm text-red-600">{loadError}</p>
-      ) : options.length === 0 ? (
-        <p className="text-sm text-amber-700">
-          Não há equipamentos compatíveis disponíveis no estoque para esta configuração.
-        </p>
-      ) : (
-        <FormSection title="Equipamentos disponíveis">
-          <p className="inv-field--full mb-3 text-xs text-slate-500">
-            Toque no equipamento que será instalado neste ponto.
-          </p>
-          {errors.estoque ? (
-            <p className="inv-field--full mb-2 text-xs font-semibold text-red-600">{errors.estoque}</p>
-          ) : null}
-          <div className="inv-field--full grid gap-2">
-            {options.map((opt) => {
-              const active = selectedId === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`rounded-xl border p-3 text-left transition ${
-                    active
-                      ? "border-[var(--orange)] bg-orange-50 ring-2 ring-[var(--orange)]/30"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                  onClick={() => selectOption(opt.id)}
-                  aria-pressed={active}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900">{formatExtintorConfigLabel(opt)}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{formatStockOptionSubtitle(opt)}</p>
-                    </div>
-                    {active ? (
-                      <span className="shrink-0 rounded-full bg-[var(--orange)] px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                        Selecionado
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
+      {step === "confirm" && selected ? (
+        <div className="space-y-4">
+          <div className="inv-detail-summary rounded-xl bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-900">Extintor retirado: {pointLabel}</p>
+            <LocationBlock locationContext={locationContext} />
           </div>
-        </FormSection>
+
+          <div className="inv-detail-summary rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Equipamento</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{formatExtintorConfigLabel(selected)}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{selected.tamanho}</p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-semibold text-slate-800">INMETRO:</span> {numInmetro.trim()}
+            </p>
+            {numCilindro.trim() ? (
+              <p className="mt-1 text-sm text-slate-700">
+                <span className="font-semibold text-slate-800">Cilindro:</span> {numCilindro.trim()}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="inv-detail-summary mb-4 rounded-xl bg-slate-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Extintor retirado</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{pointLabel}</p>
+            <LocationBlock locationContext={locationContext} />
+            <div className="mt-3 border-t border-slate-200/80 pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Configuração necessária</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">{formatExtintorConfigLabel(expectedConfig)}</p>
+              {expectedConfig.capacidade_extintora.trim() ? (
+                <p className="mt-0.5 text-sm text-slate-600">{expectedConfig.capacidade_extintora.trim()}</p>
+              ) : null}
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-slate-500">Consultando estoque compatível...</p>
+          ) : loadError ? (
+            <p className="text-sm text-red-600">{loadError}</p>
+          ) : options.length === 0 ? (
+            <p className="text-sm text-amber-700">
+              Não há equipamentos compatíveis disponíveis no estoque.
+            </p>
+          ) : (
+            <FormSection title="Equipamentos disponíveis">
+              <p className="inv-field--full mb-3 text-xs text-slate-500">
+                Toque no equipamento que será instalado neste ponto.
+              </p>
+              {errors.estoque ? (
+                <p className="inv-field--full mb-2 text-xs font-semibold text-red-600">{errors.estoque}</p>
+              ) : null}
+              <div className="inv-field--full grid gap-2">
+                {options.map((opt) => {
+                  const active = selectedId === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={`min-h-[44px] rounded-xl border p-3 text-left transition ${
+                        active
+                          ? "border-[var(--orange)] bg-orange-50 ring-2 ring-[var(--orange)]/30"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                      onClick={() => selectOption(opt.id)}
+                      aria-pressed={active}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900">{formatExtintorConfigLabel(opt)}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">{formatStockOptionSubtitle(opt)}</p>
+                        </div>
+                        {active ? (
+                          <span className="shrink-0 rounded-full bg-[var(--orange)] px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                            Selecionado
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-xs font-bold text-[var(--orange)]">Selecionar</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </FormSection>
+          )}
+
+          {selected ? (
+            <FormSection title="Equipamento físico">
+              <p className="inv-field--full mb-2 text-xs text-slate-500">
+                Informe o INMETRO e, se houver, o cilindro do equipamento que está sendo instalado.
+              </p>
+              <FormField id="sub-inmetro" label="Nº do INMETRO" required error={errors.num_inmetro}>
+                <input
+                  className={fieldControlClass(errors.num_inmetro)}
+                  value={numInmetro}
+                  onChange={(event) => {
+                    setNumInmetro(event.target.value);
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.num_inmetro;
+                      return next;
+                    });
+                  }}
+                  autoComplete="off"
+                />
+              </FormField>
+
+              <FormField id="sub-cilindro" label="Nº do cilindro">
+                <input
+                  className={fieldControlClass()}
+                  value={numCilindro}
+                  onChange={(event) => setNumCilindro(event.target.value)}
+                  autoComplete="off"
+                />
+              </FormField>
+
+              <FormField id="sub-manut2" label="Próx. manutenção 2º nível">
+                <input type="date" className={fieldControlClass()} value={manut2} onChange={(e) => setManut2(e.target.value)} />
+              </FormField>
+
+              <FormField id="sub-manut3" label="Próx. manutenção 3º nível">
+                <input type="date" className={fieldControlClass()} value={manut3} onChange={(e) => setManut3(e.target.value)} />
+              </FormField>
+            </FormSection>
+          ) : null}
+        </>
       )}
-
-      {selected ? (
-        <FormSection title="Equipamento físico">
-          <p className="inv-field--full mb-2 text-xs text-slate-500">
-            Informe o INMETRO e, se houver, o cilindro do equipamento que está sendo instalado.
-          </p>
-          <FormField id="sub-inmetro" label="Nº do INMETRO" required error={errors.num_inmetro}>
-            <input
-              className={fieldControlClass(errors.num_inmetro)}
-              value={numInmetro}
-              onChange={(event) => {
-                setNumInmetro(event.target.value);
-                setErrors((prev) => {
-                  const next = { ...prev };
-                  delete next.num_inmetro;
-                  return next;
-                });
-              }}
-              autoComplete="off"
-            />
-          </FormField>
-
-          <FormField id="sub-cilindro" label="Nº do cilindro">
-            <input
-              className={fieldControlClass()}
-              value={numCilindro}
-              onChange={(event) => setNumCilindro(event.target.value)}
-              autoComplete="off"
-            />
-          </FormField>
-
-          <FormField id="sub-manut2" label="Próx. manutenção 2º nível">
-            <input type="date" className={fieldControlClass()} value={manut2} onChange={(e) => setManut2(e.target.value)} />
-          </FormField>
-
-          <FormField id="sub-manut3" label="Próx. manutenção 3º nível">
-            <input type="date" className={fieldControlClass()} value={manut3} onChange={(e) => setManut3(e.target.value)} />
-          </FormField>
-        </FormSection>
-      ) : null}
 
       <input type="hidden" value={extintorId} readOnly />
     </SubstituirShell>
