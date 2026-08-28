@@ -48,6 +48,7 @@ import {
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import RetiradaEquipamentoDrawer, { formatRetiradoEm } from "@/src/components/estoque/RetiradaEquipamentoDrawer";
 import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
+import type { SubstituirConfirmPayload } from "@/lib/estoque/substituir-payload";
 
 type HidranteRow = HidranteInventarioCompletoRow & { floor_id?: string | null };
 
@@ -487,13 +488,7 @@ export default function AdminExtintoresPage() {
     }
   }
 
-  async function handleSubstituirConfirm(payload: {
-    estoque_id: string;
-    num_inmetro: string;
-    num_cilindro: string | null;
-    manutencao_2_nivel: string | null;
-    manutencao_3_nivel: string | null;
-  }) {
+  async function handleSubstituirConfirm(payload: SubstituirConfirmPayload) {
     if (!substituirTarget) return;
     setEquipmentSaving(true);
     try {

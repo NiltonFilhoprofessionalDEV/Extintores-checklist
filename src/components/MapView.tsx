@@ -114,6 +114,7 @@ import MapEquipmentDetailPanel, {
 } from "@/src/components/map/MapEquipmentDetailPanel";
 import { buildConferidosNoMesIds } from "@/lib/checklist/conferido-no-mes";
 import SubstituirEquipamentoDrawer from "@/src/components/estoque/SubstituirEquipamentoDrawer";
+import type { SubstituirConfirmPayload } from "@/lib/estoque/substituir-payload";
 import { MapFitBounds, MapZoomStabilityGuard } from "@/src/components/map/MapFitBounds";
 import MapClickPlacement from "@/src/components/map/MapClickPlacement";
 import { buildPlacementUpdate } from "@/lib/map/build-placement-update";
@@ -1189,13 +1190,7 @@ export default function MapView() {
     if (!response.ok) throw new Error(payload.error ?? "Erro na requisição.");
   }
 
-  async function handleSubstituirConfirm(payload: {
-    estoque_id: string;
-    num_inmetro: string;
-    num_cilindro: string | null;
-    manutencao_2_nivel: string | null;
-    manutencao_3_nivel: string | null;
-  }) {
+  async function handleSubstituirConfirm(payload: SubstituirConfirmPayload) {
     if (!substituirTarget) return;
     setEquipmentActionSaving(true);
     try {

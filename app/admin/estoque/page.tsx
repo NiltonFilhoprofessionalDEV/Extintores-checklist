@@ -20,6 +20,7 @@ import EstoqueEmptyState from "@/src/components/estoque/EstoqueEmptyState";
 import EstoqueStockTable from "@/src/components/estoque/EstoqueStockTable";
 import EstoqueStockMobileList from "@/src/components/estoque/EstoqueStockMobileList";
 import ManutencaoLoteGroup from "@/src/components/estoque/ManutencaoLoteGroup";
+import type { SubstituirConfirmPayload } from "@/lib/estoque/substituir-payload";
 import { formatEquipmentIdentifier } from "@/lib/map/marker-label";
 import type { ManutencaoLoteItem } from "@/src/components/estoque/ManutencaoLoteItemList";
 
@@ -355,13 +356,7 @@ export default function AdminEstoquePage() {
     }
   }
 
-  async function handleSubstituir(payload: {
-    estoque_id: string;
-    num_inmetro: string;
-    num_cilindro: string | null;
-    manutencao_2_nivel: string | null;
-    manutencao_3_nivel: string | null;
-  }) {
+  async function handleSubstituir(payload: SubstituirConfirmPayload) {
     if (!substituirTarget) return;
     setSubstituindo(true);
     try {
