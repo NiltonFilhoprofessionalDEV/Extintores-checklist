@@ -415,6 +415,21 @@ h3,
   height: 100dvh;
 }
 
+/* No mapa mobile, a barra fica no fluxo (não fixed) para não cobrir o seletor/filtros. */
+@media (max-width: 1023px) {
+  .admin-shell--map > .admin-mobile-bar {
+    position: relative;
+    inset: auto;
+    z-index: 40;
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .admin-shell--map > .admin-shell__content {
+    padding-top: 0;
+  }
+}
+
 .admin-shell__content {
   min-width: 0;
   padding-top: 0;
@@ -1572,6 +1587,12 @@ h3,
   gap: 0.4rem;
 }
 
+.map-mobile-toolbar {
+  position: relative;
+  z-index: 50;
+  background: #fff;
+}
+
 .map-toolbar__row {
   display: flex;
   align-items: center;
@@ -1583,13 +1604,14 @@ h3,
 .map-toolbar__search {
   min-width: 0;
   flex: 1 1 auto;
+  min-height: 2.75rem;
   border-radius: 0.75rem;
   border: 1px solid var(--fc-border);
   background: #fafafa;
   color: #334155;
   font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
 }
 
 .map-toolbar__search {
@@ -1667,15 +1689,17 @@ h3,
 .map-toolbar__filters {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   flex-shrink: 0;
+  min-height: 2.75rem;
   border-radius: 0.75rem;
   border: 1px solid rgb(249 115 22 / 0.45);
   background: #fff;
   color: var(--orange-deep);
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 0.5rem 0.7rem;
+  padding: 0.55rem 0.75rem;
   box-shadow: 0 0 0 1px rgb(249 115 22 / 0.08);
 }
 
