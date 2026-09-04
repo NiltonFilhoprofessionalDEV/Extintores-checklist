@@ -46,6 +46,7 @@ export default function ConferenciaDetailDrawer({
   const codigoVisual = formatEquipmentIdentifier(item.tipo, item.codigo);
   const { answers, naoConformidades, comentariosLivres } = getInspectionView(item, questions);
   const inspecaoConforme = item.exportStatus === "conforme" && naoConformidades.length === 0;
+  const isPendente = item.exportStatus === "pendente";
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -88,18 +89,30 @@ export default function ConferenciaDetailDrawer({
           <section className="conf-section">
             <h3>Conferência</h3>
             <div className="conf-detail-grid">
-              <DetailField label="Data e hora" value={formatDateTime(item.data_conferencia)} />
-              <DetailField label="Conferente" value={item.conferente || "Não informado"} />
+              <DetailField
+                label="Data e hora"
+                value={isPendente ? "Não realizada" : formatDateTime(item.data_conferencia)}
+              />
+              <DetailField
+                label="Conferente"
+                value={isPendente ? "—" : item.conferente || "Não informado"}
+              />
               <DetailField label="Equipe" value={teamLabel || "Não definida"} />
               <DetailField label="Status geral" value={status.label} />
             </div>
           </section>
 
+          {isPendente ? (
+            <p className="conf-ok-banner" style={{ background: "#f1f5f9", color: "#334155" }}>
+              Sem inspeção no período de referência selecionado nos filtros.
+            </p>
+          ) : null}
+
           {inspecaoConforme ? (
             <p className="conf-ok-banner">Inspeção conforme</p>
           ) : null}
 
-          {naoConformidades.length > 0 ? (
+          {!isPendente && naoConformidades.length > 0 ? (
             <section className="conf-section">
               <div className="conf-section__head">
                 <h3>Não conformidades</h3>
@@ -160,19 +173,21 @@ export default function ConferenciaDetailDrawer({
             </div>
           </section>
 
-          <section className="conf-section">
-            <h3>{naoConformidades.length > 0 ? "Todas as respostas" : "Resultado da inspeção"}</h3>
-            <div className="conf-answers">
-              {answers.map((answer) => (
-                <div key={answer.key} className="conf-answer">
-                  <p>{answer.label}</p>
-                  <span className={answer.className}>{answer.text}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          {!isPendente ? (
+            <section className="conf-section">
+              <h3>{naoConformidades.length > 0 ? "Todas as respostas" : "Resultado da inspeção"}</h3>
+              <div className="conf-answers">
+                {answers.map((answer) => (
+                  <div key={answer.key} className="conf-answer">
+                    <p>{answer.label}</p>
+                    <span className={answer.className}>{answer.text}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
-          {comentariosLivres.length > 0 ? (
+          {!isPendente && comentariosLivres.length > 0 ? (
             <section className="conf-section">
               <h3>Observações</h3>
               <p className="conf-notes">{comentariosLivres.join("\n")}</p>

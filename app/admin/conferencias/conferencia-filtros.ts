@@ -19,6 +19,7 @@ export const OPCOES_FILTRO_STATUS: { value: FiltroStatusConferencia; label: stri
   { value: "conforme", label: "Conforme" },
   { value: "alerta", label: "Não conforme" },
   { value: "vencido", label: "Vencido" },
+  { value: "pendente", label: "Pendentes" },
 ];
 
 export const OPCOES_ORDENACAO: { value: ConferenciaOrdenacao; label: string }[] = [

@@ -5055,6 +5055,7 @@ body[data-inspection-active="true"] {
 .conf-card--ok::before { background: #22c55e; }
 .conf-card--bad::before { background: #ef4444; }
 .conf-card--warn::before { background: #f59e0b; }
+.conf-card--mute::before { background: #94a3b8; }
 
 .conf-card:hover {
   border-color: #cbd5e1;
@@ -5172,6 +5173,7 @@ body[data-inspection-active="true"] {
 .conf-badge--ok { background: #ecfdf5; color: #15803d; }
 .conf-badge--bad { background: #fef2f2; color: #b91c1c; }
 .conf-badge--warn { background: #fffbeb; color: #b45309; }
+.conf-badge--mute { background: #f1f5f9; color: #475569; }
 
 .conf-drawer-layer {
   position: fixed;

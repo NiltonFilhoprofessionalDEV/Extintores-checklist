@@ -42,6 +42,7 @@ export type ExtintorLookupRow = {
   pavimento: string | null;
   manutencao_2_nivel: string | null;
   manutencao_3_nivel: string | null;
+  active?: boolean;
 };
 
 export type HidranteLookupRow = {
@@ -56,6 +57,7 @@ export type HidranteLookupRow = {
   teste_hidrostatico_m4: string | null;
   quantidade_chaves_storz: number | null;
   quantidade_esguichos: number | null;
+  active?: boolean;
 };
 
 function pickRelation<T extends Record<string, unknown>>(rel: unknown): T | null {
@@ -103,6 +105,7 @@ async function loadExtintorLookup(
 ): Promise<Map<string, ExtintorLookupRow>> {
   const map = new Map<string, ExtintorLookupRow>();
   const selects = [
+    "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel,active",
     "id,codigo,setor,local_detalhado,num_inmetro,num_cilindro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,num_inmetro,tipo,tamanho,capacidade_extintora,pavimento,manutencao_2_nivel,manutencao_3_nivel",
     "id,codigo,setor,local_detalhado,tipo,tamanho,manutencao_2_nivel,manutencao_3_nivel",
@@ -141,6 +144,7 @@ async function loadExtintorLookup(
         pavimento: row.pavimento ?? null,
         manutencao_2_nivel: row.manutencao_2_nivel ?? null,
         manutencao_3_nivel: row.manutencao_3_nivel ?? null,
+        active: row.active !== false,
       });
     }
     return map;
@@ -155,6 +159,7 @@ async function loadHidranteLookup(
 ): Promise<Map<string, HidranteLookupRow>> {
   const map = new Map<string, HidranteLookupRow>();
   const selects = [
+    "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos,active",
     "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4,quantidade_chaves_storz,quantidade_esguichos",
     "id,codigo,pavimento,local_detalhado,quantidade_mangueiras,teste_hidrostatico_m1,teste_hidrostatico_m2,teste_hidrostatico_m3,teste_hidrostatico_m4",
     "id,codigo,pavimento,local_detalhado",
@@ -189,6 +194,7 @@ async function loadHidranteLookup(
         teste_hidrostatico_m4: row.teste_hidrostatico_m4 ?? null,
         quantidade_chaves_storz: row.quantidade_chaves_storz ?? null,
         quantidade_esguichos: row.quantidade_esguichos ?? null,
+        active: row.active !== false,
       });
     }
     return map;

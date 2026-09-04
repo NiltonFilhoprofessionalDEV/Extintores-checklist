@@ -50,7 +50,7 @@ export type ConferenciaAnswerRow = {
 
 export const STATUS_META: Record<
   ConferenciaExportStatus,
-  { label: string; badge: string; accent: string; tone: "ok" | "bad" | "warn" }
+  { label: string; badge: string; accent: string; tone: "ok" | "bad" | "warn" | "mute" }
 > = {
   conforme: {
     label: "Conforme",
@@ -69,6 +69,12 @@ export const STATUS_META: Record<
     badge: "conf-badge conf-badge--warn",
     accent: "warn",
     tone: "warn",
+  },
+  pendente: {
+    label: "Pendente",
+    badge: "conf-badge conf-badge--mute",
+    accent: "mute",
+    tone: "mute",
   },
 };
 

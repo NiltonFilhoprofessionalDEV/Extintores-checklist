@@ -62,25 +62,28 @@ function ordenarConferencias(
   ordenacao: ConferenciaOrdenacao,
 ): ConferenciaItem[] {
   const sorted = [...list];
+  const timeOf = (value: string) => {
+    const t = new Date(value).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
   if (ordenacao === "codigo_asc") {
     sorted.sort(
-      (a, b) =>
-        compareCodigo(a.codigo, b.codigo) ||
-        new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+      (a, b) => compareCodigo(a.codigo, b.codigo) || timeOf(b.data_conferencia) - timeOf(a.data_conferencia),
     );
     return sorted;
   }
   if (ordenacao === "codigo_desc") {
     sorted.sort(
-      (a, b) =>
-        compareCodigo(b.codigo, a.codigo) ||
-        new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
+      (a, b) => compareCodigo(b.codigo, a.codigo) || timeOf(b.data_conferencia) - timeOf(a.data_conferencia),
     );
     return sorted;
   }
-  sorted.sort(
-    (a, b) => new Date(b.data_conferencia).getTime() - new Date(a.data_conferencia).getTime(),
-  );
+  sorted.sort((a, b) => {
+    const byDate = timeOf(b.data_conferencia) - timeOf(a.data_conferencia);
+    if (byDate !== 0) return byDate;
+    return compareCodigo(a.codigo, b.codigo);
+  });
   return sorted;
 }
 
@@ -96,6 +99,15 @@ function endOfDayIso(dateStr: string): string | null {
   const d = new Date(`${dateStr}T23:59:59.999`);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+function isDateInRange(isoDate: string, startIso: string | null, endIso: string | null): boolean {
+  if (!isoDate) return false;
+  const t = new Date(isoDate).getTime();
+  if (!Number.isFinite(t)) return false;
+  if (startIso && t < new Date(startIso).getTime()) return false;
+  if (endIso && t > new Date(endIso).getTime()) return false;
+  return true;
 }
 
 function montarSufixoExportacaoArquivo(
@@ -175,6 +187,8 @@ export default function AdminConferenciasPage() {
   const [selectedItem, setSelectedItem] = useState<ConferenciaItem | null>(null);
   const [extintorQuestions, setExtintorQuestions] = useState<ChecklistQuestion[]>([]);
   const [hidranteQuestions, setHidranteQuestions] = useState<ChecklistQuestion[]>([]);
+  const [inventarioExt, setInventarioExt] = useState<ExtintorLookupRow[]>([]);
+  const [inventarioHid, setInventarioHid] = useState<HidranteLookupRow[]>([]);
   const extintorLookupRef = useRef<Map<string, ExtintorLookupRow>>(new Map());
   const hidranteLookupRef = useRef<Map<string, HidranteLookupRow>>(new Map());
   const datasEditadasPeloUsuarioRef = useRef(false);
@@ -195,6 +209,12 @@ export default function AdminConferenciasPage() {
 
     extintorLookupRef.current = extintorLookup;
     hidranteLookupRef.current = hidranteLookup;
+    setInventarioExt(
+      [...extintorLookup.values()].filter((row) => row.active !== false && Boolean(row.codigo.trim())),
+    );
+    setInventarioHid(
+      [...hidranteLookup.values()].filter((row) => row.active !== false && Boolean(row.codigo.trim())),
+    );
 
     const mapped: ConferenciaItem[] = [];
 
@@ -309,6 +329,133 @@ export default function AdminConferenciasPage() {
     const startIso = startOfDayIso(dataInicio);
     const endIso = endOfDayIso(dataFim);
 
+    if (filtroStatus === "pendente") {
+      const conferidosExt = new Set<string>();
+      const conferidosHid = new Set<string>();
+      for (const item of rows) {
+        if (!isDateInRange(item.data_conferencia, startIso, endIso)) continue;
+        if (item.tipo === "extintor") {
+          const id = String(item.checklistRaw.extintor_id ?? "");
+          if (id) conferidosExt.add(id);
+        } else {
+          const id = String(item.checklistRaw.hidrante_id ?? "");
+          if (id) conferidosHid.add(id);
+        }
+      }
+
+      const pendentes: ConferenciaItem[] = [];
+
+      for (const ext of inventarioExt) {
+        if (conferidosExt.has(ext.id)) continue;
+        if (
+          showEquipeFilter &&
+          filtroEquipe &&
+          !codigoPertenceEquipe(ext.codigo, filtroEquipe, "extintor")
+        ) {
+          continue;
+        }
+        if (filtroLocal && (ext.pavimento || ext.setor || "").trim() !== filtroLocal) continue;
+
+        const item: ConferenciaItem = {
+          id: `pendente-ext-${ext.id}`,
+          tipo: "extintor",
+          data_conferencia: "",
+          conferente: "",
+          codigo: ext.codigo,
+          setor: ext.setor,
+          local_detalhado: ext.local_detalhado,
+          tipoEquip: ext.tipo,
+          tamanho: ext.tamanho,
+          numInmetro: ext.num_inmetro,
+          capacidadeExtintora: ext.capacidade_extintora,
+          pavimento: ext.pavimento ?? undefined,
+          manutencao_2_nivel: ext.manutencao_2_nivel,
+          manutencao_3_nivel: ext.manutencao_3_nivel,
+          hidrante: null,
+          checklistRaw: { extintor_id: ext.id },
+          exportStatus: "pendente",
+          observacaoExibicao: "Sem inspeção no período selecionado",
+        };
+
+        if (q) {
+          const text = [
+            item.codigo,
+            formatEquipmentIdentifier("extintor", item.codigo),
+            item.setor,
+            item.local_detalhado,
+            item.tipoEquip ?? "",
+            item.pavimento ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!text.includes(q)) continue;
+        }
+
+        pendentes.push(item);
+      }
+
+      for (const hid of inventarioHid) {
+        if (conferidosHid.has(hid.id)) continue;
+        if (
+          showEquipeFilter &&
+          filtroEquipe &&
+          !codigoPertenceEquipe(hid.codigo, filtroEquipe, "hidrante")
+        ) {
+          continue;
+        }
+        if (filtroLocal && (hid.pavimento || "").trim() !== filtroLocal) continue;
+
+        const hidrante: HidranteVencimentoRow = {
+          id: hid.id,
+          codigo: hid.codigo,
+          pavimento: hid.pavimento,
+          local_detalhado: hid.local_detalhado,
+          quantidade_mangueiras: hid.quantidade_mangueiras,
+          teste_hidrostatico_m1: hid.teste_hidrostatico_m1,
+          teste_hidrostatico_m2: hid.teste_hidrostatico_m2,
+          teste_hidrostatico_m3: hid.teste_hidrostatico_m3,
+          teste_hidrostatico_m4: hid.teste_hidrostatico_m4,
+          quantidade_chaves_storz: hid.quantidade_chaves_storz ?? null,
+          quantidade_esguichos: hid.quantidade_esguichos ?? null,
+          coord_x: null,
+          coord_y: null,
+        };
+
+        const item: ConferenciaItem = {
+          id: `pendente-hid-${hid.id}`,
+          tipo: "hidrante",
+          data_conferencia: "",
+          conferente: "",
+          codigo: hid.codigo,
+          setor: "",
+          local_detalhado: hid.local_detalhado,
+          pavimento: hid.pavimento ?? undefined,
+          manutencao_2_nivel: null,
+          manutencao_3_nivel: null,
+          hidrante,
+          checklistRaw: { hidrante_id: hid.id },
+          exportStatus: "pendente",
+          observacaoExibicao: "Sem inspeção no período selecionado",
+        };
+
+        if (q) {
+          const text = [
+            item.codigo,
+            formatEquipmentIdentifier("hidrante", item.codigo),
+            item.local_detalhado,
+            item.pavimento ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!text.includes(q)) continue;
+        }
+
+        pendentes.push(item);
+      }
+
+      return pendentes;
+    }
+
     return rows.filter((item) => {
       if (
         showEquipeFilter &&
@@ -330,10 +477,8 @@ export default function AdminConferenciasPage() {
         return false;
       }
 
-      if (startIso || endIso) {
-        const t = new Date(item.data_conferencia).getTime();
-        if (startIso && t < new Date(startIso).getTime()) return false;
-        if (endIso && t > new Date(endIso).getTime()) return false;
+      if (!isDateInRange(item.data_conferencia, startIso, endIso)) {
+        return false;
       }
 
       if (!q) return true;
@@ -355,6 +500,8 @@ export default function AdminConferenciasPage() {
     });
   }, [
     rows,
+    inventarioExt,
+    inventarioHid,
     busca,
     showEquipeFilter,
     filtroEquipe,
@@ -398,33 +545,48 @@ export default function AdminConferenciasPage() {
 
   const locaisDisponiveis = useMemo(() => {
     const set = new Set<string>();
-    for (const row of rows) {
-      const local = (row.pavimento || row.setor || "").trim();
-      if (local) set.add(local);
+    if (filtroStatus === "pendente") {
+      for (const row of inventarioExt) {
+        const local = (row.pavimento || row.setor || "").trim();
+        if (local) set.add(local);
+      }
+      for (const row of inventarioHid) {
+        const local = (row.pavimento || "").trim();
+        if (local) set.add(local);
+      }
+    } else {
+      for (const row of rows) {
+        const local = (row.pavimento || row.setor || "").trim();
+        if (local) set.add(local);
+      }
     }
     return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [rows]);
+  }, [rows, inventarioExt, inventarioHid, filtroStatus]);
 
   const conferentesDisponiveis = useMemo(() => {
+    if (filtroStatus === "pendente") return [];
     const set = new Set<string>();
     for (const row of rows) {
       const nome = row.conferente.trim();
       if (nome) set.add(nome);
     }
     return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [rows]);
+  }, [rows, filtroStatus]);
 
   const resumo = useMemo(() => {
+    if (filtroStatus === "pendente") {
+      return { realizadas: 0, conforme: 0, alerta: 0, vencido: 0, pendentes: visiveis.length };
+    }
     let conforme = 0;
     let alerta = 0;
     let vencido = 0;
     for (const item of visiveis) {
       if (item.exportStatus === "conforme") conforme += 1;
       else if (item.exportStatus === "alerta") alerta += 1;
-      else vencido += 1;
+      else if (item.exportStatus === "vencido") vencido += 1;
     }
-    return { realizadas: visiveis.length, conforme, alerta, vencido };
-  }, [visiveis]);
+    return { realizadas: visiveis.length, conforme, alerta, vencido, pendentes: 0 };
+  }, [visiveis, filtroStatus]);
 
   const filtrosDraft: ConferenciaFiltrosDraft = {
     equipe: filtroEquipe,
@@ -451,8 +613,8 @@ export default function AdminConferenciasPage() {
     setDataInicio(next.dataInicio);
     setDataFim(next.dataFim);
     setFiltroLocal(next.local);
-    setFiltroConferente(next.conferente);
-    setOrdenacao(next.ordenacao);
+    setFiltroConferente(next.status === "pendente" ? "" : next.conferente);
+    setOrdenacao(next.status === "pendente" && next.ordenacao === "data_desc" ? "codigo_asc" : next.ordenacao);
   }
 
   function limparFiltrosAvancados() {
@@ -646,27 +808,43 @@ export default function AdminConferenciasPage() {
 
       {!loading ? (
         <p className="conf-summary" aria-label="Resumo operacional">
-          <span className="conf-summary__item">
-            <strong>{resumo.realizadas}</strong> realizadas
-          </span>
-          <span className="conf-summary__item is-ok">
-            <strong>{resumo.conforme}</strong> conformes
-          </span>
-          <span className="conf-summary__item is-bad">
-            <strong>{resumo.alerta}</strong> não conformes
-          </span>
-          <span className="conf-summary__item is-warn">
-            <strong>{resumo.vencido}</strong> vencidos
-          </span>
+          {filtroStatus === "pendente" ? (
+            <span className="conf-summary__item">
+              <strong>{resumo.pendentes}</strong> pendentes no período
+            </span>
+          ) : (
+            <>
+              <span className="conf-summary__item">
+                <strong>{resumo.realizadas}</strong> realizadas
+              </span>
+              <span className="conf-summary__item is-ok">
+                <strong>{resumo.conforme}</strong> conformes
+              </span>
+              <span className="conf-summary__item is-bad">
+                <strong>{resumo.alerta}</strong> não conformes
+              </span>
+              <span className="conf-summary__item is-warn">
+                <strong>{resumo.vencido}</strong> vencidos
+              </span>
+            </>
+          )}
         </p>
       ) : null}
 
       <div className="professional-card conf-list">
         <div className="conf-list__head">
           <div>
-            <p className="page-eyebrow">Relatórios de inspeção</p>
+            <p className="page-eyebrow">
+              {filtroStatus === "pendente" ? "Pendências no período" : "Relatórios de inspeção"}
+            </p>
             <h2>
-              {tipoLista === "extintor" ? "Extintores inspecionados" : "Hidrantes inspecionados"}
+              {filtroStatus === "pendente"
+                ? tipoLista === "extintor"
+                  ? "Extintores pendentes"
+                  : "Hidrantes pendentes"
+                : tipoLista === "extintor"
+                  ? "Extintores inspecionados"
+                  : "Hidrantes inspecionados"}
             </h2>
           </div>
           <span className="conf-list__count">
@@ -681,8 +859,16 @@ export default function AdminConferenciasPage() {
           </div>
         ) : visiveis.length === 0 ? (
           <div className="conf-empty conf-empty--box">
-            <p>Nenhuma inspeção encontrada</p>
-            <span>Ajuste a busca ou os filtros para ver outros resultados.</span>
+            <p>
+              {filtroStatus === "pendente"
+                ? "Nenhum equipamento pendente"
+                : "Nenhuma inspeção encontrada"}
+            </p>
+            <span>
+              {filtroStatus === "pendente"
+                ? "Todos os equipamentos possuem inspeção no período selecionado, ou ajuste as datas/filtros."
+                : "Ajuste a busca ou os filtros para ver outros resultados."}
+            </span>
           </div>
         ) : (
           <div className="conf-grid">
