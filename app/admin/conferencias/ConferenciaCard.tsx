@@ -53,7 +53,9 @@ export default function ConferenciaCard({
         <span className={status.badge}>{status.label}</span>
       </div>
 
-      {tiposNc.length > 0 ? (
+      {item.exportStatus === "pendente" ? (
+        <p className="conf-card__nc">Sem inspeção no período selecionado</p>
+      ) : tiposNc.length > 0 ? (
         <p className="conf-card__nc">
           {tiposNc.length === 1 ? "1 não conformidade" : `${tiposNc.length} não conformidades`}
         </p>
@@ -61,11 +63,20 @@ export default function ConferenciaCard({
 
       <div className="conf-card__meta">
         <div className="min-w-0">
-          <p className="conf-card__when">{formatDateTime(item.data_conferencia)}</p>
-          <p className="conf-card__who">
-            {item.conferente || "Não informado"}
-            {teamLabel ? ` · ${teamLabel}` : ""}
-          </p>
+          {item.exportStatus === "pendente" ? (
+            <>
+              <p className="conf-card__when">Aguardando conferência</p>
+              <p className="conf-card__who">{teamLabel || "Equipe não definida"}</p>
+            </>
+          ) : (
+            <>
+              <p className="conf-card__when">{formatDateTime(item.data_conferencia)}</p>
+              <p className="conf-card__who">
+                {item.conferente || "Não informado"}
+                {teamLabel ? ` · ${teamLabel}` : ""}
+              </p>
+            </>
+          )}
         </div>
         <span className="conf-card__chevron" aria-hidden>
           <ChevronRightIcon />

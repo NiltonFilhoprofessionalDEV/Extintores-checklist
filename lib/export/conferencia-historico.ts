@@ -12,7 +12,7 @@ import {
 } from "@/lib/checklist/types";
 import { hidranteTemMangueiraVencida, type HidranteVencimentoRow } from "@/lib/hidrantes/vencimento-mangueiras";
 
-export type ConferenciaExportStatus = "conforme" | "alerta" | "vencido";
+export type ConferenciaExportStatus = "conforme" | "alerta" | "vencido" | "pendente";
 
 export type ConferenciaExportResult = {
   status: ConferenciaExportStatus;
@@ -137,5 +137,6 @@ export function resolveHidranteConferenciaExport(
 export function corLinhaConferenciaExport(status: ConferenciaExportStatus, rowIndex: number): string {
   if (status === "vencido") return "FFFFCDD2";
   if (status === "alerta") return rowIndex % 2 === 0 ? "FFFFF3CD" : "FFFFEDD5";
+  if (status === "pendente") return rowIndex % 2 === 0 ? "FFE2E8F0" : "FFF8FAFC";
   return rowIndex % 2 === 0 ? "FFE2F0D9" : "FFFFFFFF";
 }
